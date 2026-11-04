@@ -4,7 +4,7 @@
 //! change other members see goes through `GuildHub`, which pushes through the party hub
 //! mailboxes (the single broadcast point of the frontend process).
 use super::minimum_character::MinimumError;
-use super::party_hub::PartyHub;
+use super::party_hub::{Notice, PartyHub};
 use crate::domain::guild::{self as rules, open_error, user_type};
 use crate::domain::map_partition::OutgoingPacket;
 use crate::protocol::{
@@ -15,7 +15,7 @@ use crate::protocol::{
     },
 };
 use sqlx::PgPool;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 /// Guild name, RealUserCount, master name, MaxMemberLimit, NewbieRecommend, Level, Exp, Notice.
@@ -54,6 +54,25 @@ pub fn result_packet(code: i32, arg: &str, guild_id: i64) -> Result<OutgoingPack
     }))
 }
 
+/// GuildResultMessage(result, arg) with a null Arg (an operation that failed with a
+/// FailMessage leaves ErrorType null).
+pub fn result_packet_arg(
+    code: i32,
+    arg: Option<&str>,
+    guild_id: i64,
+) -> Result<OutgoingPacket, MinimumError> {
+    packet(&Message::GuildResult(GuildResult {
+        result: code,
+        arg: arg.map(str::to_owned),
+        guild_id,
+    }))
+}
+
+/// SystemMessage(Dialog, "GameUI_Heroes_" + ChangeGuildMaster.ResultCode).
+pub fn change_master_message(code: &str) -> Result<OutgoingPacket, MinimumError> {
+    super::minimum_shop::system_message(4, &format!("GameUI_Heroes_{code}"), &[])
+}
+
 /// The GuildServiceProxy state of a connection.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum State {
@@ -63,48 +82,108 @@ pub enum State {
     OutGuild,
     InGuild {
         guild_sn: i32,
-        rank: i32,
     },
 }
 
-/// Online guild members by guild (OnlineGuildMember of each GuildEntity).
+/// The sync state of a loaded GuildEntity (a guild with online members).
+#[derive(Default)]
+struct Entity {
+    /// OnlineMembers: character name → CID.
+    online: BTreeMap<String, i64>,
+    /// ChangedGuildMember.
+    changed: BTreeSet<String>,
+    /// NotSynchedGuildMember.
+    not_synched: BTreeSet<String>,
+    /// IsGuildInfoChanged.
+    info_changed: bool,
+}
+/// What one Sync starts from (the flags are cleared when it is taken).
+struct Pending {
+    online: BTreeMap<String, i64>,
+    changed: BTreeSet<String>,
+    not_synched: BTreeSet<String>,
+    info_changed: bool,
+}
+
+/// The GuildEntity of each guild with online members: presence and the Sync flags.
 #[derive(Default)]
 pub struct GuildHub {
-    online: Mutex<HashMap<i32, BTreeSet<i64>>>,
+    entities: Mutex<HashMap<i32, Entity>>,
 }
 impl GuildHub {
-    fn lock(&self) -> MutexGuard<'_, HashMap<i32, BTreeSet<i64>>> {
-        self.online.lock().unwrap_or_else(PoisonError::into_inner)
+    fn lock(&self) -> MutexGuard<'_, HashMap<i32, Entity>> {
+        self.entities.lock().unwrap_or_else(PoisonError::into_inner)
     }
-    fn join(&self, guild_sn: i32, cid: i64) {
-        let mut online = self.lock();
-        for members in online.values_mut() {
-            members.remove(&cid);
+    /// GuildEntity.Connect of a known member: OnlineMembers, NotSynched and Changed.
+    fn connect(&self, guild_sn: i32, name: &str, cid: i64) {
+        let mut entities = self.lock();
+        for e in entities.values_mut() {
+            e.online.retain(|_, c| *c != cid);
         }
-        online.entry(guild_sn).or_default().insert(cid);
+        let e = entities.entry(guild_sn).or_default();
+        e.online.insert(name.to_owned(), cid);
+        e.not_synched.insert(name.to_owned());
+        e.changed.insert(name.to_owned());
     }
-    /// The PlayerConn closed: the member leaves its guild's online set.
-    fn part(&self, cid: i64) -> Option<i32> {
-        let mut online = self.lock();
-        let sn = online
-            .iter()
-            .find(|(_, members)| members.contains(&cid))
-            .map(|(sn, _)| *sn)?;
-        if let Some(members) = online.get_mut(&sn) {
-            members.remove(&cid);
-            if members.is_empty() {
-                online.remove(&sn);
-            }
+    /// GuildEntity.Disconnect: the member leaves OnlineMembers and is reported changed for
+    /// the next Sync; an entity without online members closes.
+    fn disconnect(&self, cid: i64) -> Option<i32> {
+        let mut entities = self.lock();
+        let (sn, name) = entities.iter().find_map(|(sn, e)| {
+            e.online
+                .iter()
+                .find(|(_, c)| **c == cid)
+                .map(|(n, _)| (*sn, n.clone()))
+        })?;
+        let close = entities.get_mut(&sn).is_some_and(|e| {
+            e.online.remove(&name);
+            e.changed.insert(name);
+            e.online.is_empty()
+        });
+        if close {
+            entities.remove(&sn);
         }
         Some(sn)
     }
-    pub fn is_online(&self, cid: i64) -> bool {
-        self.lock().values().any(|members| members.contains(&cid))
+    /// ReportGuildMemberChanged.
+    fn report_changed(&self, guild_sn: i32, name: &str) {
+        if let Some(e) = self.lock().get_mut(&guild_sn) {
+            e.changed.insert(name.to_owned());
+        }
     }
-    fn others(&self, guild_sn: i32, cid: i64) -> Vec<i64> {
+    /// ReportGuildInfoChanged.
+    fn report_info_changed(&self, guild_sn: i32) {
+        if let Some(e) = self.lock().get_mut(&guild_sn) {
+            e.info_changed = true;
+        }
+    }
+    pub fn is_online(&self, cid: i64) -> bool {
+        self.lock()
+            .values()
+            .any(|e| e.online.values().any(|c| *c == cid))
+    }
+    /// The online members of a guild (name → CID).
+    fn online(&self, guild_sn: i32) -> BTreeMap<String, i64> {
         self.lock()
             .get(&guild_sn)
-            .map(|members| members.iter().copied().filter(|c| *c != cid).collect())
+            .map(|e| e.online.clone())
+            .unwrap_or_default()
+    }
+    fn take(&self, guild_sn: i32) -> Option<Pending> {
+        let mut entities = self.lock();
+        let e = entities.get_mut(&guild_sn)?;
+        Some(Pending {
+            online: e.online.clone(),
+            changed: std::mem::take(&mut e.changed),
+            not_synched: std::mem::take(&mut e.not_synched),
+            info_changed: std::mem::take(&mut e.info_changed),
+        })
+    }
+    /// The closed guild's entity goes away; its online members.
+    fn close(&self, guild_sn: i32) -> Vec<i64> {
+        self.lock()
+            .remove(&guild_sn)
+            .map(|e| e.online.into_values().collect())
             .unwrap_or_default()
     }
 }
@@ -158,12 +237,12 @@ pub async fn info(pool: &PgPool, guild_sn: i32) -> Result<Option<GuildInfo>, Min
 
 /// GuildAllMemberGetList with each member's level, guild point (GuildCharacterInfo) and
 /// GetLatestConnectedDateByName (the later of LastConnectDate and LastCafeLogin), in CID
-/// order; IsOnline from the online set.
-pub async fn members(
+/// order; IsOnline from the entity's online members. (CID, line) pairs.
+async fn member_rows(
     pool: &PgPool,
-    hub: &GuildHub,
+    online: &BTreeMap<String, i64>,
     guild_sn: i32,
-) -> Result<Vec<GuildMember>, MinimumError> {
+) -> Result<Vec<(i64, GuildMember)>, MinimumError> {
     let rows: Vec<MemberRow> = sqlx::query_as(
         "SELECT u.cid,u.group_user_type,c.name_utf16,c.level,p.point,\
              GREATEST(l.last_connect_date_units300,l.last_cafe_login_units300),\
@@ -178,96 +257,195 @@ pub async fn members(
     .await?;
     rows.into_iter()
         .map(|(cid, t, name, level, point, last, now)| {
-            Ok(GuildMember {
-                character_name: name
-                    .as_deref()
-                    .map(super::minimum_party::decode)
-                    .transpose()?,
-                game_level: level,
-                rank: rules::rank_of(t),
-                point: point.unwrap_or(0),
-                last_login_time: last.map_or(0, |last| rules::days_since(now, last)),
-                is_online: hub.is_online(cid),
-            })
+            let name = name
+                .as_deref()
+                .map(super::minimum_party::decode)
+                .transpose()?;
+            let is_online = name.as_ref().is_some_and(|n| online.contains_key(n));
+            Ok((
+                cid,
+                GuildMember {
+                    character_name: name,
+                    game_level: level,
+                    rank: rules::rank_of(t),
+                    point: point.unwrap_or(0),
+                    last_login_time: last.map_or(0, |last| rules::days_since(now, last)),
+                    is_online,
+                },
+            ))
         })
         .collect()
 }
 
-/// GuildEntity.Connect + Sync for a connecting member, and ConnectSuccess of the FE
-/// Connecting state: GuildInfo, the full member list when the member is regular, then
-/// GuildResult(ConnectSuccess, GuildSN). The other online members get the member's line.
+/// The member lines of a guild (MakeGuildMemberMessage_Full order).
+pub async fn members(
+    pool: &PgPool,
+    hub: &GuildHub,
+    guild_sn: i32,
+) -> Result<Vec<GuildMember>, MinimumError> {
+    let online = hub.online(guild_sn);
+    Ok(member_rows(pool, &online, guild_sn)
+        .await?
+        .into_iter()
+        .map(|(_, m)| m)
+        .collect())
+}
+
+/// GuildMemberInfo.InvalidMember: a name no longer in the guild.
+fn invalid_member(name: &str) -> GuildMember {
+    GuildMember {
+        character_name: Some(name.to_owned()),
+        game_level: 0,
+        rank: wire::rank::UNKNOWN,
+        point: 0,
+        last_login_time: 0,
+        is_online: false,
+    }
+}
+
+/// What a Sync gave the member that caused it.
+#[derive(Debug, Default)]
+pub struct Synced {
+    pub packets: Vec<OutgoingPacket>,
+    /// GuildKicked(LeaveGuildSuccess) for the caller (it is no longer in the guild).
+    pub kicked: bool,
+}
+
+/// GuildEntity.Sync: GuildInfo to every online member when it changed (else to the members
+/// not synced yet), the changed lines to the synced regular members, the full list to each
+/// changed member still in the guild and GuildKicked to each one that left, then the full
+/// list to the regular members not synced yet. The caller's packets come back; the other
+/// members get theirs through the party hub.
+async fn sync(
+    pool: &PgPool,
+    party: &PartyHub,
+    hub: &GuildHub,
+    guild_sn: i32,
+    caller: i64,
+) -> Result<Synced, MinimumError> {
+    let Some(p) = hub.take(guild_sn) else {
+        return Ok(Synced::default());
+    };
+    let rows = member_rows(pool, &p.online, guild_sn).await?;
+    let dict: BTreeMap<String, GuildMember> = rows
+        .iter()
+        .filter_map(|(_, m)| Some((m.character_name.clone()?, m.clone())))
+        .collect();
+    let regular = |name: &str| dict.get(name).is_some_and(|m| rules::is_regular(m.rank));
+    let mut outbox: BTreeMap<i64, Vec<OutgoingPacket>> = BTreeMap::new();
+    let mut kicked = Vec::new();
+    if p.info_changed || !p.not_synched.is_empty() {
+        let mut guild = info(pool, guild_sn).await?;
+        if let Some(g) = guild.as_mut() {
+            // MakeGuildInfoMessage: MemberCount = GetRegularMemberCount().
+            g.member_count = dict.values().filter(|m| rules::is_regular(m.rank)).count() as i32;
+        }
+        let message = packet(&Message::GuildInfo(guild))?;
+        for (name, cid) in &p.online {
+            if p.info_changed || p.not_synched.contains(name) {
+                outbox.entry(*cid).or_default().push(message.clone());
+            }
+        }
+    }
+    let full = packet(&Message::GuildMemberList(MemberList {
+        is_full_update: true,
+        members: Some(
+            dict.values()
+                .filter(|m| m.rank != wire::rank::UNKNOWN && m.rank != wire::rank::IGNORABLE)
+                .cloned()
+                .map(Some)
+                .collect(),
+        ),
+    }))?;
+    if !p.changed.is_empty() {
+        let update = packet(&Message::GuildMemberList(MemberList {
+            is_full_update: false,
+            members: Some(
+                p.changed
+                    .iter()
+                    .map(|n| Some(dict.get(n).cloned().unwrap_or_else(|| invalid_member(n))))
+                    .collect(),
+            ),
+        }))?;
+        for (name, cid) in &p.online {
+            if !p.not_synched.contains(name) && regular(name) {
+                outbox.entry(*cid).or_default().push(update.clone());
+            }
+        }
+        for name in &p.changed {
+            let Some(cid) = p.online.get(name) else {
+                continue;
+            };
+            match dict.get(name) {
+                Some(m) if m.rank != wire::rank::UNKNOWN && m.rank != wire::rank::IGNORABLE => {
+                    outbox.entry(*cid).or_default().push(full.clone());
+                }
+                _ => kicked.push(*cid),
+            }
+        }
+    }
+    for name in &p.not_synched {
+        if let Some(cid) = p.online.get(name)
+            && regular(name)
+        {
+            outbox.entry(*cid).or_default().push(full.clone());
+        }
+    }
+    let mut own = Synced::default();
+    for (cid, packets) in outbox {
+        if cid == caller {
+            own.packets = packets;
+        } else {
+            party.deliver(cid, packets);
+        }
+    }
+    for cid in kicked {
+        // GuildKicked, then OnlineGuildMember.Disconnect.
+        hub.disconnect(cid);
+        if cid == caller {
+            own.kicked = true;
+        } else {
+            party.notify(
+                cid,
+                Notice::GuildKicked {
+                    result: result::LEAVE_GUILD_SUCCESS,
+                },
+            );
+        }
+    }
+    Ok(own)
+}
+
+/// ConnectGuildProcessor: GuildEntity.Connect (with its Sync), then the member's info
+/// again (UpdateGroupMemberInfo) and a second Sync; the FE then enters InGuild with
+/// ConnectSuccess(GuildSN).
 async fn connect_member(
     pool: &PgPool,
     party: &PartyHub,
     hub: &GuildHub,
     cid: i64,
     guild_sn: i32,
-    member_rank: i32,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
-    hub.join(guild_sn, cid);
-    let Some(guild) = info(pool, guild_sn).await? else {
-        hub.part(cid);
+    let name = super::minimum_party::name_of(pool, cid).await?;
+    if info(pool, guild_sn).await?.is_none() {
         return Err(fail());
-    };
-    let list = members(pool, hub, guild_sn).await?;
-    let mut out = vec![packet(&Message::GuildInfo(Some(guild)))?];
-    if rules::is_regular(member_rank) {
-        out.push(packet(&Message::GuildMemberList(MemberList {
-            is_full_update: true,
-            members: Some(list.iter().cloned().map(Some).collect()),
-        }))?);
     }
+    hub.connect(guild_sn, &name, cid);
+    let mut out = sync(pool, party, hub, guild_sn, cid).await?.packets;
+    hub.report_changed(guild_sn, &name);
+    out.extend(sync(pool, party, hub, guild_sn, cid).await?.packets);
     out.push(result_packet(
         result::CONNECT_SUCCESS,
         "",
         i64::from(guild_sn),
     )?);
-    notify_presence(pool, party, hub, guild_sn, cid, &list).await?;
     Ok(out)
 }
 
-/// Sync's partial list: the changed member's line to the other online regular members.
-async fn notify_presence(
-    pool: &PgPool,
-    party: &PartyHub,
-    hub: &GuildHub,
-    guild_sn: i32,
-    cid: i64,
-    list: &[GuildMember],
-) -> Result<(), MinimumError> {
-    let others = hub.others(guild_sn, cid);
-    if others.is_empty() {
-        return Ok(());
-    }
-    let name = super::minimum_party::name_of(pool, cid).await?;
-    let Some(line) = list
-        .iter()
-        .find(|m| m.character_name.as_deref() == Some(name.as_str()))
-    else {
-        return Ok(());
-    };
-    let partial = packet(&Message::GuildMemberList(MemberList {
-        is_full_update: false,
-        members: Some(vec![Some(line.clone())]),
-    }))?;
-    let regular: BTreeSet<i64> = sqlx::query_scalar(
-        "SELECT cid FROM game_guild_user WHERE guild_sn=$1 AND group_user_type IN (5,15,125)",
-    )
-    .bind(guild_sn)
-    .fetch_all(pool)
-    .await?
-    .into_iter()
-    .collect();
-    for other in others.into_iter().filter(|c| regular.contains(c)) {
-        party.deliver(other, vec![partial.clone()]);
-    }
-    Ok(())
-}
-
-/// GuildServiceProxy on InGame entry (and Connecting after OpenGuildSuccess or
-/// ReconnectGuild): QueryGuildID, then Connecting → InGuild for a member, or OutGuild
-/// (ConnectSuccess with GuildID 0 and GuildInfo null). A failed lookup answers ConnectFail
-/// and stays Initial.
+/// GuildServiceProxy on InGame entry (and Initial after GuildKicked, ReconnectGuild,
+/// OpenGuildSuccess or JoinGuildSuccess): QueryGuildID, then Connecting → InGuild for a
+/// member, or OutGuild (ConnectSuccess with GuildID 0 and GuildInfo null). A failed lookup
+/// answers ConnectFail and stays Initial.
 pub async fn enter(
     pool: &PgPool,
     party: &PartyHub,
@@ -276,12 +454,9 @@ pub async fn enter(
 ) -> (State, Vec<OutgoingPacket>) {
     let outcome = async {
         match membership(pool, cid).await? {
-            Some((sn, member_rank)) => Ok((
-                State::InGuild {
-                    guild_sn: sn,
-                    rank: member_rank,
-                },
-                connect_member(pool, party, hub, cid, sn, member_rank).await?,
+            Some((sn, _)) => Ok((
+                State::InGuild { guild_sn: sn },
+                connect_member(pool, party, hub, cid, sn).await?,
             )),
             None => Ok::<_, MinimumError>((
                 State::OutGuild,
@@ -307,17 +482,10 @@ pub async fn enter(
     }
 }
 
-/// The connection closed: OnlineGuildMember leaves and the others see it offline.
-pub async fn leave(pool: &PgPool, party: &PartyHub, hub: &GuildHub, cid: i64) {
-    let Some(sn) = hub.part(cid) else { return };
-    let notified = async {
-        let list = members(pool, hub, sn).await?;
-        notify_presence(pool, party, hub, sn, cid, &list).await
-    }
-    .await;
-    if notified.is_err() {
-        tracing::warn!("guild presence update failed; values omitted");
-    }
+/// The connection closed: GuildEntity.Disconnect (no Sync; the others see the change at
+/// the next one).
+pub fn leave(hub: &GuildHub, cid: i64) {
+    hub.disconnect(cid);
 }
 
 fn now_seconds() -> i64 {
@@ -521,4 +689,502 @@ pub async fn search(
         page: query.page,
         total_page,
     }))
+}
+
+/// The guild's members by name (GuildMemberDict: exact names) with their CID and rank.
+async fn roster(
+    pool: &PgPool,
+    guild_sn: i32,
+) -> Result<BTreeMap<String, (i64, i32)>, MinimumError> {
+    let rows: Vec<(i64, i16, Option<Vec<u8>>)> = sqlx::query_as(
+        "SELECT u.cid,u.group_user_type,c.name_utf16 FROM game_guild_user u \
+         JOIN game_character_info c ON c.id=u.cid WHERE u.guild_sn=$1 LIMIT 1000",
+    )
+    .bind(guild_sn)
+    .fetch_all(pool)
+    .await?;
+    let mut out = BTreeMap::new();
+    for (cid, t, name) in rows {
+        if let Some(name) = name {
+            out.insert(
+                super::minimum_party::decode(&name)?,
+                (cid, rules::rank_of(t)),
+            );
+        }
+    }
+    Ok(out)
+}
+
+/// Regular members (Master, Operator, Member) of a roster.
+fn regular_count(roster: &BTreeMap<String, (i64, i32)>) -> i32 {
+    roster
+        .values()
+        .filter(|(_, r)| rules::is_regular(*r))
+        .count() as i32
+}
+
+/// GetMaxMemberLimit of a guild.
+async fn max_members(pool: &PgPool, guild_sn: i32) -> Result<i32, MinimumError> {
+    let stored: i32 =
+        sqlx::query_scalar("SELECT max_member_limit FROM game_guild WHERE oid_guild=$1")
+            .bind(guild_sn)
+            .fetch_one(pool)
+            .await?;
+    Ok(rules::max_member_limit(stored))
+}
+
+/// UpdateGroupMemberInfo after a change of `name` from rank `before` to `after` (None: no
+/// longer a member): the guild info changes when a regular member leaves or a waiting one
+/// becomes regular; the member is reported changed.
+fn report_member(hub: &GuildHub, guild_sn: i32, name: &str, before: i32, after: Option<i32>) {
+    let info_changed = match after {
+        None => rules::is_regular(before),
+        Some(after) => before == wire::rank::WAIT && rules::is_regular(after),
+    };
+    if info_changed {
+        hub.report_info_changed(guild_sn);
+    }
+    hub.report_changed(guild_sn, name);
+}
+
+/// The SQL that resets a character's guild point (UpdateGuildCharacterInfo(CID, 0)).
+const RESET_POINT: &str = "INSERT INTO game_guild_character_info(cid,point) VALUES($1,0) \
+     ON CONFLICT (cid) DO UPDATE SET point=0";
+
+/// GuildUserSecede: every GuildUser row of the character and RealUserCount − 1 unless it
+/// was waiting; UpdateGuildCharacterInfo(CID, 0). False without a row.
+async fn secede(pool: &PgPool, guild_sn: i32, cid: i64) -> Result<bool, MinimumError> {
+    let mut tx = pool.begin().await?;
+    let removed: Option<i16> =
+        sqlx::query_scalar("DELETE FROM game_guild_user WHERE cid=$1 RETURNING group_user_type")
+            .bind(cid)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let Some(t) = removed else {
+        return Ok(false);
+    };
+    if t != user_type::WAIT {
+        sqlx::query(
+            "UPDATE game_guild_info SET real_user_count=real_user_count-1 WHERE guild_sn=$1",
+        )
+        .bind(guild_sn)
+        .execute(&mut *tx)
+        .await?;
+    }
+    sqlx::query(RESET_POINT).bind(cid).execute(&mut *tx).await?;
+    tx.commit().await?;
+    Ok(true)
+}
+
+/// GuildUserTypeModify: a new codeGroupUserType (not the current one) with RealUserCount
+/// following the Wait boundary.
+async fn modify_type(
+    pool: &PgPool,
+    guild_sn: i32,
+    cid: i64,
+    to: i16,
+) -> Result<bool, MinimumError> {
+    let mut tx = pool.begin().await?;
+    let current: Option<i16> = sqlx::query_scalar(
+        "SELECT group_user_type FROM game_guild_user WHERE cid=$1 AND guild_sn=$2 FOR UPDATE",
+    )
+    .bind(cid)
+    .bind(guild_sn)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let Some(current) = current.filter(|c| *c != to) else {
+        return Ok(false);
+    };
+    sqlx::query("UPDATE game_guild_user SET group_user_type=$2,modified_seconds=$3 WHERE cid=$1")
+        .bind(cid)
+        .bind(to)
+        .bind(now_seconds())
+        .execute(&mut *tx)
+        .await?;
+    let delta = match (current < user_type::WAIT, to < user_type::WAIT) {
+        (true, false) => -1,
+        (false, true) => 1,
+        _ => 0,
+    };
+    if delta != 0 {
+        sqlx::query(
+            "UPDATE game_guild_info SET real_user_count=real_user_count+$2 WHERE guild_sn=$1",
+        )
+        .bind(guild_sn)
+        .bind(delta)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(true)
+}
+
+/// JoinGuildFail and CloseGuildFail strings of the GuildService processors.
+pub mod join_error {
+    pub const NOT_INITIALIZE: &str = "GuildNotInitialize";
+    pub const GUILD_FULL: &str = "GuildFull";
+    /// CloseGuildFail when the guild has other members (waiting ones count).
+    pub const HAS_MEMBER: &str = "HasMember";
+}
+
+/// JoinGuildProcessor (FE OutGuild JoinGuild): the guild must exist and be open (a closed
+/// guild is refused like one that cannot initialize), the character must have no guild
+/// and the regular members must be under the limit; GuildUserJoin adds it waiting (155)
+/// and the entity syncs. Ok(GuildSN) or the JoinGuildFail string.
+pub async fn join(
+    pool: &PgPool,
+    party: &PartyHub,
+    hub: &GuildHub,
+    cid: i64,
+    guild_sn: i32,
+) -> Result<Result<i32, &'static str>, MinimumError> {
+    let open: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM game_guild_info WHERE guild_sn=$1 AND closed_seconds IS NULL)",
+    )
+    .bind(guild_sn)
+    .fetch_one(pool)
+    .await?;
+    if !open {
+        return Ok(Err(join_error::NOT_INITIALIZE));
+    }
+    if membership(pool, cid).await?.is_some() {
+        return Ok(Err(open_error::HAS_GUILD));
+    }
+    let members = roster(pool, guild_sn).await?;
+    if regular_count(&members) >= max_members(pool, guild_sn).await? {
+        return Ok(Err(join_error::GUILD_FULL));
+    }
+    let inserted = sqlx::query(
+        "INSERT INTO game_guild_user(cid,guild_sn,intro,created_seconds,modified_seconds,group_user_type) \
+         VALUES($1,$2,'',$3,$3,$4) ON CONFLICT (cid) DO NOTHING",
+    )
+    .bind(cid)
+    .bind(guild_sn)
+    .bind(now_seconds())
+    .bind(user_type::WAIT)
+    .execute(pool)
+    .await?;
+    if inserted.rows_affected() != 1 {
+        return Ok(Err(open_error::HAS_GUILD));
+    }
+    let name = super::minimum_party::name_of(pool, cid).await?;
+    report_member(
+        hub,
+        guild_sn,
+        &name,
+        wire::rank::UNKNOWN,
+        Some(wire::rank::WAIT),
+    );
+    sync(pool, party, hub, guild_sn, cid).await?;
+    Ok(Ok(guild_sn))
+}
+
+/// LeaveGuildProcessor: GuildUserSecede and the entity sync. None when the character is
+/// still a member (LeaveGuildFail); otherwise the caller's sync, whose `kicked` is the
+/// GuildKicked(LeaveGuildSuccess) of the FE.
+pub async fn leave_guild(
+    pool: &PgPool,
+    party: &PartyHub,
+    hub: &GuildHub,
+    cid: i64,
+    guild_sn: i32,
+) -> Result<Option<Synced>, MinimumError> {
+    let name = super::minimum_party::name_of(pool, cid).await?;
+    let before = membership(pool, cid)
+        .await?
+        .map_or(wire::rank::UNKNOWN, |(_, r)| r);
+    secede(pool, guild_sn, cid).await?;
+    if membership(pool, cid).await?.is_some() {
+        return Ok(None);
+    }
+    report_member(hub, guild_sn, &name, before, None);
+    Ok(Some(sync(pool, party, hub, guild_sn, cid).await?))
+}
+
+/// CloseGuildProcessor: an online caller and exactly one member (waiting ones count),
+/// GuildRemove (dateClosed; the ID stays taken) and SyncCloseGuild (points to 0,
+/// GuildKicked(CloseGuildSuccess) to every online member). Err(arg) is the CloseGuildFail
+/// argument (None for a FailMessage).
+pub async fn close(
+    pool: &PgPool,
+    party: &PartyHub,
+    hub: &GuildHub,
+    cid: i64,
+    guild_sn: i32,
+) -> Result<Result<(), Option<&'static str>>, MinimumError> {
+    if !hub.online(guild_sn).values().any(|c| *c == cid) {
+        return Ok(Err(None));
+    }
+    let members = roster(pool, guild_sn).await?;
+    if members.len() != 1 {
+        return Ok(Err(Some(join_error::HAS_MEMBER)));
+    }
+    let mut tx = pool.begin().await?;
+    let removed: Vec<i64> =
+        sqlx::query_scalar("DELETE FROM game_guild_user WHERE guild_sn=$1 RETURNING cid")
+            .bind(guild_sn)
+            .fetch_all(&mut *tx)
+            .await?;
+    if removed.len() != 1 {
+        return Ok(Err(None));
+    }
+    sqlx::query(
+        "UPDATE game_guild_info SET closed_seconds=$2,modified_seconds=$2 WHERE guild_sn=$1",
+    )
+    .bind(guild_sn)
+    .bind(now_seconds())
+    .execute(&mut *tx)
+    .await?;
+    for (member, _) in members.values() {
+        sqlx::query(RESET_POINT)
+            .bind(member)
+            .execute(&mut *tx)
+            .await?;
+    }
+    tx.commit().await?;
+    for other in hub.close(guild_sn).into_iter().filter(|c| *c != cid) {
+        party.notify(
+            other,
+            Notice::GuildKicked {
+                result: result::CLOSE_GUILD_SUCCESS,
+            },
+        );
+    }
+    Ok(Ok(()))
+}
+
+/// The new rank of one GuildOperationInfo target, None when it fails.
+async fn apply_operation(
+    pool: &PgPool,
+    guild_sn: i32,
+    operator: i32,
+    command: &str,
+    value: i32,
+    member: i64,
+    from: i32,
+) -> Result<Option<Option<i32>>, MinimumError> {
+    let staff = matches!(operator, wire::rank::MASTER | wire::rank::OPERATOR);
+    Ok(match command {
+        // AcceptJoin: HasAcceptJoinPermission (Master or Operator on a waiting member).
+        "Join" if staff && from == wire::rank::WAIT => {
+            if value == 1 {
+                modify_type(pool, guild_sn, member, user_type::MEMBER)
+                    .await?
+                    .then_some(Some(wire::rank::MEMBER))
+            } else {
+                let rejected = sqlx::query(
+                    "DELETE FROM game_guild_user WHERE cid=$1 AND guild_sn=$2 AND group_user_type=$3",
+                )
+                .bind(member)
+                .bind(guild_sn)
+                .bind(user_type::WAIT)
+                .execute(pool)
+                .await?
+                .rows_affected()
+                    == 1;
+                rejected.then_some(None)
+            }
+        }
+        // ChangeRank to Unknown: HasSecedePermission, then GuildUserSecede.
+        "Rank" if value == wire::rank::UNKNOWN => {
+            let allowed = match operator {
+                wire::rank::MASTER => matches!(from, wire::rank::OPERATOR | wire::rank::MEMBER),
+                wire::rank::OPERATOR => from == wire::rank::MEMBER,
+                _ => false,
+            };
+            (allowed && secede(pool, guild_sn, member).await?).then_some(None)
+        }
+        // HasRankChangePermission: Member ↔ Operator by the Master.
+        "Rank"
+            if operator == wire::rank::MASTER
+                && matches!(
+                    (from, value),
+                    (wire::rank::MEMBER, wire::rank::OPERATOR)
+                        | (wire::rank::OPERATOR, wire::rank::MEMBER)
+                ) =>
+        {
+            modify_type(pool, guild_sn, member, rules::user_type_of(value))
+                .await?
+                .then_some(Some(value))
+        }
+        _ => None,
+    })
+}
+
+/// GuildEntity.DoGuildOperation + SyncOperationResult: "Join" (1 accepts, else rejects a
+/// waiting member; Master or Operator), "Rank" (0 removes: Master removes Operators and
+/// Members, Operator removes Members; Member ↔ Operator by the Master) and
+/// "NewbieRecommend" with target " " (Master or Operator). The whole list fails at once
+/// when the accepted members would pass the limit. True when every operation succeeded.
+pub async fn operate(
+    pool: &PgPool,
+    party: &PartyHub,
+    hub: &GuildHub,
+    cid: i64,
+    guild_sn: i32,
+    operations: &[Option<wire::Operation>],
+) -> Result<(bool, Synced), MinimumError> {
+    let members = roster(pool, guild_sn).await?;
+    let Some(operator) = members.values().find(|(c, _)| *c == cid).map(|(_, r)| *r) else {
+        return Ok((false, Synced::default()));
+    };
+    let ops: Vec<&wire::Operation> = operations.iter().flatten().collect();
+    let target = |op: &wire::Operation| op.target.clone().unwrap_or_default();
+    let accepts = ops
+        .iter()
+        .filter(|op| {
+            target(op) != " "
+                && members.contains_key(&target(op))
+                && op.command.as_deref() == Some("Join")
+                && op.value == 1
+        })
+        .count() as i32;
+    if accepts + regular_count(&members) > max_members(pool, guild_sn).await? {
+        return Ok((false, Synced::default()));
+    }
+    let mut all = true;
+    for op in ops {
+        let command = op.command.as_deref().unwrap_or("");
+        let name = target(op);
+        if name == " " {
+            // NewbieGuildRecommend: other commands with the blank target are skipped.
+            if command != "NewbieRecommend" {
+                continue;
+            }
+            let staff = matches!(operator, wire::rank::MASTER | wire::rank::OPERATOR);
+            let done = staff
+                && sqlx::query("UPDATE game_guild SET newbie_recommend=$2 WHERE oid_guild=$1")
+                    .bind(guild_sn)
+                    .bind(op.value != 0)
+                    .execute(pool)
+                    .await?
+                    .rows_affected()
+                    == 1;
+            if done {
+                hub.report_info_changed(guild_sn);
+            } else {
+                all = false;
+            }
+            continue;
+        }
+        let Some(&(member, from)) = members.get(&name) else {
+            all = false;
+            continue;
+        };
+        match apply_operation(pool, guild_sn, operator, command, op.value, member, from).await? {
+            Some(after) => report_member(hub, guild_sn, &name, from, after),
+            None => all = false,
+        }
+    }
+    let synced = sync(pool, party, hub, guild_sn, cid).await?;
+    Ok((all, synced))
+}
+
+/// ChangeGuildMaster.ResultCodeEnum names (SystemMessage "GameUI_Heroes_" + code).
+pub mod change_master {
+    pub const SUCCESS: &str = "ChangeMaster_Success";
+    pub const NOT_MATCH_OLD_MASTER: &str = "ChangeMaster_NotMatchOldMaster";
+    pub const NOT_FOUND_NEW_MASTER: &str = "ChangeMaster_NotFoundNewMaster";
+    pub const LOW_RANK_OLD_MASTER: &str = "ChangeMaster_LowRankOldMaster";
+    pub const EQUAL_NEW_AND_OLD_ID: &str = "ChangeMaster_EqualNewAndOldID";
+    pub const SYSTEM_ERROR: &str = "ChangeMaster_SystemError";
+}
+
+/// ChangeGuildMasterProcessor with the caller's name as the old master: the new master
+/// must be an Operator; GuildGroupChangeMaster makes the old master an Operator (15), the
+/// new one Master (5) and the owner; the info and both members sync. The caller must be
+/// the Master: the source lets any member demote the real owner, which is refused here as
+/// NotMatchOldMaster. The result code and the caller's sync.
+pub async fn change_master(
+    pool: &PgPool,
+    party: &PartyHub,
+    hub: &GuildHub,
+    cid: i64,
+    guild_sn: i32,
+    new_master: Option<&str>,
+) -> Result<(&'static str, Synced), MinimumError> {
+    let members = roster(pool, guild_sn).await?;
+    let Some((old_name, &(_, old_rank))) = members.iter().find(|(_, (c, _))| *c == cid) else {
+        return Ok((change_master::NOT_MATCH_OLD_MASTER, Synced::default()));
+    };
+    if old_rank != wire::rank::MASTER {
+        return Ok((change_master::NOT_MATCH_OLD_MASTER, Synced::default()));
+    }
+    let Some((new_name, &(new_cid, new_rank))) = new_master.and_then(|n| members.get_key_value(n))
+    else {
+        return Ok((change_master::NOT_FOUND_NEW_MASTER, Synced::default()));
+    };
+    if new_cid == cid {
+        return Ok((change_master::EQUAL_NEW_AND_OLD_ID, Synced::default()));
+    }
+    if new_rank != wire::rank::OPERATOR {
+        return Ok((change_master::LOW_RANK_OLD_MASTER, Synced::default()));
+    }
+    let mut tx = pool.begin().await?;
+    let owner: Option<Option<i64>> =
+        sqlx::query_scalar("SELECT owner_cid FROM game_guild_info WHERE guild_sn=$1 FOR UPDATE")
+            .bind(guild_sn)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let Some(Some(owner)) = owner else {
+        return Ok((change_master::SYSTEM_ERROR, Synced::default()));
+    };
+    let set_type = "UPDATE game_guild_user SET group_user_type=$3 WHERE cid=$1 AND guild_sn=$2";
+    let demoted = sqlx::query(set_type)
+        .bind(owner)
+        .bind(guild_sn)
+        .bind(user_type::OPERATOR)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+    let promoted = sqlx::query(set_type)
+        .bind(new_cid)
+        .bind(guild_sn)
+        .bind(user_type::MASTER)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+    if demoted != 1 || promoted != 1 {
+        return Ok((change_master::SYSTEM_ERROR, Synced::default()));
+    }
+    sqlx::query("UPDATE game_guild_info SET owner_cid=$2,modified_seconds=$3 WHERE guild_sn=$1")
+        .bind(guild_sn)
+        .bind(new_cid)
+        .bind(now_seconds())
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    hub.report_info_changed(guild_sn);
+    report_member(
+        hub,
+        guild_sn,
+        old_name,
+        old_rank,
+        Some(wire::rank::OPERATOR),
+    );
+    report_member(hub, guild_sn, new_name, new_rank, Some(wire::rank::MASTER));
+    let synced = sync(pool, party, hub, guild_sn, cid).await?;
+    Ok((change_master::SUCCESS, synced))
+}
+
+/// EditGuildNoticeProcessor: UpdateGuildInfo with the notice (any member; a null text
+/// keeps the stored one, as ISNULL does) and the sync of the changed info. No direct
+/// answer.
+pub async fn edit_notice(
+    pool: &PgPool,
+    party: &PartyHub,
+    hub: &GuildHub,
+    cid: i64,
+    guild_sn: i32,
+    text: Option<&str>,
+) -> Result<Synced, MinimumError> {
+    if let Some(text) = text {
+        sqlx::query("UPDATE game_guild SET notice=$2 WHERE oid_guild=$1")
+            .bind(guild_sn)
+            .bind(rules::truncate_utf16(text, rules::NOTICE_MAX))
+            .execute(pool)
+            .await?;
+    }
+    hub.report_info_changed(guild_sn);
+    sync(pool, party, hub, guild_sn, cid).await
 }

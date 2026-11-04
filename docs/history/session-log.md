@@ -3577,3 +3577,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` G1.
 - Commits: ver "feat: guild creation, connection and search (B5 social G1b)".
 - Pendente / próxima ação: G2 (JoinGuild, GuildOperation Join/Rank, LeaveGuild, CloseGuild, ChangeMaster, GuildNoticeEdit, InviteGuild no-op, GuildKicked/Sync aos membros).
+
+## 2026-11-04 — G2 membros e gestão da guilda (B5 social)
+- Feito: `GuildHub` reescrito no modelo do GuildEntity (OnlineMembers, ChangedGuildMember, NotSynchedGuildMember, IsGuildInfoChanged) e `sync` como o original (GuildInfo, linha parcial, lista completa, GuildKicked + Disconnect); conexão com as duas sincronizações do ConnectGuildProcessor; desconexão sem sincronizar. Operações: `join` (GuildUserJoin em espera), `operate` (Join aceitar/recusar, Rank expulsar e Member↔Operator, NewbieRecommend, limite do lote), `leave_guild` (GuildUserSecede), `close` (GuildRemove + SyncCloseGuild), `change_master` (com a exigência de mestre), `edit_notice`. `party_hub`: avisos `Push` (pacotes sem estado de party, também usado pelo sussurro) e `GuildKicked`. `lab_frontend`: JoinGuild, CloseGuild, LeaveGuild, GuildOperation, InviteGuild (sem resposta), GuildNoticeEdit, ChangeMaster (SystemMessage Dialog) e o GuildKicked de outra conexão. Desvios registrados em `docs/social-systems.md`.
+- Verificação: `cargo test --test guild --test guild_wire --test whisper` 2+1+3 passed; PostgreSQL `guild` 2 passed no test-postgres (removido depois); clippy sem achados no código novo. Logs `.cache/verification/guild/g2-*.log`.
+- Cliente: `docs/client-tests/B5-social.md` G2.
+- Commits: ver "feat: guild membership, ranks and dissolution (B5 social G2)".
+- Pendente / próxima ação: G3 (chat de guilda: JoinGuildChatRoom 88, GuildChat 86, GuildChatMemberInfo 85).

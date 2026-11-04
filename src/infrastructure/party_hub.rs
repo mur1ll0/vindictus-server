@@ -58,6 +58,12 @@ pub enum Notice {
     },
     /// AllUserGoalReward: process the queued items of the goal's reward.
     AllUserGoalReward { goal_id: i32 },
+    /// SendPacket of another service (TalkService whisper, GuildEntity sync): the packets
+    /// only, with no party state behind them.
+    Push(Vec<OutgoingPacket>),
+    /// GuildKicked (FrontendServiceOperations): GuildResultMessage(result), then the
+    /// GuildServiceProxy goes back to Initial.
+    GuildKicked { result: i32 },
 }
 
 /// MicroPlayEntityInfo of players disconnected from a play in progress
@@ -635,7 +641,16 @@ impl PartyHub {
         if !s.seats.contains_key(&cid) {
             return false;
         }
-        s.push(cid, Notice::Packets(packets));
+        s.push(cid, Notice::Push(packets));
+        true
+    }
+    /// A notice to an entered character; false when it has no frontend.
+    pub fn notify(&self, cid: i64, notice: Notice) -> bool {
+        let s = self.lock();
+        if !s.seats.contains_key(&cid) {
+            return false;
+        }
+        s.push(cid, notice);
         true
     }
     /// OpenNewParty → OpenParty + JoinParty of the master in slot 0; its PartyInfo.

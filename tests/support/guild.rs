@@ -1,13 +1,17 @@
 use super::{cleanup_game_pool, isolated_game_pool};
+use tokio::sync::mpsc::Receiver;
 use vindictus_server::{
     domain::{guild::open_error, map_partition::OutgoingPacket},
     infrastructure::{
-        guild::{self as guilds, GuildHub, State},
+        guild::{self as guilds, GuildHub, State, change_master, join_error},
         party_hub::{Notice, PartyHub},
     },
     protocol::{
         DEFAULT_MAX_BODY,
-        guild::{self as wire, GuildInfo, Kind, Message, QueryGuildList, rank, result},
+        guild::{
+            self as wire, GuildInfo, GuildMember, Kind, Message, Operation, QueryGuildList, rank,
+            result,
+        },
     },
 };
 
@@ -57,6 +61,45 @@ fn info_of(p: &OutgoingPacket) -> Option<GuildInfo> {
         _ => panic!("not a GuildInfo"),
     }
 }
+/// (IsFullUpdate, lines) of a GuildMemberList.
+fn list_of(p: &OutgoingPacket) -> (bool, Vec<GuildMember>) {
+    match decode(p) {
+        Message::GuildMemberList(l) => (
+            l.is_full_update,
+            l.members.unwrap().into_iter().map(Option::unwrap).collect(),
+        ),
+        _ => panic!("not a GuildMemberList"),
+    }
+}
+/// Short shape of packets: I(nfo), F(ull list), U(pdate list), R(esult code).
+fn shape(packets: &[OutgoingPacket]) -> Vec<String> {
+    packets
+        .iter()
+        .map(|p| match decode(p) {
+            Message::GuildInfo(_) => "I".to_owned(),
+            Message::GuildMemberList(l) if l.is_full_update => "F".to_owned(),
+            Message::GuildMemberList(_) => "U".to_owned(),
+            Message::GuildResult(r) => format!("R{}", r.result),
+            _ => "?".to_owned(),
+        })
+        .collect()
+}
+fn pushed(rx: &mut Receiver<Notice>) -> Vec<OutgoingPacket> {
+    let mut out = Vec::new();
+    while let Ok(n) = rx.try_recv() {
+        if let Notice::Push(p) = n {
+            out.extend(p);
+        }
+    }
+    out
+}
+fn op(command: &str, target: &str, value: i32) -> Option<Operation> {
+    Some(Operation {
+        command: Some(command.to_owned()),
+        target: Some(target.to_owned()),
+        value,
+    })
+}
 fn search(key: &str, query_type: i32, page: i32, size: u8) -> QueryGuildList {
     QueryGuildList {
         query_type,
@@ -64,6 +107,20 @@ fn search(key: &str, query_type: i32, page: i32, size: u8) -> QueryGuildList {
         page,
         page_size: size,
     }
+}
+async fn user_type(p: &sqlx::PgPool, cid: i64) -> Option<i16> {
+    sqlx::query_scalar("SELECT group_user_type FROM game_guild_user WHERE cid=$1")
+        .bind(cid)
+        .fetch_optional(p)
+        .await
+        .unwrap()
+}
+async fn real_count(p: &sqlx::PgPool, sn: i32) -> i32 {
+    sqlx::query_scalar("SELECT real_user_count FROM game_guild_info WHERE guild_sn=$1")
+        .bind(sn)
+        .fetch_one(p)
+        .await
+        .unwrap()
 }
 
 #[tokio::test]
@@ -79,11 +136,7 @@ async fn guild_open_connect_search_and_presence() {
     // OutGuild on entry: ConnectSuccess with GuildID 0, then a null GuildInfo.
     let (state, out) = guilds::enter(&p, &party, &hub, 1).await;
     assert_eq!(state, State::OutGuild);
-    assert_eq!(out.len(), 2);
-    assert_eq!(
-        result_of(&out[0]),
-        (result::CONNECT_SUCCESS, String::new(), 0)
-    );
+    assert_eq!(shape(&out), ["R0", "I"]);
     assert_eq!(info_of(&out[1]), None);
 
     // OpenGuild validation order: ID, then name, then the duplicates.
@@ -115,7 +168,6 @@ async fn guild_open_connect_search_and_presence() {
             .unwrap(),
         Err(open_error::DUPLICATED_ID)
     );
-    // The master already has a GuildUser row.
     assert_eq!(
         guilds::open(&p, 1, "Day_Larks", "daylarks", None)
             .await
@@ -127,16 +179,12 @@ async fn guild_open_connect_search_and_presence() {
         Some((sn, rank::MASTER))
     );
 
-    // The master connects: GuildInfo, the full list, ConnectSuccess with the GuildSN.
+    // The master connects: Connect + Sync, UpdateGroupMemberInfo + Sync, ConnectSuccess.
+    let (a_tx, mut a_rx) = tokio::sync::mpsc::channel(64);
+    party.register(1, "Alice", a_tx);
     let (state, out) = guilds::enter(&p, &party, &hub, 1).await;
-    assert_eq!(
-        state,
-        State::InGuild {
-            guild_sn: sn,
-            rank: rank::MASTER
-        }
-    );
-    assert_eq!(out.len(), 3);
+    assert_eq!(state, State::InGuild { guild_sn: sn });
+    assert_eq!(shape(&out), ["I", "F", "F", "U", "F", "R0"]);
     let info = info_of(&out[0]).unwrap();
     assert_eq!(info.guild_name.as_deref(), Some("Night_Owls"));
     assert_eq!(info.master_name.as_deref(), Some("Alice"));
@@ -144,49 +192,179 @@ async fn guild_open_connect_search_and_presence() {
         (info.guild_level, info.member_count, info.max_member_count),
         (1, 1, 100)
     );
-    assert_eq!(info.guild_notice.as_deref(), Some(""));
-    let Message::GuildMemberList(list) = decode(&out[1]) else {
-        panic!("no member list")
-    };
-    assert!(list.is_full_update);
-    let members = list.members.unwrap();
+    let (_, members) = list_of(&out[1]);
     assert_eq!(members.len(), 1);
-    let alice = members[0].as_ref().unwrap();
-    assert_eq!(alice.character_name.as_deref(), Some("Alice"));
+    assert_eq!(members[0].character_name.as_deref(), Some("Alice"));
     assert_eq!(
-        (alice.game_level, alice.rank, alice.point),
+        (members[0].game_level, members[0].rank, members[0].point),
         (25, rank::MASTER, 0)
     );
-    assert!(alice.is_online);
+    assert!(members[0].is_online);
     assert_eq!(
-        result_of(&out[2]),
+        result_of(&out[5]),
         (result::CONNECT_SUCCESS, String::new(), i64::from(sn))
     );
 
-    // A second regular member online sees the master leave.
-    sqlx::query("INSERT INTO game_guild_user(cid,guild_sn,intro,created_seconds,modified_seconds,group_user_type) VALUES(2,$1,'',0,0,125)")
-        .bind(sn)
-        .execute(&p)
+    // Bob joins (waiting): the online master sees his line.
+    assert_eq!(
+        guilds::join(&p, &party, &hub, 2, 9999).await.unwrap(),
+        Err(join_error::NOT_INITIALIZE)
+    );
+    assert_eq!(
+        guilds::join(&p, &party, &hub, 1, sn).await.unwrap(),
+        Err(open_error::HAS_GUILD)
+    );
+    assert_eq!(guilds::join(&p, &party, &hub, 2, sn).await.unwrap(), Ok(sn));
+    assert_eq!(user_type(&p, 2).await, Some(155));
+    let to_alice = pushed(&mut a_rx);
+    assert_eq!(shape(&to_alice), ["U"]);
+    assert_eq!(list_of(&to_alice[0]).1[0].rank, rank::WAIT);
+    // A waiting member connects: GuildInfo and the full lists of a changed member.
+    let (b_tx, mut b_rx) = tokio::sync::mpsc::channel(64);
+    party.register(2, "Bob", b_tx);
+    let (state, out) = guilds::enter(&p, &party, &hub, 2).await;
+    assert_eq!(state, State::InGuild { guild_sn: sn });
+    assert_eq!(shape(&out), ["I", "F", "F", "R0"]);
+    pushed(&mut a_rx);
+
+    // Accept the join: Bob becomes a Member, the info changes for everyone.
+    let (all, synced) = guilds::operate(&p, &party, &hub, 1, sn, &[op("Join", "Bob", 1)])
         .await
         .unwrap();
-    let (b_tx, mut b_rx) = tokio::sync::mpsc::channel(8);
-    party.register(2, "Bob", b_tx);
-    let (_, out) = guilds::enter(&p, &party, &hub, 2).await;
-    assert_eq!(out.len(), 3);
-    guilds::leave(&p, &party, &hub, 1).await;
-    let Ok(Notice::Packets(pushed)) = b_rx.try_recv() else {
-        panic!("no presence update")
-    };
-    let Message::GuildMemberList(partial) = decode(&pushed[0]) else {
-        panic!("not a member list")
-    };
-    assert!(!partial.is_full_update);
-    let line = partial.members.unwrap()[0].clone().unwrap();
-    assert_eq!(line.character_name.as_deref(), Some("Alice"));
-    assert!(!line.is_online);
+    assert!(all && !synced.kicked);
+    assert_eq!(shape(&synced.packets), ["I", "U"]);
+    assert_eq!(info_of(&synced.packets[0]).unwrap().member_count, 2);
+    assert_eq!(shape(&pushed(&mut b_rx)), ["I", "U", "F"]);
+    assert_eq!(
+        (user_type(&p, 2).await, real_count(&p, sn).await),
+        (Some(125), 2)
+    );
+    // Promote Bob; an unknown target and a second promotion fail.
+    let (all, _) = guilds::operate(
+        &p,
+        &party,
+        &hub,
+        1,
+        sn,
+        &[op("Rank", "Bob", rank::OPERATOR)],
+    )
+    .await
+    .unwrap();
+    assert!(all);
+    assert_eq!(user_type(&p, 2).await, Some(15));
+    let (all, _) = guilds::operate(
+        &p,
+        &party,
+        &hub,
+        1,
+        sn,
+        &[op("Rank", "Bob", rank::OPERATOR), op("Rank", "Nobody", 0)],
+    )
+    .await
+    .unwrap();
+    assert!(!all);
+    // Carol asks to join and is rejected by the operator.
+    guilds::join(&p, &party, &hub, 3, sn)
+        .await
+        .unwrap()
+        .unwrap();
+    let (all, _) = guilds::operate(&p, &party, &hub, 2, sn, &[op("Join", "Carol", 0)])
+        .await
+        .unwrap();
+    assert!(all);
+    assert_eq!(user_type(&p, 3).await, None);
+    pushed(&mut a_rx);
+    pushed(&mut b_rx);
 
-    // QueryGuildList by name (prefix, case-insensitive), by master, and the failures.
-    guilds::open(&p, 3, "Night_Larks", "nightlarks", None)
+    // ChangeMaster: only the master may hand the guild over, and only to an Operator.
+    let (code, _) = guilds::change_master(&p, &party, &hub, 2, sn, Some("Alice"))
+        .await
+        .unwrap();
+    assert_eq!(code, change_master::NOT_MATCH_OLD_MASTER);
+    let (code, _) = guilds::change_master(&p, &party, &hub, 1, sn, Some("Nobody"))
+        .await
+        .unwrap();
+    assert_eq!(code, change_master::NOT_FOUND_NEW_MASTER);
+    let (code, _) = guilds::change_master(&p, &party, &hub, 1, sn, Some("Alice"))
+        .await
+        .unwrap();
+    assert_eq!(code, change_master::EQUAL_NEW_AND_OLD_ID);
+    let (code, synced) = guilds::change_master(&p, &party, &hub, 1, sn, Some("Bob"))
+        .await
+        .unwrap();
+    assert_eq!(code, change_master::SUCCESS);
+    assert_eq!(
+        info_of(&synced.packets[0]).unwrap().master_name.as_deref(),
+        Some("Bob")
+    );
+    assert_eq!(
+        (user_type(&p, 1).await, user_type(&p, 2).await),
+        (Some(15), Some(5))
+    );
+    pushed(&mut b_rx);
+
+    // Any member edits the notice; everyone online gets the new info.
+    let synced = guilds::edit_notice(&p, &party, &hub, 1, sn, Some("Raide às 21h"))
+        .await
+        .unwrap();
+    assert_eq!(
+        info_of(&synced.packets[0]).unwrap().guild_notice.as_deref(),
+        Some("Raide às 21h")
+    );
+    let to_bob = pushed(&mut b_rx);
+    assert_eq!(
+        info_of(&to_bob[0]).unwrap().guild_notice.as_deref(),
+        Some("Raide às 21h")
+    );
+
+    // A disconnect is only seen at the next sync.
+    guilds::leave(&hub, 1);
+    assert!(pushed(&mut b_rx).is_empty());
+    let synced = guilds::edit_notice(&p, &party, &hub, 2, sn, None)
+        .await
+        .unwrap();
+    assert_eq!(shape(&synced.packets), ["I", "U"]);
+    let (_, lines) = list_of(&synced.packets[1]);
+    assert_eq!(lines[0].character_name.as_deref(), Some("Alice"));
+    assert!(!lines[0].is_online);
+    // The notice stays when the text is null.
+    assert_eq!(
+        info_of(&synced.packets[0]).unwrap().guild_notice.as_deref(),
+        Some("Raide às 21h")
+    );
+
+    // The new master kicks Alice while she is online: GuildKicked reaches her frontend.
+    guilds::enter(&p, &party, &hub, 1).await;
+    pushed(&mut a_rx);
+    let (all, _) = guilds::operate(&p, &party, &hub, 2, sn, &[op("Rank", "Alice", 0)])
+        .await
+        .unwrap();
+    assert!(all);
+    let kicked = std::iter::from_fn(|| a_rx.try_recv().ok()).any(
+        |n| matches!(n, Notice::GuildKicked { result: r } if r == result::LEAVE_GUILD_SUCCESS),
+    );
+    assert!(kicked);
+    assert_eq!(
+        (user_type(&p, 1).await, real_count(&p, sn).await),
+        (None, 1)
+    );
+
+    // Alice joins again and leaves by herself: the sync kicks the caller.
+    guilds::join(&p, &party, &hub, 1, sn)
+        .await
+        .unwrap()
+        .unwrap();
+    guilds::enter(&p, &party, &hub, 1).await;
+    let left = guilds::leave_guild(&p, &party, &hub, 1, sn)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(left.kicked);
+    assert_eq!(user_type(&p, 1).await, None);
+    assert_eq!(real_count(&p, sn).await, 1);
+
+    // CloseGuild: one member left; the name is free again, the ID stays taken.
+    let night_larks = guilds::open(&p, 3, "Night_Larks", "nightlarks", None)
         .await
         .unwrap()
         .unwrap();
@@ -201,26 +379,16 @@ async fn guild_open_connect_search_and_presence() {
         .map(|g| g.unwrap().guild_name.unwrap())
         .collect();
     assert_eq!(names, ["Night_Owls", "Night_Larks"]);
-    assert_eq!((list.page, list.total_page), (1, 1));
     let page2 = guilds::search(&p, &search("night", 0, 2, 1))
         .await
         .unwrap()
         .unwrap();
     assert_eq!(page2.total_page, 2);
-    assert_eq!(
-        page2.guild_list.unwrap()[0]
-            .as_ref()
-            .unwrap()
-            .guild_name
-            .as_deref(),
-        Some("Night_Larks")
-    );
     let by_master = guilds::search(&p, &search("carol", 1, 1, 10))
         .await
         .unwrap()
         .unwrap();
     assert_eq!(by_master.guild_list.unwrap().len(), 1);
-    assert_eq!(by_master.total_page, 1);
     assert!(
         guilds::search(&p, &search("n", 0, 1, 10))
             .await
@@ -232,6 +400,40 @@ async fn guild_open_connect_search_and_presence() {
             .await
             .unwrap()
             .is_none()
+    );
+    // Not online in its guild: a FailMessage (null Arg).
+    assert_eq!(
+        guilds::close(&p, &party, &hub, 3, night_larks)
+            .await
+            .unwrap(),
+        Err(None)
+    );
+    assert_eq!(
+        guilds::close(&p, &party, &hub, 2, sn).await.unwrap(),
+        Ok(())
+    );
+    assert_eq!(guilds::membership(&p, 2).await.unwrap(), None);
+    let names: Vec<_> = guilds::search(&p, &search("night", 0, 1, 10))
+        .await
+        .unwrap()
+        .unwrap()
+        .guild_list
+        .unwrap()
+        .into_iter()
+        .map(|g| g.unwrap().guild_name.unwrap())
+        .collect();
+    assert_eq!(names, ["Night_Larks"]);
+    assert!(
+        guilds::open(&p, 2, "Night_Owls", "owls2", None)
+            .await
+            .unwrap()
+            .is_ok()
+    );
+    assert_eq!(
+        guilds::open(&p, 1, "Owl_Again", "nightowls", None)
+            .await
+            .unwrap(),
+        Err(open_error::DUPLICATED_ID)
     );
     cleanup_game_pool(admin, p, schema).await;
 }

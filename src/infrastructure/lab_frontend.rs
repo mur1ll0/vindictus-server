@@ -657,7 +657,7 @@ impl Connection {
             // The frontend connection closed: RemoveMember("FrontendDisconnected").
             runtime.party.unregister(selected.cid);
             // The PlayerConn closed: OnlineGuildMember leaves its GuildEntity.
-            super::guild::leave(pool, &runtime.party, &runtime.guilds, selected.cid).await;
+            super::guild::leave(&runtime.guilds, selected.cid);
         }
         self.guild = super::guild::State::Initial;
         if let Some(selected) = self.selected.take() {
@@ -2480,10 +2480,48 @@ impl Connection {
         }
         Ok(())
     }
+    /// InGuild.GuildKicked: GuildResultMessage(result), then Initial (QueryGuildID).
+    async fn guild_kicked(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        cid: i64,
+        code: i32,
+    ) -> Result<Vec<crate::domain::map_partition::OutgoingPacket>, RuntimeError> {
+        let mut packets =
+            vec![super::guild::result_packet(code, "", 0).map_err(|_| RuntimeError::Operation)?];
+        let (next, out) = super::guild::enter(pool, &runtime.party, &runtime.guilds, cid).await;
+        self.guild = next;
+        packets.extend(out);
+        Ok(packets)
+    }
+    /// The caller's part of a guild sync, with its GuildKicked(LeaveGuildSuccess).
+    async fn guild_synced(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        cid: i64,
+        synced: super::guild::Synced,
+    ) -> Result<Vec<crate::domain::map_partition::OutgoingPacket>, RuntimeError> {
+        let mut packets = synced.packets;
+        if synced.kicked {
+            packets.extend(
+                self.guild_kicked(
+                    runtime,
+                    pool,
+                    cid,
+                    crate::protocol::guild::result::LEAVE_GUILD_SUCCESS,
+                )
+                .await?,
+            );
+        }
+        Ok(packets)
+    }
     /// GuildServiceProxy messages of the entered character. QueryGuildList works in every
     /// state; the others follow the proxy state (Initial: only ReconnectGuild; OutGuild:
     /// OpenGuild, GuildStoryRequest and the failures of member operations; InGuild: the
-    /// HasGuild refusals). JoinGuild and the member operations are the G2 step.
+    /// JoinGuild and the HasGuild refusals; InGuild: leave, close, operations, notice,
+    /// invite and master change).
     #[allow(clippy::too_many_arguments)]
     async fn guild_message(
         &mut self,
@@ -2633,6 +2671,120 @@ impl Connection {
                 guilds::result_packet(result::GUILD_OPERATION_FAIL, "", 0)
                     .map_err(|_| RuntimeError::Operation)?,
             ),
+            (State::OutGuild, Message::JoinGuild(guild_sn)) => {
+                let joined = guilds::join(pool, &runtime.party, &runtime.guilds, cid, guild_sn)
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?;
+                match joined {
+                    Ok(sn) => {
+                        packets.push(
+                            guilds::result_packet(result::JOIN_GUILD_SUCCESS, "", i64::from(sn))
+                                .map_err(|_| RuntimeError::Operation)?,
+                        );
+                        let (next, out) =
+                            guilds::enter(pool, &runtime.party, &runtime.guilds, cid).await;
+                        self.guild = next;
+                        packets.extend(out);
+                    }
+                    Err(arg) => {
+                        packets.push(
+                            guilds::result_packet(result::JOIN_GUILD_FAIL, arg, 0)
+                                .map_err(|_| RuntimeError::Operation)?,
+                        );
+                        // HasGuild: the proxy goes back to Initial (QueryGuildID again).
+                        if arg == open_error::HAS_GUILD {
+                            let (next, out) =
+                                guilds::enter(pool, &runtime.party, &runtime.guilds, cid).await;
+                            self.guild = next;
+                            packets.extend(out);
+                        }
+                    }
+                }
+            }
+            (State::InGuild { guild_sn }, Message::CloseGuild) => {
+                let closed = guilds::close(pool, &runtime.party, &runtime.guilds, cid, guild_sn)
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?;
+                match closed {
+                    Ok(()) => {
+                        packets = self
+                            .guild_kicked(runtime, pool, cid, result::CLOSE_GUILD_SUCCESS)
+                            .await?;
+                    }
+                    Err(arg) => packets.push(
+                        guilds::result_packet_arg(result::CLOSE_GUILD_FAIL, arg, 0)
+                            .map_err(|_| RuntimeError::Operation)?,
+                    ),
+                }
+            }
+            (State::InGuild { guild_sn }, Message::LeaveGuild) => {
+                let left =
+                    guilds::leave_guild(pool, &runtime.party, &runtime.guilds, cid, guild_sn)
+                        .await
+                        .map_err(|_| RuntimeError::Operation)?;
+                match left {
+                    Some(synced) => packets = self.guild_synced(runtime, pool, cid, synced).await?,
+                    None => packets.push(
+                        guilds::result_packet(result::LEAVE_GUILD_FAIL, "", 0)
+                            .map_err(|_| RuntimeError::Operation)?,
+                    ),
+                }
+            }
+            (State::InGuild { guild_sn }, Message::GuildOperation(operations)) => {
+                let (all, synced) = guilds::operate(
+                    pool,
+                    &runtime.party,
+                    &runtime.guilds,
+                    cid,
+                    guild_sn,
+                    &operations.unwrap_or_default(),
+                )
+                .await
+                .map_err(|_| RuntimeError::Operation)?;
+                let kicked = synced.kicked;
+                packets = self.guild_synced(runtime, pool, cid, synced).await?;
+                if !kicked {
+                    let code = if all {
+                        result::GUILD_OPERATION_SUCCESS
+                    } else {
+                        result::GUILD_OPERATION_FAIL
+                    };
+                    packets.push(
+                        guilds::result_packet(code, "", 0).map_err(|_| RuntimeError::Operation)?,
+                    );
+                }
+            }
+            // InviteGuildProcessor answers OkMessage only.
+            (State::InGuild { .. }, Message::InviteGuild(_)) => {}
+            (State::InGuild { guild_sn }, Message::GuildNoticeEdit(text)) => {
+                let synced = guilds::edit_notice(
+                    pool,
+                    &runtime.party,
+                    &runtime.guilds,
+                    cid,
+                    guild_sn,
+                    text.as_deref(),
+                )
+                .await
+                .map_err(|_| RuntimeError::Operation)?;
+                packets = self.guild_synced(runtime, pool, cid, synced).await?;
+            }
+            (State::InGuild { guild_sn }, Message::ChangeMaster(new_master)) => {
+                let (code, synced) = guilds::change_master(
+                    pool,
+                    &runtime.party,
+                    &runtime.guilds,
+                    cid,
+                    guild_sn,
+                    new_master.as_deref(),
+                )
+                .await
+                .map_err(|_| RuntimeError::Operation)?;
+                packets = self.guild_synced(runtime, pool, cid, synced).await?;
+                packets.push(
+                    guilds::change_master_message(code).map_err(|_| RuntimeError::Operation)?,
+                );
+            }
             (State::InGuild { .. }, Message::OpenGuild(_)) => packets.push(
                 guilds::result_packet(result::OPEN_GUILD_FAIL, open_error::HAS_GUILD, 0)
                     .map_err(|_| RuntimeError::Operation)?,
@@ -3150,6 +3302,22 @@ impl Connection {
                 return self
                     .mail_notice(runtime, pool, stream, sender, mail_id)
                     .await;
+            }
+            super::party_hub::Notice::Push(packets) => packets,
+            super::party_hub::Notice::GuildKicked { result } => {
+                // InGuild.GuildKicked: GuildResultMessage(value), then Initial
+                // (QueryGuildID → OutGuild or a new connection).
+                let mut packets = vec![
+                    super::guild::result_packet(result, "", 0)
+                        .map_err(|_| RuntimeError::Operation)?,
+                ];
+                if let Some(cid) = self.selected.as_ref().map(|s| s.cid) {
+                    let (next, out) =
+                        super::guild::enter(pool, &runtime.party, &runtime.guilds, cid).await;
+                    self.guild = next;
+                    packets.extend(out);
+                }
+                packets
             }
             super::party_hub::Notice::AllUserGoalReward { goal_id } => {
                 return self

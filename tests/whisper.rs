@@ -119,7 +119,7 @@ fn whisper_reaches_an_entered_receiver_and_nothing_returns_to_the_sender() {
     assert_eq!(hub.name(1).as_deref(), Some("Alice"));
     let out = whispers::route(&hub, "Alice", &request("bob", "olá 日本"), Some(2)).unwrap();
     assert!(out.is_empty());
-    let Ok(Notice::Packets(packets)) = b_rx.try_recv() else {
+    let Ok(Notice::Push(packets)) = b_rx.try_recv() else {
         panic!("no whisper for the receiver");
     };
     assert_eq!(packets.len(), 1);

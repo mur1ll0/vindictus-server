@@ -24,7 +24,7 @@ Plano levantado em 03/11/2026 a partir do C# descompilado (`legacy/decompiled`: 
 | SO3 | Chat em grupo (GroupTalk do TalkService): salas, convite, mensagens | SO1; limites (I-S3) |
 | SO4 | Amigos pelo cliente: o que a UI emite em "adicionar amigo" e na aba de amigos; implementar só o lado do servidor que o cliente usar | I-A1, I-A2, D-S1 |
 | G1 | Guilda: criar (`OpenGuild` 338, regras de nome, `GuildResult` 281), `GuildInfo` 278, `GuildMemberList` 336, reconectar no login (`GuildServiceProxy`), BriefGuildInfo no personagem **Feito 04/11** (`protocol::guild`, `domain::guild`, `infrastructure::guild`, migração 0062; história `Guild_create` por GuildStoryRequest e apagada no OpenGuildSuccess; `has_guild` real no diálogo; QueryGuildList por nome e por mestre; presença online pelo `GuildHub`); cliente pendente | I-S1 |
-| G2 | Entrar/aprovar/rejeitar/sair/expulsar/cargos (`JoinGuild` 284, `LeaveGuild` 285, `GuildOperation` 337), trocar mestre (84), dissolver só com 1 membro (277), notícia (280), busca (339 → 279) | G1 |
+| G2 | Entrar/aprovar/rejeitar/sair/expulsar/cargos (`JoinGuild` 284, `LeaveGuild` 285, `GuildOperation` 337), trocar mestre (84), dissolver só com 1 membro (277), notícia (280), busca (339 → 279) **Feito 04/11** (modelo de `Sync` do GuildEntity no `GuildHub`: GuildInfo, linha parcial, lista completa e GuildKicked pelo `party_hub`; a saída de um membro online só aparece na próxima sincronização, como no original); cliente pendente | G1 |
 | G3 | Chat de guilda (85/86/88) e presença dos membros | G1 |
 | G4 | GP (AP × 100/100, teto diário 2000 PvE / 600 PvP, reset 07:00 UTC), nível até 20 (`GuildLevelUpInfo`), cápsula de AP por correio/QueuedItem, `GuildGainGP` 89, `GuildLevelUp` 90 | G2 |
 | G5 | Bônus de nível (`GuildLevelBonusInfo`) nos pontos hoje fixos em zero (missão, mercado, reparo, refino, tintura, fogueira), `FailInGuild` na exclusão, renomear personagem, títulos de rank | G4 |
@@ -38,6 +38,11 @@ Plano levantado em 03/11/2026 a partir do C# descompilado (`legacy/decompiled`: 
 | PV4 | Resultado: selos (`honor_stamp`), `PvpResultInfo` (Win, Lose, MaxSuccessiveWin), `ArenaResultInfo` 647, GP de guilda, ranking `Pvp_<modo>`, penalidade (`PvpPenalty` 648) | PV3, G4, RK1 |
 
 Ordem: SO1 → SO2 → G1–G5 → RK1–RK3 → PV1 → (decisão D-S2) PV2–PV4 → G6, SO3, SO4 conforme as investigações.
+
+## Desvios deliberados (guildas)
+
+- ChangeMaster exige que quem pede seja o mestre: o original passa o próprio nome como mestre antigo sem conferir o cargo, e a procedure rebaixa o dono real; a recusa responde `ChangeMaster_NotMatchOldMaster`.
+- JoinGuild recusa guilda fechada com `GuildNotInitialize`: no original a entidade carrega a guilda fechada (GuildGetInfoBySn não filtra `dateClosed`) e o personagem entraria numa guilda dissolvida.
 
 ## Decisões do operador
 

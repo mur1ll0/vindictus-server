@@ -42,3 +42,16 @@ Pré-condição: A sem guilda, nível 20 ou mais e com pelo menos 300.000 de our
 - [ ] B tenta criar outra guilda com o mesmo nome (com a história e o ouro) → erro de nome duplicado; com outro nome e o mesmo ID → erro de ID duplicado.
 - [ ] A sai para a seleção e volta → a guilda continua na aba Guilda, com A online.
 - [ ] B busca guildas por `Teste` → `Teste_Guilda` aparece na lista; busca com 1 letra → falha de busca; busca pelo nome do mestre (A) → a guilda aparece.
+
+### G2 — Membros, cargos, mestre, notícia, sair e dissolver
+Pré-condição: G1 (A mestre de `Teste_Guilda`); B sem guilda; A e B no jogo ao mesmo tempo; C (terceira personagem, outra conta) para a recusa.
+- [ ] B pede para entrar em `Teste_Guilda` (busca → entrar) → sucesso; para B a guilda aparece como pendente (sem a lista de membros); para A, B aparece como aguardando na lista.
+- [ ] A aprova B → aviso de operação com sucesso; os dois veem 2 membros; B passa a ver a lista completa.
+- [ ] A promove B a operador → B aparece como operador. A tenta promover B de novo → aviso de falha da operação.
+- [ ] C pede para entrar e B (operador) recusa → C some da lista e C fica sem guilda.
+- [ ] B (operador) tenta passar a liderança → aviso `GameUI_Heroes_ChangeMaster_NotMatchOldMaster`. A passa a liderança a B → diálogo `GameUI_Heroes_ChangeMaster_Success`; B vira mestre e A operador para os dois.
+- [ ] A edita a notícia da guilda → os dois veem a notícia nova.
+- [ ] A sai para a seleção → B só vê A offline na próxima mudança da guilda (por exemplo, depois que B editar a notícia).
+- [ ] A volta; B expulsa A → A recebe o aviso de saída da guilda e fica sem guilda; B vê 1 membro.
+- [ ] A pede para entrar de novo e sai por conta própria antes da aprovação → aviso de saída; A sem guilda.
+- [ ] B dissolve a guilda com outro membro aguardando → falha `HasMember`; sem outros membros → sucesso; B sem guilda; a busca não mostra mais a guilda e o nome pode ser usado de novo (o ID não).
