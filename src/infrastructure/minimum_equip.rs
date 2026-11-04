@@ -375,13 +375,14 @@ pub async fn equip(
                 .as_ref()
                 .ok_or_else(fail)?
                 .constraint(&assets.catalog, &target.item_class_utf16)?;
-            // The lab frontend announces CafeType 0; guild membership is not loaded.
+            // The lab frontend announces CafeType 0; GuildInfoLoaded with Character.GuildLevel.
+            let guild_level = super::guild::brief_on(&mut tx, cid).await?.2;
             let character = Character {
                 level,
                 class,
                 cafe_type: 0,
                 cafe: false,
-                guild_level: None,
+                guild_level: Some(guild_level),
                 skills: &skills,
                 equipped: Some(&levels),
             };

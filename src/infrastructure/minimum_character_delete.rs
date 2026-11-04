@@ -145,6 +145,10 @@ async fn delete_inner(
     let Some((cid, status, deleted)) = find(&mut tx, owner, requested, character_sn).await? else {
         return Ok((DeleteResult::FailNoSuchCharacter, 0));
     };
+    // InGameGuild: QueryGuildID, and a member of any rank (Wait too) cannot be deleted.
+    if super::guild::is_member_on(&mut tx, cid).await? {
+        return Ok((DeleteResult::FailInGuild, 0));
+    }
     // AddCharacterJournal(ID, "") runs in its own context before the status is read.
     let journal = logs::character_journal(pool, cid, "")
         .await

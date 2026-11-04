@@ -32,6 +32,10 @@ async fn repairable(
 ) -> Result<Vec<(Slot, i32)>, MinimumError> {
     let npc = assets.npc.as_ref().ok_or_else(fail)?;
     let economy = assets.economy.as_ref().ok_or_else(fail)?;
+    // Item.RepairPrice: Owner's GuildLevelUpBonus["RepairPrice"].
+    let guild_bonus = super::guild::member_bonus_on(tx, assets, cid)
+        .await?
+        .get("RepairPrice");
     let slots = super::minimum_inventory::snapshot_with_equipment(tx, owner, assets, cid, None)
         .await?
         .slots
@@ -94,6 +98,7 @@ async fn repairable(
                     suffix,
                 )
             },
+            guild_bonus,
         );
         out.push((slot, cost));
     }

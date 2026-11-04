@@ -1358,12 +1358,12 @@ async fn minimum_repair_pays_the_source_price_through_message_and_npc() {
         ..Default::default()
     };
     assert_eq!(
-        repair::repair_price(&tables, 50, 200, 0, None, (0, 2, 0, 0)),
+        repair::repair_price(&tables, 50, 200, 0, None, (0, 2, 0, 0), 0),
         0
     );
     // 20000 lost × 1,000,000 × ItemValue 50 × 3e-10 × 100 / 100, truncated.
     assert_eq!(
-        repair::repair_price(&tables, 0, 20000, 1_000_000, None, (0, 2, 0, 0)),
+        repair::repair_price(&tables, 0, 20000, 1_000_000, None, (0, 2, 0, 0), 0),
         299
     );
     // MaxDurabilityRepairPrice: ItemValue 50 x Point 1 x 1,000,000 x 1.5e-5, truncated.

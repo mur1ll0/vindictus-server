@@ -157,6 +157,11 @@ pub(super) async fn exercise(
             }
         ))
     );
+    // InGame entry: WhisperFilterList, then the GuildServiceProxy OutGuild connection
+    // (GuildResult ConnectSuccess and a null GuildInfo).
+    for category in [636, 281, 278] {
+        assert_eq!(read(client, rx).await.category_id, category);
+    }
     let Some(vindictus_server::protocol::inventory::Message::InventoryInfo(snapshot)) =
         vindictus_server::protocol::inventory::decode(
             vindictus_server::protocol::inventory::Kind::InventoryInfo,
@@ -385,6 +390,9 @@ pub(super) async fn exercise(
         assert_eq!(read(client, rx).await.category_id, 468);
         // ItemServiceProxy.Open: UpdateMailList.
         assert_eq!(read(client, rx).await.category_id, 495);
+        for category in [636, 281, 278] {
+            assert_eq!(read(client, rx).await.category_id, category);
+        }
     }
     frontend_send(client, tx, enter()).await;
     let frame = read(client, rx).await;

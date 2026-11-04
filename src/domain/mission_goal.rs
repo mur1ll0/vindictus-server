@@ -451,6 +451,8 @@ pub struct RewardFacts {
     pub christmas: Option<(i32, i32, i32)>,
     /// TargetQuestEvent_Exp/Gold (0 read as 100), _Quest and _Text.
     pub target_event: (i32, i32, String, String),
+    /// GuildLevel and GuildLevelUpBonus BattleExp and BattleAP of the player.
+    pub guild: (i32, i32, i32),
 }
 
 /// The reward lists of one MicroPlayer.
@@ -522,6 +524,15 @@ impl RewardLists {
     /// Reward_SetBonusMultiplyer for the migrated sources. Status effects, cafes, coins,
     /// bless stones, guilds, friends, party and boost events add nothing in the laboratory.
     pub fn add_bonuses(&mut self, f: &RewardFacts) {
+        let (guild_level, guild_exp, guild_ap) = f.guild;
+        if guild_exp > 0 {
+            add_multiplier(
+                &mut self.exp_multiplier,
+                "GuildLevelUpBonus",
+                guild_level,
+                guild_exp,
+            );
+        }
         if let Some((exp, _, _)) = f.christmas {
             add_multiplier(
                 &mut self.battle_exp_multiplier,
@@ -536,6 +547,14 @@ impl RewardLists {
             } else if f.level < f.quest_level.wrapping_add(40) {
                 add_multiplier(&mut self.gold_multiplier, "MaxLevel", 0, 10);
             }
+        }
+        if guild_ap > 0 && f.main_goal_achieved {
+            add_reward(
+                &mut self.additional_ap,
+                "GuildLevelUpBonus",
+                guild_level,
+                guild_ap,
+            );
         }
         if let Some((_, gold, ap)) = f.christmas {
             add_multiplier(&mut self.gold_multiplier, "ChristmasCounterBonus", 0, gold);

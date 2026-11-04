@@ -608,3 +608,40 @@ async fn guild_gp_levels_and_level_up_rewards() {
     assert!(!out.is_empty());
     cleanup_game_pool(admin, p, schema).await;
 }
+
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
+async fn guild_brief_and_membership_for_other_systems() {
+    let (admin, p, schema) = isolated_game_pool().await;
+    character(&p, 1, 10, "Alice", 25).await;
+    character(&p, 2, 20, "Bob", 30).await;
+    character(&p, 3, 30, "Carol", 40).await;
+    let sn = guilds::open(&p, 1, "Night_Owls", "nightowls", None)
+        .await
+        .unwrap()
+        .unwrap();
+    sqlx::query("UPDATE game_guild SET level=13 WHERE oid_guild=$1")
+        .bind(sn)
+        .execute(&p)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO game_guild_user(cid,guild_sn,intro,created_seconds,modified_seconds,group_user_type) VALUES(2,$1,'',0,0,155)")
+        .bind(sn)
+        .execute(&p)
+        .await
+        .unwrap();
+    let mut c = p.acquire().await.unwrap();
+    assert_eq!(
+        guilds::brief_on(&mut c, 1).await.unwrap(),
+        (sn, "Night_Owls".to_owned(), 13)
+    );
+    // A waiting member shows no guild, but still counts as a member.
+    assert_eq!(
+        guilds::brief_on(&mut c, 2).await.unwrap(),
+        (0, String::new(), 0)
+    );
+    assert!(guilds::is_member_on(&mut c, 2).await.unwrap());
+    assert!(!guilds::is_member_on(&mut c, 3).await.unwrap());
+    drop(c);
+    cleanup_game_pool(admin, p, schema).await;
+}

@@ -211,6 +211,7 @@ pub async fn member_info(
     let view =
         super::minimum_selection::view(&mut tx, owner, assets, cid, config, arithmetic, false, 0)
             .await?;
+    let guild = super::guild::member_bonus_on(&mut tx, assets, cid).await?;
     let vocation: Option<i32> =
         sqlx::query_scalar("SELECT vocation_class FROM game_vocations WHERE cid=$1")
             .bind(cid)
@@ -393,10 +394,13 @@ pub async fn member_info(
         destroyed_def: m.destroyed_def,
         is_teacher: false,
         is_assist: false,
-        guild_level_bonus: StrDict(Some(Vec::new())),
+        guild_level_bonus: StrDict(Some(
+            guild.bonus.iter().map(|(k, v)| (k.clone(), *v)).collect(),
+        )),
         is_alive: true,
     };
     Ok(HostMember {
+        guild,
         join,
         is_return,
         is_event_jumping,
@@ -406,6 +410,8 @@ pub async fn member_info(
 /// A host's member info plus the CharacterSummary flags of its party entry.
 pub struct HostMember {
     pub join: JoinMember,
+    /// WhoIs GuildLevel and GuildLevelUpBonus of the member.
+    pub guild: super::guild::MemberBonus,
     pub is_return: bool,
     pub is_event_jumping: bool,
 }
@@ -541,6 +547,8 @@ pub struct Mission {
     pub member_key: i32,
     /// Goal tracking, rewards and the EndGame of the quest.
     pub completion: super::minimum_mission_finish::Completion,
+    /// WhoIs GuildLevel and GuildLevelUpBonus (BattleExp, BattleAP of the rewards).
+    pub guild: super::guild::MemberBonus,
     /// MicroPlayer.PetManager.
     pub pets: super::minimum_pet::BattlePets,
     /// The party authority that broadcasts this party's state to its members.
@@ -1033,6 +1041,7 @@ fn new_mission(
         .settings(&quest, option.difficulty)
         .map_err(|_| fail())?;
     Ok(Mission {
+        guild: super::guild::MemberBonus::default(),
         party_id,
         group: 0,
         quest,
@@ -1117,6 +1126,7 @@ async fn add_player(
         .and_then(|s| s.iter().find(|(k, _)| k == "LUCK"))
         .map_or(0, |(_, v)| *v);
     mission.pets.set_force_current(member.join.pet.clone());
+    mission.guild = member.guild.clone();
     let class: i16 = sqlx::query_scalar("SELECT class FROM game_character_info WHERE id=$1")
         .bind(cid)
         .fetch_one(pool)

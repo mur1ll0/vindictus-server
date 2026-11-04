@@ -115,3 +115,57 @@ fn guild_gp_follows_the_daily_limit_and_levels_up() {
     );
     assert_eq!(rules::prev_reset(10 * day + 6 * 3600, 30), 10 * day);
 }
+
+#[test]
+fn guild_level_bonus_takes_the_last_row_at_or_below_the_level() {
+    let rows: Vec<(i32, String, i32)> = [
+        (1, "BattleExp", 1),
+        (2, "DyePrice", 1),
+        (3, "TradePrice", 1),
+        (4, "RepairPrice", 1),
+        (5, "DyePrice", 2),
+        (6, "EnhancePrice", 1),
+        (7, "BattleExp", 3),
+        (8, "TradePrice", 2),
+        (9, "VocationExp", 5),
+        (10, "CampFire", 1),
+        (11, "RepairPrice", 2),
+        (12, "EnhancePrice", 2),
+        (13, "BattleExp", 5),
+        (14, "DyePrice", 3),
+        (15, "TradePrice", 3),
+        (16, "BattleAP", 1),
+        (17, "VocationExp", 10),
+        (18, "EnhancePrice", 3),
+        (19, "RepairPrice", 3),
+        (20, "AdvancedFeather", 1),
+    ]
+    .into_iter()
+    .map(|(l, k, a)| (l, k.to_owned(), a))
+    .collect();
+    let at13 = rules::level_bonus(&rows, 13);
+    let expected: Vec<(&str, i32)> = vec![
+        ("BattleExp", 5),
+        ("CampFire", 1),
+        ("DyePrice", 2),
+        ("EnhancePrice", 2),
+        ("RepairPrice", 2),
+        ("TradePrice", 2),
+        ("VocationExp", 5),
+    ];
+    assert_eq!(
+        at13.iter()
+            .map(|(k, v)| (k.as_str(), *v))
+            .collect::<Vec<_>>(),
+        expected
+    );
+    assert_eq!(rules::level_bonus(&rows, 1).len(), 1);
+    assert_eq!(
+        rules::level_bonus(&rows, 20).get("AdvancedFeather"),
+        Some(&1)
+    );
+    // Level 0 and the level after the highest row have no bonus.
+    assert!(rules::level_bonus(&rows, 0).is_empty());
+    assert!(rules::level_bonus(&rows, 21).is_empty());
+    assert!(rules::level_bonus(&[], 5).is_empty());
+}

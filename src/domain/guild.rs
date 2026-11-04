@@ -337,3 +337,26 @@ pub fn give_gp(
         level_ups,
     })
 }
+
+/// CharacterContents.GuildLevelUpBonus of a guild level: for each enabled GuildLevelBonusInfo
+/// row in table order, its Arg overwrites the key at every level from the row's Level to the
+/// highest row level (so a level takes the last row at or below it). The level after the
+/// highest has an empty dictionary, as any level outside 1..=highest.
+pub fn level_bonus(
+    rows: &[(i32, String, i32)],
+    guild_level: i32,
+) -> std::collections::BTreeMap<String, i32> {
+    let mut out = std::collections::BTreeMap::new();
+    let Some(highest) = rows.iter().map(|(l, ..)| *l).max() else {
+        return out;
+    };
+    if guild_level < 1 || guild_level > highest {
+        return out;
+    }
+    for (level, key, arg) in rows {
+        if *level <= guild_level {
+            out.insert(key.clone(), *arg);
+        }
+    }
+    out
+}

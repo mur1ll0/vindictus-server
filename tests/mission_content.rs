@@ -1145,6 +1145,7 @@ fn reward_calculation_sums_goals_multipliers_and_penalties() {
         8,
     )];
     let mut facts = RewardFacts {
+        guild: (0, 0, 0),
         quest_id: "quest_a".into(),
         level: 30,
         max_level: 90,

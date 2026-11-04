@@ -517,6 +517,10 @@ pub(super) async fn view(
     .fetch_one(&mut **tx)
     .await?;
     summary.title_count = i32::try_from(acquired).map_err(|_| MinimumError::Conflict)?;
+    // CharacterEntity.MakeSummary: Character.GuildId and GuildName (regular members).
+    let (guild_id, guild_name, _) = super::guild::brief_on(tx, cid).await?;
+    summary.guild_id = guild_id;
+    summary.guild_name = Some(guild_name.as_str());
     // CharacterEntity.CafeType: the HomeCafeBonus type set by HomeCafeBonus.OnLogIn.
     summary.cafe_type = super::minimum_home_cafe::cafe_type(tx, owner.uid, cid).await?;
     // CharacterEntity.MakeSummary: Pets.CurrentPetStatusInfo (the town look shows the pet).

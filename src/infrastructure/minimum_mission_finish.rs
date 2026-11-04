@@ -618,6 +618,11 @@ fn reward_facts(mission: &Mission, ctx: FinishContext<'_>) -> RewardFacts {
         )
     });
     RewardFacts {
+        guild: (
+            mission.guild.level,
+            mission.guild.get("BattleExp"),
+            mission.guild.get("BattleAP"),
+        ),
         quest_id: mission.quest.clone(),
         level: mission.member.level,
         max_level: ctx.integer("MaxLevel"),

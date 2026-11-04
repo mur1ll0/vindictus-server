@@ -70,3 +70,11 @@ Pré-condição: A mestre de uma guilda nível 1, no jogo; B membro regular, no 
 - [ ] A e B recebem pelo correio a cápsula de AP da subida de nível (título `GameUI_Heroes_GuildLevelUpItemMail_Title`); um membro offline recebe ao entrar.
 - [ ] Depois de 2.000 GP no dia, novas missões não somam GP até o reset das 07:00 UTC.
 - [ ] Um membro aguardando aprovação conclui uma missão → a guilda não ganha GP.
+
+### G5 — Guilda nos outros sistemas
+Pré-condição: A membro regular de uma guilda; C membro aguardando aprovação; níveis maiores de guilda pedem o nível ajustado no banco do laboratório (pedir ao Claude: `game_guild.level`). Bônus por nível (EN-EU, o valor da última linha até o nível): EXP de batalha 1/3/5 % (níveis 1/7/13), taxa do mercado −1/2/3 % (3/8/15), reparo −1/2/3 % (4/11/19), refino −1/2/3 % (6/12/18), AP de batalha +1 (16, só com o objetivo principal).
+- [ ] A, no jogo, abre a própria ficha ou é visto por B → o nome da guilda aparece; C (aguardando) aparece sem guilda.
+- [ ] A conclui uma missão com a guilda nível 1 ou mais → a EXP da recompensa traz o bônus de guilda (comparar com a mesma missão sem guilda).
+- [ ] Com a guilda nível 3+, A registra um item no mercado → a taxa cai a porcentagem do nível; nível 4+, reparo mais barato; nível 6+, refino mais barato.
+- [ ] Sem guilda (ou aguardando), A tenta usar o kit de fogueira de guilda (`guild_campfire_kit_lvl1`) → recusado por nível; com guilda nível 10+ → permitido.
+- [ ] A tenta excluir um personagem que está numa guilda (inclusive aguardando) → recusa `FailInGuild`; depois de sair da guilda, a exclusão funciona.

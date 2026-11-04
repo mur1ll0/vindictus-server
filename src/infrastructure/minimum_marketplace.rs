@@ -952,6 +952,10 @@ pub async fn insert_order(
         return order_result(order::PREMIUM_TICKET_DISABLE);
     }
     let result = tokio::time::timeout(TIMEOUT, async {
+        // InsertTradeOrder: GuildLevelUpBonus["TradePrice"] lowers the register fee.
+        let guild_bonus = super::guild::member_bonus(pool, assets, cid)
+            .await?
+            .get("TradePrice");
         let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
         bounds(&mut tx).await?;
         let at = now()?;
@@ -1006,7 +1010,13 @@ pub async fn insert_order(
         let mut changed = Changed::default();
         let destroyed = if m.trade_type == 0 {
             let Some(fee) =
-                market::register_fee(features.register_fee, m.unit_price, m.num, m.duration_min, 0)
+                market::register_fee(
+                    features.register_fee,
+                    m.unit_price,
+                    m.num,
+                    m.duration_min,
+                    guild_bonus,
+                )
             else {
                 return refuse(order::INTERNAL_ERROR);
             };

@@ -1661,3 +1661,102 @@ pub async fn give_ap_gp(
     .await?
     .unwrap_or_default())
 }
+
+/// Character.GuildLevel and Character.GuildLevelUpBonus (BriefGuildInfo): the guild level of
+/// a regular member (0 otherwise) and, with GuildLevel on, the bonus dictionary of that level.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct MemberBonus {
+    pub level: i32,
+    pub bonus: BTreeMap<String, i32>,
+}
+impl MemberBonus {
+    /// GuildLevelUpBonus.TryGetValue(key): 0 when absent.
+    pub fn get(&self, key: &str) -> i32 {
+        self.bonus.get(key).copied().unwrap_or(0)
+    }
+}
+
+/// The guild level and level bonus of a character.
+pub async fn member_bonus(
+    pool: &PgPool,
+    assets: &super::minimum_assets::Assets,
+    cid: i64,
+) -> Result<MemberBonus, MinimumError> {
+    let mut conn = pool.acquire().await?;
+    member_bonus_on(&mut conn, assets, cid).await
+}
+
+/// `member_bonus` on a connection (inside the caller's transaction).
+pub async fn member_bonus_on(
+    conn: &mut sqlx::PgConnection,
+    assets: &super::minimum_assets::Assets,
+    cid: i64,
+) -> Result<MemberBonus, MinimumError> {
+    let row: Option<(i16, i32)> = sqlx::query_as(
+        "SELECT u.group_user_type,d.level FROM game_guild_user u          JOIN game_guild_info g ON g.guild_sn=u.guild_sn          JOIN game_guild d ON d.oid_guild=u.guild_sn WHERE u.cid=$1",
+    )
+    .bind(cid)
+    .fetch_optional(&mut *conn)
+    .await?;
+    let Some((user_type, level)) = row.filter(|(t, _)| rules::is_regular(rules::rank_of(*t)))
+    else {
+        return Ok(MemberBonus::default());
+    };
+    let _ = user_type;
+    let (Some(policy), Some(economy)) = (assets.npc_policy(), assets.economy.as_ref()) else {
+        return Ok(MemberBonus {
+            level,
+            bonus: BTreeMap::new(),
+        });
+    };
+    if !policy.is_enabled(Some("GuildLevel")).map_err(|_| fail())? {
+        return Ok(MemberBonus {
+            level,
+            bonus: BTreeMap::new(),
+        });
+    }
+    let mut rows = Vec::new();
+    for r in economy.guild_level_bonuses() {
+        if policy
+            .is_enabled(r.feature.as_deref())
+            .map_err(|_| fail())?
+        {
+            rows.push((r.level, r.bonus.clone().unwrap_or_default(), r.arg));
+        }
+    }
+    Ok(MemberBonus {
+        level,
+        bonus: rules::level_bonus(&rows, level),
+    })
+}
+
+/// Character.GuildId, GuildName and GuildLevel (BriefGuildInfo): the guild of a regular
+/// member, (0, "", 0) otherwise.
+pub async fn brief_on(
+    conn: &mut sqlx::PgConnection,
+    cid: i64,
+) -> Result<(i32, String, i32), MinimumError> {
+    let row: Option<(i16, i32, String, i32)> = sqlx::query_as(
+        "SELECT u.group_user_type,g.guild_sn,g.guild_name,d.level FROM game_guild_user u \
+         JOIN game_guild_info g ON g.guild_sn=u.guild_sn \
+         JOIN game_guild d ON d.oid_guild=u.guild_sn WHERE u.cid=$1",
+    )
+    .bind(cid)
+    .fetch_optional(&mut *conn)
+    .await?;
+    Ok(row
+        .filter(|(t, ..)| rules::is_regular(rules::rank_of(*t)))
+        .map_or((0, String::new(), 0), |(_, sn, name, level)| {
+            (sn, name, level)
+        }))
+}
+
+/// DeleteCharacterProcessor's QueryGuildID: any GuildUser row (a waiting member too).
+pub async fn is_member_on(conn: &mut sqlx::PgConnection, cid: i64) -> Result<bool, MinimumError> {
+    Ok(
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM game_guild_user WHERE cid=$1)")
+            .bind(cid)
+            .fetch_one(&mut *conn)
+            .await?,
+    )
+}

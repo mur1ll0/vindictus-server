@@ -67,7 +67,7 @@ pub fn max_durability_repair_price(
     )
 }
 
-/// Item.RepairPrice for a character without a guild repair bonus.
+/// Item.RepairPrice with the owner's GuildLevelUpBonus["RepairPrice"].
 pub fn repair_price(
     tables: &RepairTables,
     durability: i32,
@@ -75,6 +75,7 @@ pub fn repair_price(
     price: i32,
     equip_class: Option<&str>,
     levels: (i32, i32, i32, i32),
+    guild_bonus: i32,
 ) -> i32 {
     if maximum.wrapping_sub(durability) <= 0 {
         return 0;
@@ -96,6 +97,6 @@ pub fn repair_price(
         * f64::from(point)
         * 2.999999970665357E-10;
     let rated = to_int(value * f64::from(tables.rate) / 100.0);
-    // GuildLevelUpBonus "RepairPrice" is 0 without a guild: num7 * 100 / 100.
-    rated.wrapping_mul(100) / 100
+    // num7 * (100 - GuildLevelUpBonus["RepairPrice"]) / 100.
+    rated.wrapping_mul(100_i32.wrapping_sub(guild_bonus)) / 100
 }

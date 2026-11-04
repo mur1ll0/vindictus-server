@@ -108,12 +108,13 @@ pub(super) async fn constraint_failure(
             suffix: 0,
         })
         .collect();
+    let guild_level = super::guild::brief_on(tx, cid).await?.2;
     let character = Character {
         level,
         class,
         cafe_type: 0,
         cafe: false,
-        guild_level: None,
+        guild_level: Some(guild_level),
         skills: &skills,
         equipped: Some(&levels),
     };

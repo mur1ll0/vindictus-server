@@ -516,7 +516,10 @@ async fn enhance_with(
     let target = Target {
         level: before.enhance_level,
         max_armor_broken: durability.has_durability() && durability.maximum() == 0,
-        guild_price_bonus: 0,
+        // GuildLevelUpBonus["EnhancePrice"] (EnhanceItemProcessor).
+        guild_price_bonus: super::guild::member_bonus(pool, assets, cid)
+            .await?
+            .get("EnhancePrice"),
     };
     let data = ItemData {
         contents,
