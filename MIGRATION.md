@@ -25,6 +25,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 5. B5 correio implementado em 03/11 (ciclo completo e GiveItem ForceMail): sessão de cliente pelo roteiro `docs/client-tests/B5-correio.md` (duas personagens; Docker reconstruído).
 6. B5 mercado implementado em 03/11: sessão de cliente pelo roteiro `docs/client-tests/B5-marketplace.md` (duas contas; Docker reconstruído). Depois, o próximo sistema restante do B5.
 7. B5 eventos: drops de chefe, BoostEvent, histórias por período, lojas de cupom, metas coletivas, agenda de eventos e descrição no painel feitos em 03/11; sessão de cliente pelo roteiro `docs/client-tests/B5-eventos.md` (EV1–EV11).
+8. B5 social/PvP (`docs/social-systems.md`): começar pelo SO1 (sussurro); operador investiga I-A1–I-A3 e I-P1–I-P3 no original; Claude faz I-S1–I-S5.
 
 ## Aguardando o operador
 
@@ -47,6 +48,7 @@ Testes de cliente adiados do B0: aprender skill nova com ouro (B1.2), empilhar p
 
 Decisões pendentes:
 - Launcher (`docs/future/game-launcher.md` §5): D-L5 assinatura do exe (D-L2, D-L3, D-L4 e D-L6 decididos em 03/11).
+- Social/PvP (`docs/social-systems.md`): D-S1 amigos, D-S2 PvP com `srcds.exe`, D-S3 cálculo do ranking.
 - Customização: poses animadas e rotação dos atores da grade (opcional, comando `cc_create_character_selection_play_sequence` do NA).
 
 ## Blocos do roteiro
@@ -77,9 +79,10 @@ Decisões pendentes:
 ### B5 — o que falta
 
 - [ ] Multijogador (`docs/multiplayer.md`, roteiro `docs/client-tests/B5-multijogador.md`): MP1 party na cidade, MP2 relay, MP3 navio/JoinShip e MP1–MP8 feitos (party, relay, navio, combate/loot por jogador com avisos para todos, saída/migração de host/reentrada inclusive do host, sair com o host, lista e navio de cidade, chat e pedido de professor); sessão de cliente única pendente.
-- [ ] PvP/arena/ranking.
-- [ ] Guildas.
-- [ ] Trade.
+- [ ] Sussurro, bloqueio, chat em grupo e amigos (SO1–SO4, `docs/social-systems.md`); amigos dependem de I-A1/I-A2.
+- [ ] Guildas (G1–G6, `docs/social-systems.md`).
+- [ ] Ranking (RK1–RK3) e PvP/arena (PV1–PV4, `docs/social-systems.md`); modos do EU exigem o `srcds.exe` (D-S2).
+- Trade direto não existe no 1.69 (o `TradeService` é o mercado, já feito).
 - [x] Correio (03/11/2026): listar, ler, enviar, retirar, apagar, devolver, avisos, chegada/expiração e GiveItem ForceMail nas origens migradas (`docs/mail-reference.md`); cliente pendente. Correio de eventos e amizade depende desses sistemas.
 - [ ] Eventos/UserCare: chaves de evento ligáveis no painel (extensão, 03/11; `docs/content-tuning.md`); drops de evento dos chefes (EventDropItemInfo, EV5), recompensas periódicas do BoostEvent (PeriodicEventInfo, EV6), histórias por período (StoryLinePeriodInfo, EV7) e lojas de cupom com limite de compra (CouponShopItemInfo, ShopBuyRestrict, EV8), 03/11; descrição de cada evento no painel (EV9); metas coletivas AllUserGoal com as janelas deslocadas para a publicação da chave (decisão de 03/11), entrega pelo QueuedItem (EV10); agenda de eventos com os 370 modelos EventTemplate, chaves `Chave[valor]` e `droptable mod/reset` (decisão de 03/11, EV11). Sem efeito: `freetoken` e `droptable` de pesca.
 - [x] Pets P1–P6 (30/10/2026; cliente pendente; detalhes em `docs/future/pet-system.md`).

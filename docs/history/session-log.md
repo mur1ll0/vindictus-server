@@ -3507,3 +3507,17 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-eventos.md` EV1 (nova linha do aviso).
 - Commits: (este)
 - Pendente / próxima ação: sessão de cliente EV1–EV11.
+
+## 2026-11-03 — Levantamento de requisitos: amigos, guildas, PvP/ranking (B5)
+- Feito: análise sem código do C# descompilado (FrontendServiceCore, PlayerService, TalkService, GuildService, PvpService, RankService, DSService) e das flags EN-EU do heroes.db3 do 1.69 (CurrentVer 3.09.00). Ligadas: UseTalkService, GroupTalk, RecommendFriend, CharacterMenu_AddFriend, InGameGuild, GuildLevel, GuildStorage, Arena, DeathMatch, GodMatch, Pvp_Launch, CharacterRank, RankTitle. Desligadas: FriendshipSystem, friend_loyalty_system, PvP (modos parciais), GuildWebChat, Rank_GuildPointRank. Constatações: não existe lista de amigos com presença no servidor (provável Nexon Messenger nativo no cliente); guilda inteira por SPs do heroes, sem dependência nativa; DeathMatch/GodMatch/Arena exigem o srcds.exe (DS nativo); o RankResultCharacter era calculado por um job externo; o 1.69 não tem troca direta entre jogadores (Trade = mercado já migrado).
+- Verificação: não aplicável (somente leitura).
+- Cliente: não necessário.
+- Commits: nenhum.
+- Pendente / próxima ação: decisões do operador (amigos/NM, PvP com DS, regras do ranking) e ordem sugerida: sussurro/bloqueio → guildas → ranking → PvP.
+
+## 2026-11-03 — Plano social/PvP registrado (SO, G, RK, PV)
+- Feito: `docs/social-systems.md` com flags EN-EU, constatações, etapas SO1–SO4, G1–G6, RK1–RK3, PV1–PV4, decisões D-S1–D-S3 e investigações (operador: I-A1–I-A3, I-P1–I-P3; Claude: I-S1–I-S5). Cliente tem `nmconew.dll`, `nmcogame.dll`, `NMService.exe`, `scaleform/CommunityDialog.gfx`, `srcds.exe`, `bin/server.dll`, `bin/dedicated.dll`. Argumentos do DS em `DSService/DSEntity.cs:282-288`. MIGRATION.md: linhas do B5 trocadas (Trade direto não existe no 1.69).
+- Verificação: não aplicável (documentação).
+- Cliente: não necessário.
+- Commits: ver o commit "docs: social and PvP plan (B5)".
+- Pendente / próxima ação: SO1 (sussurro); investigações do operador e I-S1–I-S5.
