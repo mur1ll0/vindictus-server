@@ -203,3 +203,5 @@ pub mod all_user_goal;
 pub mod whisper;
 
 pub mod guild;
+
+pub mod rank;

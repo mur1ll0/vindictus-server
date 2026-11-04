@@ -3619,3 +3619,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário (sem efeito visível até o RK2).
 - Commits: ver "feat: ranking basis updates from mission rewards (B5 RK1)".
 - Pendente / próxima ação: decisão D-S3 (cálculo dos resultados do ranking) para o RK2.
+
+## 2026-11-04 — D-S3 e RK2a codecs de ranking (B5)
+- Feito: decisão D-S3 do operador (ranking por período; regra em `docs/social-systems.md`). `protocol::rank` com as 20 mensagens (QueryRandomRank 147, RandomRank 148, QueryRankAlarm 333, RankAlarm 334, QueryRankAll/Character/Favorites/Goal/HeavyFavorites/Rank/Other 382–388, RankCharacter/Favorites/Goal/HeavyFavorites/All/Info/Other 389–395, RequestSetRankFavorite 396, RequestSetRankGoal 397) e os tipos RankResultInfo, RandomRankResultInfo, RankAlarmInfo. Oráculo `scripts/reverse/framework/RankWireOracle.cs` + `scripts/reverse/generate-rank-wire-fixtures.ps1` → `tests/fixtures/framework-rank-wire.json`.
+- Verificação: oráculo 141 casos, x86=x64, zero avisos; `cargo test --test rank_wire` 1 passed (`.cache/verification/guild/rk2a-test.log`).
+- Cliente: não necessário (só codecs).
+- Commits: ver "feat: ranking wire codecs from the C# oracle (B5 RK2a)".
+- Pendente / próxima ação: RK2b (publicação diária às 07:00 UTC dos resultados por período) e RK2c (consultas).
