@@ -623,6 +623,21 @@ impl PartyHub {
             .find(|(_, seat)| seat.name.eq_ignore_ascii_case(name))
             .map(|(cid, _)| *cid)
     }
+    /// UserInfo.CharacterName of an entered character.
+    pub fn name(&self, cid: i64) -> Option<String> {
+        self.lock().seats.get(&cid).map(|seat| seat.name.clone())
+    }
+    /// TalkService.WhisperToGameClient: SendPacket to the frontend of an entered character;
+    /// false when it has none (the character is offline). A full mailbox drops the push
+    /// like any other notice.
+    pub fn deliver(&self, cid: i64, packets: Vec<OutgoingPacket>) -> bool {
+        let s = self.lock();
+        if !s.seats.contains_key(&cid) {
+            return false;
+        }
+        s.push(cid, Notice::Packets(packets));
+        true
+    }
     /// OpenNewParty → OpenParty + JoinParty of the master in slot 0; its PartyInfo.
     pub fn open(&self, party_id: i64, master: Member) -> Result<Vec<OutgoingPacket>, MinimumError> {
         let mut s = self.lock();

@@ -19,7 +19,7 @@ Plano levantado em 03/11/2026 a partir do C# descompilado (`legacy/decompiled`: 
 
 | Etapa | Conteúdo | Depende de |
 |---|---|---|
-| SO1 | Sussurro: `RequestWhisper` (638) → `Whisper` (639) / `WhisperFail` (640, OffLine, NoCharacter, LogicalFail), entrega pelo CID via `party_hub` (ponto único de envio) | — |
+| SO1 | Sussurro: `RequestWhisper` (638) → `Whisper` (639) / `WhisperFail` (640, OffLine, NoCharacter, LogicalFail), entrega pelo CID via `party_hub` (ponto único de envio). **Feito 04/11** (`protocol::whisper`, `minimum_whisper`; fixtures do oráculo, 63 casos); cliente pendente (`docs/client-tests/B5-social.md`) | — |
 | SO2 | Bloqueio: tabela `WhisperBlock` (FromCID, ToCID, BlockLevel), `UpdateWhisperFilter` (637), `WhisperFilterList` (636) no login, recusa de bloquear a si mesmo | SO1 |
 | SO3 | Chat em grupo (GroupTalk do TalkService): salas, convite, mensagens | SO1; limites (I-S3) |
 | SO4 | Amigos pelo cliente: o que a UI emite em "adicionar amigo" e na aba de amigos; implementar só o lado do servidor que o cliente usar | I-A1, I-A2, D-S1 |
@@ -59,11 +59,11 @@ Ordem: SO1 → SO2 → G1–G5 → RK1–RK3 → PV1 → (decisão D-S2) PV2–P
 - O botão e os modos de PvP (I-P2) vêm da flag `UI_PvPButton` e dos `.gfx`, não de observação no cliente.
 - I-P3 deu só as portas; o formato das mensagens DSService ↔ DS continua no I-S4.
 
-### Lacunas para o operador
+### Respostas do operador (04/11/2026)
 
-- I-A4: no Windictus 2023, a lista de amigos funcionava de fato (adicionar, aceitar, ver online)? Ou só sumia o aviso de "Buddy List unavailable"?
-- I-P4: no Windictus 2023, Arena, DeathMatch ou GodMatch chegavam a abrir partida?
-- I-P5 (opcional, decisão do operador): executar o `srcds.exe` numa VM descartável e sem rede, pela receita de `docs/pvp-srcds-investigation.md`, para saber se o DS do 1.69 sobe e conecta ao DSService. Se o NGS impedir, comparar com o build do Windictus.
+- I-A4: no Windictus 2023 a lista de amigos funcionava (o Messenger deles ia além do login do `NMServer.exe` Go do pacote).
+- I-P4: provável que a Arena abrisse partida (havia quem farmasse PvP), sem certeza.
+- I-P5: recusado. Nenhum binário legado será executado; o DS só avança por engenharia reversa estática primeiro.
 
 ### Do lado do Claude (sem o operador)
 

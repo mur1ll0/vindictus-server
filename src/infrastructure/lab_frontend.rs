@@ -2471,6 +2471,44 @@ impl Connection {
         }
         Ok(())
     }
+    /// GameClient RequestWhisperMessage: the TalkService whisper once InGame (TalkConn),
+    /// Whisper_Error before. UpdateWhisperFilterMessage is the SO2 step (logged here).
+    #[allow(clippy::too_many_arguments)]
+    async fn whisper(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+        category: i32,
+        body: &[u8],
+        message: Option<crate::protocol::whisper::Message>,
+    ) -> Result<(), RuntimeError> {
+        use super::minimum_whisper as whispers;
+        use crate::protocol::whisper::Message;
+        let Some(Message::Request(request)) = message else {
+            self.log_unhandled(category, body);
+            return Ok(());
+        };
+        let in_game = self.selected.is_some()
+            && self
+                .password
+                .as_ref()
+                .is_some_and(|p| p.selection_allowed(&self.frontend));
+        let packets = match self.selected.as_ref().filter(|_| in_game) {
+            Some(selected) => whispers::whisper(pool, &runtime.party, selected.cid, &request).await,
+            None => whispers::fail(request.receiver.as_deref(), whispers::ERROR).map(|p| vec![p]),
+        }
+        .map_err(|_| RuntimeError::Operation)?;
+        for packet in &packets {
+            send(stream, sender, packet.category, &packet.body).await?;
+        }
+        tracing::info!(
+            failed = !packets.is_empty(),
+            "whisper processed; values omitted"
+        );
+        Ok(())
+    }
     /// ItemServiceProxy trade messages (InGame) -> the item service TradeSystem processors.
     /// UseSecondPassword passes (enEU, no in-game lock in the laboratory); the trading
     /// punishment check of the source is not migrated.
@@ -4469,6 +4507,19 @@ impl Connection {
                     .ok_or(RuntimeError::Message)?;
                 return self
                     .mail(runtime, pool, stream, sender, category, body, message)
+                    .await;
+            }
+        }
+        {
+            use crate::protocol::whisper::{self as wire, Kind};
+            for kind in Kind::INGRESS {
+                if !matches(category, body, kind.category(), kind.type_id()) {
+                    continue;
+                }
+                let message = wire::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
+                    .map_err(|_| RuntimeError::Message)?;
+                return self
+                    .whisper(runtime, pool, stream, sender, category, body, message)
                     .await;
             }
         }

@@ -3549,3 +3549,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário.
 - Commits: ver "docs: social investigations and Nexon replacement (B5)".
 - Pendente / próxima ação: SO1 (sussurro); I-S1–I-S5; decisões D-S1/D-S2.
+
+## 2026-11-04 — SO1 sussurro (B5 social)
+- Feito: respostas do operador I-A4 (amigos funcionavam no Windictus), I-P4 (arena provável) e I-P5 (execução do DS recusada) em `docs/social-systems.md`. SO1: `protocol::whisper` (WhisperFilterList 636, UpdateWhisperFilter 637, RequestWhisper 638, Whisper 639, WhisperFail 640), `infrastructure::minimum_whisper` (TalkService.WhisperToAll: GetCIDByName pela mesma consulta do QueryCIDByName, entrega pelo `party_hub::deliver`, falhas Invalid_Character_Name, Not_Online, Logical_Error e Whisper_Error antes do InGame), `PartyHub::name`/`deliver`, despacho no `lab_frontend`. Oráculo `scripts/reverse/framework/WhisperWireOracle.cs` + `scripts/reverse/generate-whisper-wire-fixtures.ps1` → `tests/fixtures/framework-whisper-wire.json`. Roteiro novo `docs/client-tests/B5-social.md` (SO1).
+- Verificação: oráculo 63 casos por arquitetura, x86=x64, zero avisos; `cargo test --test whisper` 3 passed (`.cache/verification/so/so1-test.log`).
+- Cliente: `docs/client-tests/B5-social.md` SO1 (duas contas, dois clientes).
+- Commits: ver "feat: whisper through the party hub (B5 social SO1)".
+- Pendente / próxima ação: SO2 (bloqueio: `WhisperBlock`, UpdateWhisperFilter, WhisperFilterList no login).
