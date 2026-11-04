@@ -3626,3 +3626,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário (só codecs).
 - Commits: ver "feat: ranking wire codecs from the C# oracle (B5 RK2a)".
 - Pendente / próxima ação: RK2b (publicação diária às 07:00 UTC dos resultados por período) e RK2c (consultas).
+
+## 2026-11-04 — RK2b publicação do ranking por período (B5)
+- Feito: migração `0065_rank_results` (`game_rank_result` por PeriodType, `game_rank_count_snapshot`, `game_rank_publication`, `game_rank_favorite`, `game_rank_heavy_favorite`). `domain::rank`: `daily_boundary` (07:00 UTC), `civil_from_days`, `period_starts` (dia que terminou, semana desde o sábado 07:00 e mês desde o dia 1 07:00, estritamente antes da fronteira), `rank_scores` (ROW_NUMBER/RANK pelo SortType). `infrastructure::rank::events` e `publish` (instantâneo das contagens na fronteira, Time = melhor na janela de RankBasis ∪ History, Count = ganho desde o instantâneo do início, n4Rank_Prev da publicação anterior, HeavyFavorites por número de favoritos). Tarefa de fundo `rank_publication` no `lab_frontend` (checa a cada minuto).
+- Verificação: `cargo test --test rank` 3 passed; PostgreSQL `rank_` 2 passed no test-postgres; clippy sem achados novos. Logs `.cache/verification/guild/rk2b-*.log`.
+- Cliente: não necessário (consultas no RK2c).
+- Commits: ver "feat: ranking publication by period (B5 RK2b)".
+- Pendente / próxima ação: RK2c (QueryRank* 147/333/382–388, favoritos 396; respostas 148/334/389–395).

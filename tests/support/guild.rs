@@ -701,3 +701,76 @@ async fn rank_basis_update_follows_the_procedure() {
     assert_eq!(history, [(8000, now + 9)]);
     cleanup_game_pool(admin, p, schema).await;
 }
+
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
+async fn rank_publication_by_period() {
+    use vindictus_server::domain::rank::ScoreType;
+    use vindictus_server::infrastructure::rank;
+    let (admin, p, schema) = isolated_game_pool().await;
+    character(&p, 1, 10, "Alice", 25).await;
+    character(&p, 2, 20, "Bob", 30).await;
+    let wed = 1_793_786_400; // 2026-11-04 10:00 UTC
+    let day = 86_400;
+    let events = [
+        (50001, ScoreType::Count, false),
+        (20001, ScoreType::Time, true),
+    ];
+    // Yesterday: Alice 3 battles, Bob 1; times 9000 (Alice) and 8000 (Bob).
+    let y = wed - day;
+    for _ in 0..3 {
+        rank::basis_update(&p, 1, 50001, ScoreType::Count, false, 1, 0, y)
+            .await
+            .unwrap();
+    }
+    rank::basis_update(&p, 2, 50001, ScoreType::Count, false, 1, 0, y)
+        .await
+        .unwrap();
+    rank::basis_update(&p, 1, 20001, ScoreType::Time, true, 9000, 0, y)
+        .await
+        .unwrap();
+    rank::basis_update(&p, 2, 20001, ScoreType::Time, true, 8000, 0, y)
+        .await
+        .unwrap();
+    assert!(rank::publish(&p, &events, wed).await.unwrap());
+    assert!(!rank::publish(&p, &events, wed + 60).await.unwrap());
+    let rows: Vec<(i16, i32, i64, i64, i32, i32)> = sqlx::query_as(
+        "SELECT period_type,event_id,cid,score,n4_rank,n4_rank_prev FROM game_rank_result \
+         WHERE period_type=1 ORDER BY event_id,n4_order",
+    )
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert_eq!(
+        rows,
+        [
+            (1, 20001, 2, 8000, 1, 0),
+            (1, 20001, 1, 9000, 2, 0),
+            (1, 50001, 1, 3, 1, 0),
+            (1, 50001, 2, 1, 2, 0),
+        ]
+    );
+    // The next day: Bob 5 more battles; the daily count is the gain since the snapshot.
+    for _ in 0..5 {
+        rank::basis_update(&p, 2, 50001, ScoreType::Count, false, 1, 0, wed + 3600)
+            .await
+            .unwrap();
+    }
+    assert!(rank::publish(&p, &events, wed + day).await.unwrap());
+    let daily: Vec<(i64, i64, i32, i32)> = sqlx::query_as(
+        "SELECT cid,score,n4_rank,n4_rank_prev FROM game_rank_result WHERE period_type=1 AND event_id=50001",
+    )
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert_eq!(daily, [(2, 5, 1, 2)]);
+    // The week to date keeps both (no snapshot at the week start: cumulative counts).
+    let weekly: Vec<(i64, i64)> = sqlx::query_as(
+        "SELECT cid,score FROM game_rank_result WHERE period_type=2 AND event_id=50001 ORDER BY n4_order",
+    )
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert_eq!(weekly, [(2, 6), (1, 3)]);
+    cleanup_game_pool(admin, p, schema).await;
+}

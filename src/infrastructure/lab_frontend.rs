@@ -7332,6 +7332,42 @@ async fn auto_listing(runtime: Arc<Runtime>, pool: PgPool, mut stop: watch::Rece
     }
 }
 /// The panel's event schedule: a ProcessEvent pass at start and at each minute boundary.
+/// The ranking publication (decision D-S3): every minute, publish when a 07:00 UTC boundary
+/// passed since the last publication (also right after the start).
+async fn rank_publication(runtime: Arc<Runtime>, pool: PgPool, mut stop: watch::Receiver<bool>) {
+    let mut wait = Duration::from_secs(10);
+    loop {
+        tokio::select! {
+            _ = stop.changed() => return,
+            _ = tokio::time::sleep(wait) => {}
+        }
+        if *stop.borrow() {
+            return;
+        }
+        wait = Duration::from_secs(60);
+        let Some(minimum) = runtime.minimum.as_ref() else {
+            continue;
+        };
+        let events = match super::rank::events(&minimum.assets.current()) {
+            Ok(events) => events,
+            Err(_) => {
+                tracing::warn!("ranking events unreadable; values omitted");
+                continue;
+            }
+        };
+        if events.is_empty() {
+            continue;
+        }
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs() as i64);
+        match super::rank::publish(&pool, &events, now).await {
+            Ok(true) => tracing::info!(events = events.len(), "ranking published"),
+            Ok(false) => {}
+            Err(_) => tracing::warn!("ranking publication failed; values omitted"),
+        }
+    }
+}
 async fn event_schedule(runtime: Arc<Runtime>, pool: PgPool, mut stop: watch::Receiver<bool>) {
     let mut wait = Duration::from_secs(5);
     loop {
@@ -7390,6 +7426,7 @@ pub async fn run(
     let mut tasks = JoinSet::new();
     let auto_listing = tokio::spawn(auto_listing(runtime.clone(), pool.clone(), sig.clone()));
     let schedule = tokio::spawn(event_schedule(runtime.clone(), pool.clone(), sig.clone()));
+    let ranking = tokio::spawn(rank_publication(runtime.clone(), pool.clone(), sig.clone()));
     tokio::pin!(shutdown);
     loop {
         tokio::select! {
@@ -7403,6 +7440,7 @@ pub async fn run(
     let _ = stop.send(true);
     let _ = auto_listing.await;
     let _ = schedule.await;
+    let _ = ranking.await;
     let drained = tokio::time::timeout(Duration::from_secs(10), async {
         while tasks.join_next().await.is_some() {}
     })
