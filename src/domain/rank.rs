@@ -180,3 +180,108 @@ pub fn rank_scores(mut scores: Vec<(i64, i64)>, ascending: bool) -> Vec<Ranked> 
     }
     out
 }
+
+/// UpdateRankTitleType: which of the given rank titles' slots UpdateRankTitle pushes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TitleUpdate {
+    Character,
+    Guild,
+    Both,
+}
+
+/// One HDV_GetRank row the RankTitleManager keeps (weekly, n4Rank and n4Order within
+/// RankTitleLimit): the event, n4Rank and the ranked entity (a CID, or a GID for a guild
+/// ranking).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HighRank {
+    pub event_id: i32,
+    pub rank: i32,
+    pub entity: i64,
+}
+
+/// GuildInfoManager.UpdateRankTitles' list: the TitleID of each high rank with a RankTitle
+/// row (EventID, Rank) held by the character (`cid`) or, for a guild ranking, by its guild.
+pub fn rank_titles(
+    high: &[HighRank],
+    titles: &[(i32, i32, i32)],
+    is_guild: impl Fn(i32) -> bool,
+    cid: i64,
+    guild: Option<i64>,
+) -> Vec<i32> {
+    let mut list = Vec::new();
+    for h in high {
+        let Some(&(_, _, title)) = titles
+            .iter()
+            .find(|(e, r, _)| *e == h.event_id && *r == h.rank)
+        else {
+            continue;
+        };
+        let holder = if is_guild(h.event_id) {
+            guild == Some(h.entity)
+        } else {
+            h.entity == cid
+        };
+        if holder {
+            list.push(title);
+        }
+    }
+    list
+}
+
+/// The outcome of TitleManager.UpdateRankTitle.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RankTitleChange {
+    /// RankTitles after the update.
+    pub held: Vec<i32>,
+    /// Titles GiveRankTitle gave (each logs GiveRankTitle; GiveTitle when not owned).
+    pub given: Vec<i32>,
+    /// Acquired slots pushed (the given titles the update type selects).
+    pub acquired_slots: Vec<i32>,
+    /// Known slots pushed for the previously held titles not in the new list.
+    pub removed_slots: Vec<i32>,
+    /// SelectedTitle is a rank title the character no longer holds: it becomes 0.
+    pub unselect: bool,
+}
+
+/// TitleManager.UpdateRankTitle(rankTitles, type): RankTitles is cleared and each listed
+/// title given again (a repeated one, or one whose TitleInfo is unknown or disabled — `valid`
+/// false — is not); the selected rank title no longer held is cleared.
+pub fn update_rank_titles(
+    previous: &[i32],
+    list: &[i32],
+    valid: impl Fn(i32) -> bool,
+    is_guild_title: impl Fn(i32) -> bool,
+    is_rank_title: impl Fn(i32) -> bool,
+    kind: TitleUpdate,
+    selected: i32,
+) -> RankTitleChange {
+    let mut change = RankTitleChange::default();
+    let mut remaining: Vec<i32> = previous.to_vec();
+    for &title in list {
+        if !change.held.contains(&title) && valid(title) {
+            change.held.push(title);
+            change.given.push(title);
+            let pushed = match kind {
+                TitleUpdate::Character => !is_guild_title(title),
+                TitleUpdate::Guild => is_guild_title(title),
+                TitleUpdate::Both => true,
+            };
+            if pushed {
+                change.acquired_slots.push(title);
+            }
+        }
+        if let Some(i) = remaining.iter().position(|t| *t == title) {
+            remaining.remove(i);
+        }
+    }
+    change.unselect =
+        (!change.held.contains(&selected) || !list.contains(&selected)) && is_rank_title(selected);
+    change.removed_slots = remaining;
+    change
+}
+
+/// RankTitleManager.UpdateHighRank's next query: the start of the weekly period after the one
+/// containing `now` (RankPeriodInfo 2 from WEEK_REFERENCE), in Unix seconds.
+pub fn next_week_start(now: i64) -> i64 {
+    WEEK_REFERENCE + ((now - WEEK_REFERENCE).div_euclid(WEEK_SECONDS) + 1) * WEEK_SECONDS
+}

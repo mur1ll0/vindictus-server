@@ -3640,3 +3640,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` RK1–RK2.
 - Commits: ver "feat: ranking queries and favorites (B5 RK2c)".
 - Pendente / próxima ação: RK3 (títulos de rank: RankTitle/RankTitleManager).
+
+## 2026-11-04 — RK3 títulos de rank e SelectTitle (B5)
+- Feito: `domain::rank` (HighRank, `rank_titles`, `update_rank_titles` = TitleManager.UpdateRankTitle com TitleUpdate Character/Guild/Both, `next_week_start`); `domain::progression` (`rank_title`, `rank_title_slot`); `domain::daily_item` com UpdateCharacterRankTitle/UpdateRankTitle. `infrastructure::rank_title`: `HighRanks` (RankTitleManager.highRankList: HDV_GetRank semanal dentro de RankTitleLimit, carregada na subida e 3 s após cada sábado 07:00 UTC na tarefa de publicação), `update` (GiveRankTitle com GiveTitle Known, logs GiveRankTitle/SelectTitle, reset do título selecionado com SelectTitle(0) e Telepathy, UpdateStat, UpdateTitle, CharacterCommonInfo, TitleList com os títulos de rank), `updated_telepathy`, `select` (SelectTitleProcessor). `minimum_daily_item::rank_title_processes` (processos 49/67 do EU). `lab_frontend`: títulos em memória por conexão, UpdateRankTitles(Both) na entrada, processos diários, SelectTitleMessage 565 (`protocol::title`, oráculo `TitleWireOracle.cs`, 24 casos x86=x64). Exportador com `rank_titles` (12 linhas: DeathMatch 60001–60003 e Arena 60005, todas de PvP); `item-economy.json` regenerado (resto idêntico). Não migrados: InformSelectedTitleToItemService, AddLog NewRankTitles, atualização na troca de guilda (junto com CharacterCommonInfo da guilda).
+- Verificação: `cargo test --test rank --test daily_item --test title_wire` 5+3+1 passed; PostgreSQL `rank_` 4 passed no test-postgres (removido); Python `test_export_item_economy` 6 OK; clippy só com os 10 achados antigos (corrigido um `last()` do teste G4). Logs `.cache/verification/rk3/`.
+- Cliente: `docs/client-tests/B5-social.md` RK3.
+- Commits: ver "feat: rank titles and title selection (B5 RK3)".
+- Pendente / próxima ação: PV1 (duelo livre, FreeMatchReport 276), depois G6.

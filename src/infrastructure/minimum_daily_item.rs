@@ -145,6 +145,70 @@ pub async fn process(
     Ok(messages)
 }
 
+/// The due rank-title procedures (UpdateCharacterRankTitle, and UpdateRankTitle once the
+/// guild info loaded: `guild_loaded`) admitted as the item procedures are, recorded with
+/// UpdateDailyItemProcess and returned in order; the caller runs them on the connection's
+/// RankTitles. An UpdateRankTitle before the guild info loads stays unrecorded (the source
+/// queues it on OnGuildInfoLoaded).
+pub async fn rank_title_processes(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    guild_loaded: bool,
+) -> Result<Vec<ProcessKind>, MinimumError> {
+    let list: Vec<&Procedure> = procedures(assets)
+        .iter()
+        .filter(|p| {
+            matches!(
+                p.kind,
+                ProcessKind::UpdateCharacterRankTitle | ProcessKind::UpdateRankTitle
+            )
+        })
+        .collect();
+    if list.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+    let now = super::minimum_status_effect::now_ticks()?;
+    let level: i32 = sqlx::query_scalar("SELECT level FROM game_character_info WHERE id=$1")
+        .bind(cid)
+        .fetch_one(&mut *tx)
+        .await?;
+    let cafe_type = super::minimum_home_cafe::cafe_type(&mut tx, owner.uid, cid).await?;
+    let processed: Vec<(i32, i64)> = sqlx::query_as(
+        "SELECT process_id,processed_ticks FROM game_daily_item_process WHERE cid=$1",
+    )
+    .bind(cid)
+    .fetch_all(&mut *tx)
+    .await?;
+    let mut due = Vec::new();
+    for p in list {
+        if p.cafe_level > 0 || (p.cafe_type != 0 && p.cafe_type != cafe_type) {
+            continue;
+        }
+        let last = processed
+            .iter()
+            .find(|(id, _)| *id == p.id)
+            .map(|(_, t)| *t);
+        if !p.is_due(last, now)
+            || !p.fits_level(level)
+            || (p.kind == ProcessKind::UpdateRankTitle && !guild_loaded)
+        {
+            continue;
+        }
+        sqlx::query("INSERT INTO game_daily_item_process(cid,process_id,processed_ticks) VALUES($1,$2,$3) ON CONFLICT (cid,process_id) DO UPDATE SET processed_ticks=EXCLUDED.processed_ticks")
+            .bind(cid)
+            .bind(p.id)
+            .bind(now)
+            .execute(&mut *tx)
+            .await?;
+        due.push(p.kind.clone());
+    }
+    tx.commit().await?;
+    Ok(due)
+}
+
 /// One DailyItemProcedure.Process after its admission: the messages (the mail console
 /// message of a leftover first) and changed slots; nothing for a process that is not
 /// migrated or a give that fails (no record).
@@ -172,7 +236,9 @@ async fn run(
             (0, (count - have).max(0))
         }
         ProcessKind::TakeItemUntil => ((have - count).max(0), 0),
-        ProcessKind::NotMigrated(_) => return Ok((Vec::new(), Vec::new())),
+        ProcessKind::UpdateCharacterRankTitle
+        | ProcessKind::UpdateRankTitle
+        | ProcessKind::NotMigrated(_) => return Ok((Vec::new(), Vec::new())),
     };
     if p.kind == ProcessKind::GiveItemUntilByCharacterClass && give > 0 {
         // ItemClassInfo.IsAvailableFor(BaseCharacter).

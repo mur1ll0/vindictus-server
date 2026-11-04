@@ -87,3 +87,11 @@ Pré-condição: A e B com missões concluídas em dias diferentes; o ranking pu
 - [ ] A marca um ranking como favorito → aparece na aba de favoritos; desmarca → some.
 - [ ] Ao entrar pela primeira vez no top 100 → aviso de ranking (alerta) uma única vez.
 - [ ] Anotar se o banner de ranking da cidade fica vazio (o sorteio do banner não está migrado).
+
+### RK3 — Títulos de rank e seleção de título
+Pré-condição: os títulos de rank do EU (`RankTitle`, 12 linhas) são só dos rankings de PvP (DeathMatch 60001–60003, Arena 60005): ninguém os recebe até o PvP alimentar o ranking (PV2–PV4). Para testar antes, peça ao Claude para gravar uma linha semanal de ranking (período 2, posição 1–3) para o personagem e reiniciar o servidor.
+- [ ] A abre a janela de títulos e seleciona um título adquirido (ex.: de nível) → o título fica selecionado; ao sair e voltar continua selecionado.
+- [ ] A seleciona "nenhum título" → volta a ficar sem título.
+- [ ] (Com a linha de ranking gravada) A entra no jogo → o título de rank aparece na lista como adquirido e pode ser selecionado.
+- [ ] (Depois de apagar a linha e reiniciar o servidor) A entra → o título some da lista; se estava selecionado, volta a nenhum título com aviso.
+- [ ] Anotar se outro jogador vê o título selecionado de A ao encontrá-lo na cidade (o resumo do personagem leva o título).

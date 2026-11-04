@@ -10,7 +10,12 @@ pub enum ProcessKind {
     GiveItemUntil,
     TakeItemUntil,
     GiveItemUntilByCharacterClass,
-    /// GiveFatigueItem, guild and rank-title processes, GiveBaseHair, ExtendExpireTime.
+    /// UpdateCharacterRankTitle: Guild.UpdateRankTitles(Character) and the Telepathy of the
+    /// character's (non-guild) rank titles.
+    UpdateCharacterRankTitle,
+    /// UpdateRankTitle: the Telepathy of the guild rank titles once the guild info loaded.
+    UpdateRankTitle,
+    /// GiveFatigueItem, the guild item process, GiveBaseHair, ExtendExpireTime.
     NotMigrated(String),
 }
 
@@ -56,10 +61,10 @@ impl Procedure {
             "giveitemuntil" => ProcessKind::GiveItemUntil,
             "takeitemuntil" => ProcessKind::TakeItemUntil,
             "giveitemuntilbycharacterclass" => ProcessKind::GiveItemUntilByCharacterClass,
+            "updatecharacterranktitle" => ProcessKind::UpdateCharacterRankTitle,
+            "updateranktitle" => ProcessKind::UpdateRankTitle,
             other @ ("givefatigueitem"
             | "givefatigueitem_event"
-            | "updatecharacterranktitle"
-            | "updateranktitle"
             | "giveitembyguildlevel"
             | "givebasehair"
             | "extendexpiretime") => ProcessKind::NotMigrated(other.to_owned()),

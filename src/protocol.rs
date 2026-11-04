@@ -205,3 +205,5 @@ pub mod whisper;
 pub mod guild;
 
 pub mod rank;
+
+pub mod title;

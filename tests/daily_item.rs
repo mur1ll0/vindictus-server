@@ -46,6 +46,34 @@ fn parse_reads_the_process_type_ignoring_case_and_the_arguments() {
     )
     .unwrap();
     assert!(matches!(fatigue.kind, ProcessKind::NotMigrated(_)));
+    let titles = Procedure::parse(
+        67,
+        FROM,
+        UNTIL,
+        10080,
+        0,
+        0,
+        None,
+        None,
+        "UpdateCharacterRankTitle",
+        None,
+    )
+    .unwrap();
+    assert_eq!(titles.kind, ProcessKind::UpdateCharacterRankTitle);
+    let guild = Procedure::parse(
+        49,
+        FROM,
+        UNTIL,
+        10080,
+        0,
+        0,
+        None,
+        None,
+        "updateranktitle",
+        None,
+    )
+    .unwrap();
+    assert_eq!(guild.kind, ProcessKind::UpdateRankTitle);
     assert!(Procedure::parse(1, FROM, UNTIL, 60, 0, 3, None, None, "unknown x", None).is_none());
 }
 

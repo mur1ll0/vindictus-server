@@ -304,7 +304,7 @@ const COMPLETE_GOAL: i32 = 6;
 const ACQUIRE_TITLE: i32 = 7;
 
 /// CharacterEntity.AddTitleLog(event, titleID, 0, 0) in the day's partition.
-async fn title_log(
+pub(super) async fn title_log(
     tx: &mut Transaction<'_, Postgres>,
     journal: i64,
     event: i32,
@@ -712,6 +712,7 @@ pub(super) async fn title_list_packet(
     tx: &mut Transaction<'_, Postgres>,
     assets: &Assets,
     cid: i64,
+    rank_titles: &[i32],
 ) -> Result<Option<OutgoingPacket>, MinimumError> {
     use crate::domain::progression::{StoredTitle, TitleSlotValue};
     let Some(progression) = assets.npc.as_ref().and_then(|n| n.progression.as_ref()) else {
@@ -782,7 +783,13 @@ pub(super) async fn title_list_packet(
         .collect::<Result<_, _>>()?;
     let account: Vec<(i64, StoredTitle)> =
         account.into_iter().map(convert).collect::<Result<_, _>>()?;
-    let (shared, titles) = progression.title_list(cid, class, &own, &progress, &account);
+    let (shared, mut titles) = progression.title_list(cid, class, &own, &progress, &account);
+    // GetTitleSlotInfos: the RankTitles after the stored titles.
+    titles.extend(
+        rank_titles
+            .iter()
+            .filter_map(|t| progression.rank_title_slot(*t)),
+    );
     let slot = |v: TitleSlotValue| {
         Some(crate::protocol::inventory::TitleSlot {
             title_id: v.id,

@@ -104,6 +104,12 @@ def read_package(database, config):
                               feature=plain(r['Feature']), score_limit=integer(r['ScoreLimit'], True),
                               is_guild=integer(r['IsGuild'], True)))
             if len(ranks) > 5000: raise ValueError('Rank description row bound')
+        # CharacterContents.rankTitles (ToDoubleDictionary EventID, Rank: a repeated pair throws).
+        rank_titles = []
+        for r in (db.execute('Select * From [RankTitle] Order By EventID, Rank') if 'RankTitle' in tables else ()):
+            if any(x['event_id'] == r['EventID'] and x['rank'] == r['Rank'] for x in rank_titles): raise ValueError('Repeated rank title')
+            rank_titles.append(dict(event_id=integer(r['EventID']), rank=integer(r['Rank']), title_id=integer(r['TitleID'])))
+            if len(rank_titles) > 5000: raise ValueError('Rank title row bound')
         marketplace = read_marketplace(db, integer, plain, catalog['manifest'])
         events = read_events(db, catalog['manifest'], npc_xml_root(database))
         # AdminContents.EventTemplate (ToDictionary by Name: a repeated name throws).
@@ -129,7 +135,7 @@ def read_package(database, config):
                'marketplace': marketplace, 'events': events, 'event_templates': templates,
                'event_packs': collabs.check_packs({e['key'] for e in events}),
                'guild_levels': guild_levels, 'guild_level_bonuses': guild_bonuses,
-               'rank_descriptions': ranks}
+               'rank_descriptions': ranks, 'rank_titles': rank_titles}
     if pets is not None:
         package['pets'] = pets
     return package

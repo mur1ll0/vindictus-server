@@ -110,6 +110,8 @@ pub struct Runtime {
     party: Arc<super::party_hub::PartyHub>,
     /// The online members of each guild (GuildEntity presence, B5 social).
     guilds: Arc<super::guild::GuildHub>,
+    /// RankTitleManager.highRankList (B5 RK3).
+    rank_titles: Arc<super::rank_title::HighRanks>,
     web_shop: super::lab_web_shop::Sessions,
     maintenance: super::maintenance::Maintenance,
     content_output: Option<std::path::PathBuf>,
@@ -168,6 +170,7 @@ impl Runtime {
             relay: None,
             party,
             guilds,
+            rank_titles: Arc::new(super::rank_title::HighRanks::new()),
             web_shop: super::lab_web_shop::Sessions::default(),
             maintenance: super::maintenance::Maintenance::default(),
             content_output: None,
@@ -592,6 +595,8 @@ struct Connection {
     replaying: bool,
     /// The GuildServiceProxy state of the entered character.
     guild: super::guild::State,
+    /// TitleManager.RankTitles of the entered character (B5 RK3).
+    rank_titles: Vec<i32>,
 }
 impl Connection {
     fn new(runtime: &Runtime, peer: std::net::IpAddr) -> Self {
@@ -620,6 +625,7 @@ impl Connection {
             trade_proxy: false,
             party_notices: None,
             guild: super::guild::State::Initial,
+            rank_titles: Vec::new(),
             replaying: false,
         }
     }
@@ -2520,6 +2526,52 @@ impl Connection {
         }
         Ok(packets)
     }
+    /// SelectTitleMessage (InGame): PlayerConn SelectTitle, then the frontend's echo of the
+    /// message when it completes (nothing when it fails).
+    async fn title_message(
+        &mut self,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+        category: i32,
+        body: &[u8],
+        message: Option<crate::protocol::title::Message>,
+    ) -> Result<(), RuntimeError> {
+        let in_game = self.selected.is_some()
+            && self
+                .password
+                .as_ref()
+                .is_some_and(|p| p.selection_allowed(&self.frontend));
+        let (Some(crate::protocol::title::Message::SelectTitle(title)), Some((cid, journal)), true) = (
+            message,
+            self.selected.as_ref().map(|s| (s.cid, s.log_journal)),
+            in_game,
+        ) else {
+            self.log_unhandled(category, body);
+            return Ok(());
+        };
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        match super::rank_title::select(pool, &owner, journal, cid, &self.rank_titles, title).await
+        {
+            Ok(Some(packet)) => send(stream, sender, packet.category, &packet.body).await?,
+            Ok(None) => {}
+            Err(_) => tracing::warn!("title selection rejected; values omitted"),
+        }
+        tracing::info!(category, "title selection processed; values omitted");
+        Ok(())
+    }
     /// InGame ranking messages (RankConn with CharacterRank on): the published results of the
     /// D-S3 ranking. Requests answered with nothing in the source (a failed or null result,
     /// RequestSetRankFavorite, RequestSetRankGoal) send nothing.
@@ -4149,6 +4201,54 @@ impl Connection {
             }
             Err(_) => tracing::warn!("minimum daily items rejected; values omitted"),
         }
+        // DailyItemProcedure UpdateCharacterRankTitle / UpdateRankTitle (B5 RK3).
+        let loaded = !matches!(self.guild, super::guild::State::Initial);
+        let journal = self.selected.as_ref().map_or(0, |s| s.log_journal);
+        match super::minimum_daily_item::rank_title_processes(pool, &owner, assets, cid, loaded)
+            .await
+        {
+            Ok(kinds) => {
+                for kind in kinds {
+                    let packets = match kind {
+                        crate::domain::daily_item::ProcessKind::UpdateCharacterRankTitle => {
+                            match rank_title_update(
+                                runtime,
+                                pool,
+                                &owner,
+                                assets,
+                                journal,
+                                cid,
+                                &mut self.rank_titles,
+                                crate::domain::rank::TitleUpdate::Character,
+                            )
+                            .await
+                            {
+                                Ok(mut packets) => super::rank_title::updated_telepathy(
+                                    assets,
+                                    &self.rank_titles,
+                                    false,
+                                )
+                                .map(|t| {
+                                    packets.extend(t);
+                                    packets
+                                }),
+                                Err(e) => Err(e),
+                            }
+                        }
+                        _ => super::rank_title::updated_telepathy(assets, &self.rank_titles, true),
+                    };
+                    match packets {
+                        Ok(packets) => {
+                            for packet in &packets {
+                                send(stream, sender, packet.category, &packet.body).await?;
+                            }
+                        }
+                        Err(_) => tracing::warn!("rank title process rejected; values omitted"),
+                    }
+                }
+            }
+            Err(_) => tracing::warn!("rank title processes rejected; values omitted"),
+        }
         if let Ok(Some(after)) = super::minimum_daily_item::next_range(assets) {
             // DailyItemScheduler schedules three seconds after the range start.
             self.daily_at = Some(tokio::time::Instant::now() + after + Duration::from_secs(3));
@@ -4793,6 +4893,38 @@ impl Connection {
                             super::guild::enter(pool, &runtime.party, &runtime.guilds, cid).await;
                         self.guild = guild;
                         entered.extend(packets);
+                        // GuildInfoManager.UpdateBriefGuildInfo on the first login:
+                        // UpdateRankTitles once the guild info is known (B5 RK3).
+                        self.rank_titles.clear();
+                        let journal = self.selected.as_ref().map_or(0, |s| s.log_journal);
+                        let id = self
+                            .frontend
+                            .accepted_identity()
+                            .map_err(|_| RuntimeError::Operation)?;
+                        let titled = super::character_lobby::UserKey {
+                            uid: id.nexon_sn,
+                            name: &id.nexon_id,
+                            revision: self
+                                .password
+                                .as_ref()
+                                .ok_or(RuntimeError::Operation)?
+                                .revision(),
+                        };
+                        match rank_title_update(
+                            runtime,
+                            pool,
+                            &titled,
+                            assets,
+                            journal,
+                            cid,
+                            &mut self.rank_titles,
+                            crate::domain::rank::TitleUpdate::Both,
+                        )
+                        .await
+                        {
+                            Ok(packets) => entered.extend(packets),
+                            Err(_) => tracing::warn!("rank titles rejected; values omitted"),
+                        }
                         for packet in &entered {
                             send(stream, sender, packet.category, &packet.body).await?;
                         }
@@ -5131,6 +5263,19 @@ impl Connection {
                     .ok_or(RuntimeError::Message)?;
                 return self
                     .mail(runtime, pool, stream, sender, category, body, message)
+                    .await;
+            }
+        }
+        {
+            use crate::protocol::title::{self as wire, Kind};
+            for kind in Kind::INGRESS {
+                if !matches(category, body, kind.category(), kind.type_id()) {
+                    continue;
+                }
+                let message = wire::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
+                    .map_err(|_| RuntimeError::Message)?;
+                return self
+                    .title_message(pool, stream, sender, category, body, message)
                     .await;
             }
         }
@@ -7511,6 +7656,7 @@ async fn auto_listing(runtime: Arc<Runtime>, pool: PgPool, mut stop: watch::Rece
 /// passed since the last publication (also right after the start).
 async fn rank_publication(runtime: Arc<Runtime>, pool: PgPool, mut stop: watch::Receiver<bool>) {
     let mut wait = Duration::from_secs(10);
+    let mut titles_at: Option<i64> = None;
     loop {
         tokio::select! {
             _ = stop.changed() => return,
@@ -7523,25 +7669,49 @@ async fn rank_publication(runtime: Arc<Runtime>, pool: PgPool, mut stop: watch::
         let Some(minimum) = runtime.minimum.as_ref() else {
             continue;
         };
-        let events = match super::rank::events(&minimum.assets.current()) {
-            Ok(events) => events,
-            Err(_) => {
-                tracing::warn!("ranking events unreadable; values omitted");
-                continue;
-            }
-        };
-        if events.is_empty() {
-            continue;
-        }
+        let assets = minimum.assets.current();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs() as i64);
-        match super::rank::publish(&pool, &events, now).await {
-            Ok(true) => tracing::info!(events = events.len(), "ranking published"),
-            Ok(false) => {}
-            Err(_) => tracing::warn!("ranking publication failed; values omitted"),
+        match super::rank::events(&assets) {
+            Ok(events) if !events.is_empty() => {
+                match super::rank::publish(&pool, &events, now).await {
+                    Ok(true) => tracing::info!(events = events.len(), "ranking published"),
+                    Ok(false) => {}
+                    Err(_) => tracing::warn!("ranking publication failed; values omitted"),
+                }
+            }
+            Ok(_) => {}
+            Err(_) => tracing::warn!("ranking events unreadable; values omitted"),
+        }
+        // RankTitleManager.UpdateHighRank: at start, then three seconds after each weekly
+        // period start (after that boundary's publication); retried while it fails.
+        if titles_at.is_none_or(|at| now >= at) {
+            match runtime.rank_titles.refresh(&pool, &assets).await {
+                Ok(()) => titles_at = Some(crate::domain::rank::next_week_start(now) + 3),
+                Err(_) => tracing::warn!("rank title list unreadable; values omitted"),
+            }
         }
     }
+}
+/// GuildInfoManager.UpdateRankTitles(kind) on a connection's RankTitles (`held`).
+#[allow(clippy::too_many_arguments)]
+async fn rank_title_update(
+    runtime: &Runtime,
+    pool: &PgPool,
+    owner: &super::character_lobby::UserKey<'_>,
+    assets: &super::minimum_assets::Assets,
+    journal: i64,
+    cid: i64,
+    held: &mut Vec<i32>,
+    kind: crate::domain::rank::TitleUpdate,
+) -> Result<Vec<crate::domain::map_partition::OutgoingPacket>, super::minimum_character::MinimumError>
+{
+    let growth = runtime
+        .growth_context(journal)
+        .map_err(|_| super::minimum_character::MinimumError::Conflict)?;
+    let high = runtime.rank_titles.get();
+    super::rank_title::update(pool, owner, assets, &growth, cid, &high, held, kind).await
 }
 async fn event_schedule(runtime: Arc<Runtime>, pool: PgPool, mut stop: watch::Receiver<bool>) {
     let mut wait = Duration::from_secs(5);

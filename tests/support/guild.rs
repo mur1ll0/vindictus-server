@@ -545,7 +545,7 @@ async fn guild_gp_levels_and_level_up_rewards() {
         .iter()
         .filter(|p| p.category == Kind::GuildInfo.category())
         .map(|p| info_of(p).unwrap())
-        .last()
+        .next_back()
         .unwrap();
     assert_eq!((info.guild_level, info.guild_point), (2, 200));
     assert_eq!(info.daily_gain_gp.0.unwrap(), [(gain::BY_PVE, 1200)]);
@@ -834,5 +834,111 @@ async fn rank_queries_read_the_published_results() {
         [(1, 50001, 1), (2, 50001, 1), (3, 50001, 1)]
     );
     assert!(rank::alarms(&p, 1).await.unwrap().is_empty());
+    cleanup_game_pool(admin, p, schema).await;
+}
+
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
+async fn rank_titles_are_given_selected_and_reset() {
+    use vindictus_server::domain::{
+        progression::RankTitleInfo,
+        rank::{self as rules, TitleUpdate},
+    };
+    use vindictus_server::infrastructure::rank_title;
+    let (admin, p, schema) = isolated_game_pool().await;
+    character(&p, 1, 10, "Alice", 25).await;
+    // Weekly rows: Alice second of 60003, guild 7 first of 60001, a row past the limit.
+    sqlx::query(
+        "INSERT INTO game_rank_result(period_type,event_id,cid,score,n4_order,n4_rank,n4_rank_prev) VALUES \
+         (2,60003,2,9,1,1,0),(2,60003,1,5,2,2,0),(2,60003,3,1,4,4,0),(2,60001,7,3,1,1,0),(1,60003,1,5,1,1,0)",
+    )
+    .execute(&p)
+    .await
+    .unwrap();
+    let high = rank_title::load_rows(&p, 3).await.unwrap();
+    let rows: Vec<_> = high
+        .iter()
+        .map(|h| (h.event_id, h.rank, h.entity))
+        .collect();
+    assert_eq!(rows, [(60001, 1, 7), (60003, 1, 2), (60003, 2, 1)]);
+    let titles = [(60001, 1, 420034), (60003, 2, 420041)];
+    let list = rules::rank_titles(&high, &titles, |e| e == 60001, 1, Some(7));
+    assert_eq!(list, [420034, 420041]);
+    let is_guild = |t: i32| t == 420034;
+    let is_rank = |t: i32| t == 420034 || t == 420041;
+    let change = rules::update_rank_titles(
+        &[],
+        &list,
+        |_| true,
+        is_guild,
+        is_rank,
+        TitleUpdate::Both,
+        0,
+    );
+    // The guild title's class restriction refuses GiveTitle; the rank title is still held.
+    let info = |t: i32| {
+        Some(RankTitleInfo {
+            available: t != 420034,
+            goals: vec![],
+            hide_until: 0,
+        })
+    };
+    let mut tx = p.begin().await.unwrap();
+    let packets = rank_title::apply_on(&mut tx, 77, 1, &change, info, 0)
+        .await
+        .unwrap();
+    assert!(packets.is_empty());
+    let selected = rank_title::select_on(&mut tx, 77, 1, &change.held, 420041)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(selected.category, 565);
+    assert!(
+        rank_title::select_on(&mut tx, 77, 1, &change.held, 999)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    tx.commit().await.unwrap();
+    let owned: Vec<(i32, bool)> =
+        sqlx::query_as("SELECT title_id,acquired FROM game_titles WHERE cid=1 ORDER BY title_id")
+            .fetch_all(&p)
+            .await
+            .unwrap();
+    assert_eq!(owned, [(420041, false)]);
+    let logs: Vec<(i32, i32)> = sqlx::query_as(
+        "SELECT event,title_id FROM (SELECT * FROM game_character_title_log01 UNION ALL \
+         SELECT * FROM game_character_title_log02) l WHERE journal_id=77 ORDER BY time_ticks,event,title_id",
+    )
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert_eq!(logs.len(), 4);
+    for event in [(8, 420034), (2, 420041), (8, 420041), (3, 420041)] {
+        assert!(logs.contains(&event), "{event:?}");
+    }
+    // The rank title is lost: SelectedTitle returns to 0 with SelectTitle(0) and a Telepathy.
+    let lost = rules::update_rank_titles(
+        &change.held,
+        &[],
+        |_| true,
+        is_guild,
+        is_rank,
+        TitleUpdate::Character,
+        420041,
+    );
+    assert!(lost.unselect);
+    let mut tx = p.begin().await.unwrap();
+    let packets = rank_title::apply_on(&mut tx, 77, 1, &lost, info, 420041)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(packets.len(), 2);
+    assert_eq!(packets[0], rank_title::select_title_packet(0).unwrap());
+    let now: i32 = sqlx::query_scalar("SELECT selected_title FROM game_character_info WHERE id=1")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(now, 0);
     cleanup_game_pool(admin, p, schema).await;
 }

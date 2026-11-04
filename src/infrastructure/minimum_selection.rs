@@ -136,7 +136,7 @@ pub async fn select(
     // InGame.OnEnter: the Title observer (TitleListMessage) after the Stat observer.
     if let Some(titles) = traced(
         "titles",
-        super::minimum_growth::title_list_packet(&mut tx, assets, cid).await,
+        super::minimum_growth::title_list_packet(&mut tx, assets, cid, &[]).await,
     )? {
         packets.push(titles);
     }

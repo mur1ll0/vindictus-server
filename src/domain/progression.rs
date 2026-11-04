@@ -105,6 +105,14 @@ pub struct StoredTitle {
     pub expire_ticks: Option<i64>,
 }
 
+/// The TitleInfo of a rank title GiveRankTitle may give (see `Progression::rank_title`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RankTitleInfo {
+    pub available: bool,
+    pub goals: Vec<i32>,
+    pub hide_until: i32,
+}
+
 /// TitleSlotInfo (Title.GetSlotInfo): TitleID, Status (0 Counting, 1 Known, 2 Acquired),
 /// TimeStamp, QuestID, GoalProgress, IsExpireable, ExpireDateTime.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -553,8 +561,8 @@ impl Progression {
     /// QueryTitleProgress for TitleListMessage: GetAccountTitleSlotInfos (titles acquired by
     /// any character of the account, `account` as (CID, row), that AllowShare and fit the
     /// class; the character's own row wins over another's) and GetTitleSlotInfos (the
-    /// character's visible titles whose feature is enabled or that are acquired). Rank
-    /// titles are not migrated.
+    /// character's visible titles whose feature is enabled or that are acquired); the
+    /// caller appends the held rank titles (`rank_title_slot`).
     pub fn title_list(
         &self,
         cid: i64,
@@ -590,6 +598,30 @@ impl Progression {
             }
         }
         (shared.into_iter().map(|(_, s)| s).collect(), titles)
+    }
+    /// TitleManager.GiveRankTitle's TitleInfo checks: `None` for an unknown title or one whose
+    /// feature is disabled; otherwise what GiveTitle needs when the character does not own it
+    /// (IsAvailableFor the class, the goals and HideUntil, the first goal's stored progress).
+    pub fn rank_title(&self, id: i32, class: i32) -> Option<RankTitleInfo> {
+        let t = self.titles.iter().find(|t| t.id == id && t.enabled)?;
+        Some(RankTitleInfo {
+            available: 1_i32.wrapping_shl(class as u32 & 31) & t.class_restriction != 0,
+            goals: t.goals.clone(),
+            hide_until: t.hide_until,
+        })
+    }
+    /// Title.GetSlotInfo of a held rank title (Title(-1, id, acquired: true)) for
+    /// GetTitleSlotInfos: `None` for an unknown title.
+    pub fn rank_title_slot(&self, id: i32) -> Option<TitleSlotValue> {
+        let t = self.titles.iter().find(|t| t.id == id)?;
+        let row = StoredTitle {
+            id,
+            acquired: true,
+            acquired_ticks: None,
+            quest: None,
+            expire_ticks: None,
+        };
+        Some(self.slot_of(t, &row, &[]))
     }
     /// TitleManager.GetTrackingGoalID: the goals of the owned, unacquired titles whose
     /// feature is enabled and whose progress is not -1 (a goal without a row is 0), in

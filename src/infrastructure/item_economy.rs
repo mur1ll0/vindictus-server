@@ -125,6 +125,9 @@ struct Export {
     /// RankDescription rows (absent from older exports: no rankings).
     #[serde(default)]
     rank_descriptions: Vec<RankDescription>,
+    /// RankTitle rows (absent from older exports: no rank titles).
+    #[serde(default)]
+    rank_titles: Vec<RankTitleRow>,
 }
 /// A collab pack of the panel: every key the whole event needs, and the other regions' copies
 /// of the same content to switch off (laboratory extension, scripts/content/collabs.py).
@@ -298,6 +301,15 @@ pub struct Profile {
     guild_levels: Vec<GuildLevelRow>,
     guild_level_bonuses: Vec<GuildBonusRow>,
     rank_descriptions: Vec<RankDescription>,
+    rank_titles: Vec<RankTitleRow>,
+}
+/// A RankTitle row: the title of a rank in a ranking event.
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RankTitleRow {
+    pub event_id: i32,
+    pub rank: i32,
+    pub title_id: i32,
 }
 /// A RankDescription row (RankContents of the RankService).
 #[derive(Clone, Debug, Deserialize)]
@@ -496,11 +508,16 @@ impl Profile {
             guild_levels: export.guild_levels,
             guild_level_bonuses: export.guild_level_bonuses,
             rank_descriptions: export.rank_descriptions,
+            rank_titles: export.rank_titles,
         })
     }
     /// RankDescription rows (features unevaluated).
     pub fn rank_descriptions(&self) -> &[RankDescription] {
         &self.rank_descriptions
+    }
+    /// RankTitle rows.
+    pub fn rank_titles(&self) -> &[RankTitleRow] {
+        &self.rank_titles
     }
     /// GuildLevelUpInfo rows (features unevaluated).
     pub fn guild_levels(&self) -> &[GuildLevelRow] {

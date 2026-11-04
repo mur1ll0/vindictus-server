@@ -76,3 +76,101 @@ fn rank_scores_number_rows_and_share_ranks() {
     let times = rules::rank_scores(vec![(1, 9000), (2, 8000)], true);
     assert_eq!((times[0].cid, times[0].rank), (2, 1));
 }
+
+#[test]
+fn rank_titles_follow_the_holder_and_the_update_type() {
+    use rules::{HighRank, TitleUpdate};
+    let high = [
+        HighRank {
+            event_id: 60001,
+            rank: 1,
+            entity: 7,
+        },
+        HighRank {
+            event_id: 60003,
+            rank: 1,
+            entity: 2,
+        },
+        HighRank {
+            event_id: 60003,
+            rank: 2,
+            entity: 1,
+        },
+        HighRank {
+            event_id: 60003,
+            rank: 3,
+            entity: 9,
+        },
+    ];
+    let titles = [(60001, 1, 420034), (60003, 1, 420040), (60003, 2, 420041)];
+    let guild = |e: i32| e == 60001;
+    // A guild ranking is held by the guild; a rank without a RankTitle row gives nothing.
+    assert_eq!(
+        rules::rank_titles(&high, &titles, guild, 1, Some(7)),
+        [420034, 420041]
+    );
+    assert_eq!(rules::rank_titles(&high, &titles, guild, 1, None), [420041]);
+    assert!(rules::rank_titles(&high, &titles, guild, 9, Some(8)).is_empty());
+
+    let is_guild_title = |t: i32| t == 420034;
+    let is_rank_title = |t: i32| (420034..=420041).contains(&t);
+    // Character: only the non-guild slots are pushed; repeated or invalid titles are skipped.
+    let c = rules::update_rank_titles(
+        &[420040],
+        &[420034, 420041, 420041, 999],
+        |t| t != 999,
+        is_guild_title,
+        is_rank_title,
+        TitleUpdate::Character,
+        0,
+    );
+    assert_eq!(c.held, [420034, 420041]);
+    assert_eq!(c.given, [420034, 420041]);
+    assert_eq!(c.acquired_slots, [420041]);
+    assert_eq!(c.removed_slots, [420040]);
+    assert!(!c.unselect);
+    let g = rules::update_rank_titles(
+        &[],
+        &[420034, 420041],
+        |_| true,
+        is_guild_title,
+        is_rank_title,
+        TitleUpdate::Guild,
+        0,
+    );
+    assert_eq!(g.acquired_slots, [420034]);
+    // The selected rank title no longer held is cleared; another title is kept.
+    let lost = rules::update_rank_titles(
+        &[420041],
+        &[],
+        |_| true,
+        is_guild_title,
+        is_rank_title,
+        TitleUpdate::Both,
+        420041,
+    );
+    assert!(lost.unselect && lost.held.is_empty());
+    assert_eq!(lost.removed_slots, [420041]);
+    let kept = rules::update_rank_titles(
+        &[],
+        &[],
+        |_| true,
+        is_guild_title,
+        is_rank_title,
+        TitleUpdate::Both,
+        1001,
+    );
+    assert!(!kept.unselect);
+}
+
+#[test]
+fn rank_titles_refresh_after_each_weekly_start() {
+    // Saturday 2026-10-31 07:00 UTC opens a week of RankPeriodInfo 2.
+    let saturday = 1_793_430_000;
+    assert_eq!((saturday - rules::WEEK_REFERENCE) % rules::WEEK_SECONDS, 0);
+    assert_eq!(rules::next_week_start(saturday - 1), saturday);
+    assert_eq!(
+        rules::next_week_start(saturday),
+        saturday + rules::WEEK_SECONDS
+    );
+}
