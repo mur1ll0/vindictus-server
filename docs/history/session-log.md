@@ -3612,3 +3612,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` SO1, SO2, G1–G5 pendentes.
 - Commits: ver "docs: social group ready for the client session (B5)".
 - Pendente / próxima ação: sessão de cliente do B5-social; depois G6 (armazém), RK1–RK3, PV1.
+
+## 2026-11-04 — RK1 registro de pontuação do ranking (B5)
+- Feito: operador pediu para seguir sem testar no cliente o grupo social. Levantamento do RankService (UpdateRankBasis, RankBasisUpdate, RankDescription, consultas QueryRank*, RankProc_End; o cálculo dos resultados era um job externo inexistente no backup). Migração `0064_rank_basis` (`game_rank_basis`, `game_rank_basis_history`). `domain::rank` (ScoreType, SortType, regra do RankBasisUpdate), `infrastructure::rank` (`event`: CharacterRank + Feature + EventID ≠ −1; `basis_update`; `update_rank_basis`). Exportador com `rank_descriptions` (97 linhas) e `item_economy::RankDescription`; `item-economy.json` regenerado. Gancho em `minimum_mission_finish::reward`: GamePlay_complete_battle e Solo/PartyTimeAttack_<quest> (ms, EntityID = party).
+- Verificação: `cargo test --test rank --test guild` 1+4 passed; PostgreSQL `rank_basis` 1 passed no test-postgres (removido); Python `test_export_item_economy` OK; clippy sem achados novos. Logs `.cache/verification/guild/rk1-*.log`.
+- Cliente: não necessário (sem efeito visível até o RK2).
+- Commits: ver "feat: ranking basis updates from mission rewards (B5 RK1)".
+- Pendente / próxima ação: decisão D-S3 (cálculo dos resultados do ranking) para o RK2.

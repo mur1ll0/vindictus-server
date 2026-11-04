@@ -822,7 +822,40 @@ async fn reward(
                 .events
                 .push((mission.completion.cid, format!("ClearGoal {g}")));
         }
-        // CharacterRank (UpdateRankBasis) is not migrated.
+        // Reward_SendRewardOperation: UpdateRankBasis of a successful play (CharacterRank).
+        if success {
+            let c = &mission.completion;
+            let cid = c.cid;
+            let mut updates: Vec<(String, i64, i64)> = Vec::new();
+            // IsTeaching (GamePlay_help_beginner) has no teacher sessions in the migration;
+            // CheaterType is never raised and IsLimited is the practice mode, skipped above.
+            updates.push(("GamePlay_complete_battle".to_owned(), 1, 0));
+            // ClearTime − StartTime in milliseconds (the reward time stands for ClearTime).
+            if let Some((start, _)) = c.start {
+                let ms = now.saturating_duration_since(start).as_millis();
+                if ms > 0 {
+                    let ms = i64::try_from(ms).unwrap_or(i64::MAX);
+                    let players = mission.party.players(mission.party_id).len();
+                    if players > 1 {
+                        updates.push((
+                            format!("PartyTimeAttack_{}", mission.quest),
+                            ms,
+                            mission.party_id,
+                        ));
+                    } else {
+                        updates.push((format!("SoloTimeAttack_{}", mission.quest), ms, 0));
+                    }
+                }
+            }
+            for (rank_id, score, entity) in updates {
+                if super::rank::update_rank_basis(rc.pool, rc.assets, cid, &rank_id, score, entity)
+                    .await
+                    .is_err()
+                {
+                    tracing::warn!("rank basis update failed; values omitted");
+                }
+            }
+        }
         let given = reward_character(mission, ctx, rc, ids, &op).await;
         match given {
             Ok(r) => {

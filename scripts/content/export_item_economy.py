@@ -94,6 +94,16 @@ def read_package(database, config):
             guild_bonuses.append(dict(level=integer(r['Level']), bonus=plain(r['LevelBonus']),
                                       arg=integer(r['Arg']), feature=plain(r['Feature'])))
             if len(guild_bonuses) > 1000: raise ValueError('Guild bonus row bound')
+        # RankContents.RankDescription (RankService): RankID → EventID with its score rules;
+        # the Feature is evaluated by the server's policy.
+        ranks = []
+        for r in (db.execute('Select * From [RankDescription] Order By EventID') if 'RankDescription' in tables else ()):
+            if any(x['rank_id'] == r['RankID'] for x in ranks): raise ValueError('Repeated RankID')
+            ranks.append(dict(rank_id=plain(r['RankID']), event_id=integer(r['EventID']), score_type=plain(r['ScoreType']),
+                              sort_type=plain(r['SortType']), score_result_type=plain(r['ScoreResultType']),
+                              feature=plain(r['Feature']), score_limit=integer(r['ScoreLimit'], True),
+                              is_guild=integer(r['IsGuild'], True)))
+            if len(ranks) > 5000: raise ValueError('Rank description row bound')
         marketplace = read_marketplace(db, integer, plain, catalog['manifest'])
         events = read_events(db, catalog['manifest'], npc_xml_root(database))
         # AdminContents.EventTemplate (ToDictionary by Name: a repeated name throws).
@@ -118,7 +128,8 @@ def read_package(database, config):
                'classes': rows, 'hot_spring': hot_spring, 'mail_types': mail_types,
                'marketplace': marketplace, 'events': events, 'event_templates': templates,
                'event_packs': collabs.check_packs({e['key'] for e in events}),
-               'guild_levels': guild_levels, 'guild_level_bonuses': guild_bonuses}
+               'guild_levels': guild_levels, 'guild_level_bonuses': guild_bonuses,
+               'rank_descriptions': ranks}
     if pets is not None:
         package['pets'] = pets
     return package

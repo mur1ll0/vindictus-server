@@ -42,6 +42,8 @@ class ItemEconomyExportTests(unittest.TestCase):
             db.execute("INSERT INTO GuildLevelUpInfo VALUES(2,130,'capsule_ap[VALUE:100]','GuildLevel'),(1,100,'capsule_ap[VALUE:100]','GuildLevel'),(1,9,NULL,'Disable')")
             db.execute('CREATE TABLE GuildLevelBonusInfo(Level INT,LevelBonus TEXT,Arg INT,Feature TEXT)')
             db.execute("INSERT INTO GuildLevelBonusInfo VALUES(1,'BattleExp',1,NULL)")
+            db.execute('CREATE TABLE RankDescription(RankID TEXT,CategoryID INT,EventID INT,ScoreType TEXT,SortType TEXT,ScoreBasisType TEXT,ScoreResultType TEXT,Feature TEXT,ScoreLimit INT,IsGuild INT,InGameBannerPeriodType INT,InGameBannerPosition INT)')
+            db.execute("INSERT INTO RankDescription VALUES('SoloTimeAttack_quest_a',2,20001,'Time','ASCENDING','Basis','ABSOLUTE','EP1',90000,0,0,0),('GamePlay_complete_battle',5,50001,'Count','DESCENDING','Basis','RELATIVE',NULL,NULL,0,1,1)")
             db.commit()
     def test_rows_keep_catalog_order_duplicates_and_hashes_are_readonly(self):
         before = [digest(p) for p in (self.db, self.config)]
@@ -63,6 +65,8 @@ class ItemEconomyExportTests(unittest.TestCase):
         self.assertEqual([(g['level'], g['required_exp'], g['reward'], g['feature']) for g in p['guild_levels']],
                          [(1, 100, 'capsule_ap[VALUE:100]', 'GuildLevel'), (1, 9, None, 'Disable'), (2, 130, 'capsule_ap[VALUE:100]', 'GuildLevel')])
         self.assertEqual(p['guild_level_bonuses'], [dict(level=1, bonus='BattleExp', arg=1, feature=None)])
+        self.assertEqual([(r['rank_id'], r['event_id'], r['score_type'], r['sort_type'], r['score_limit']) for r in p['rank_descriptions']],
+                         [('SoloTimeAttack_quest_a', 20001, 'Time', 'ASCENDING', 90000), ('GamePlay_complete_battle', 50001, 'Count', 'DESCENDING', None)])
         self.assertEqual(before, [digest(p) for p in (self.db, self.config)])
     def test_marketplace_categories_limits_and_region_features(self):
         p = read_package(self.db, self.config)

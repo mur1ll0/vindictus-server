@@ -645,3 +645,59 @@ async fn guild_brief_and_membership_for_other_systems() {
     drop(c);
     cleanup_game_pool(admin, p, schema).await;
 }
+
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
+async fn rank_basis_update_follows_the_procedure() {
+    use vindictus_server::domain::rank::ScoreType;
+    use vindictus_server::infrastructure::rank;
+    let (admin, p, schema) = isolated_game_pool().await;
+    let day = 86_400;
+    let now = 10 * day + 3600;
+    // Count: insert, then add.
+    assert!(
+        rank::basis_update(&p, 1, 50001, ScoreType::Count, false, 1, 0, now)
+            .await
+            .unwrap()
+    );
+    assert!(
+        rank::basis_update(&p, 1, 50001, ScoreType::Count, false, 1, 0, now + 1)
+            .await
+            .unwrap()
+    );
+    // Time: insert, a worse time is kept out, a better one replaces; the next day rolls over.
+    assert!(
+        rank::basis_update(&p, 1, 20001, ScoreType::Time, true, 9000, 0, now)
+            .await
+            .unwrap()
+    );
+    assert!(
+        !rank::basis_update(&p, 1, 20001, ScoreType::Time, true, 9500, 0, now + 5)
+            .await
+            .unwrap()
+    );
+    assert!(
+        rank::basis_update(&p, 1, 20001, ScoreType::Time, true, 8000, 7, now + 9)
+            .await
+            .unwrap()
+    );
+    assert!(
+        rank::basis_update(&p, 1, 20001, ScoreType::Time, true, 12000, 8, now + day)
+            .await
+            .unwrap()
+    );
+    let rows: Vec<(i32, i64, Option<i64>)> = sqlx::query_as(
+        "SELECT event_id,score,entity_id FROM game_rank_basis WHERE cid=1 ORDER BY event_id",
+    )
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert_eq!(rows, [(20001, 12000, Some(8)), (50001, 2, Some(0))]);
+    let history: Vec<(i64, i64)> =
+        sqlx::query_as("SELECT score,last_update_seconds FROM game_rank_basis_history")
+            .fetch_all(&p)
+            .await
+            .unwrap();
+    assert_eq!(history, [(8000, now + 9)]);
+    cleanup_game_pool(admin, p, schema).await;
+}
