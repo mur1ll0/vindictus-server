@@ -3500,3 +3500,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-eventos.md` EV11.
 - Commits: (este)
 - Pendente / próxima ação: sessão de cliente EV1–EV11.
+
+## 2026-11-03 — B5 eventos: aviso das chaves gerais no painel
+- Feito: o operador ligou as chaves do SAO sem `AllUserGoalEvent` e nada aconteceu. A aba Eventos (`web/admin/src/pages/Tuning.tsx`) agora avisa no topo e em cada cartão quando um evento ligado usa `AllUserGoalInfo` sem `AllUserGoalEvent` ou `PeriodicEventInfo` sem `BoostEvent`, com botão para ligar a chave geral. Explicado ao operador: `_us` e `_aus` são as mesmas 8 metas (ligar só uma), `_enus` traz a história do Kirito, `_Cat_Shop_enus` só aparece num modelo da Agenda e a loja do gato, a Asuna, a Lisbeth e a loja do Kirito só existem para jajp/kokr.
+- Verificação: `npx tsc --noEmit` 0; Docker reconstruído.
+- Cliente: `docs/client-tests/B5-eventos.md` EV1 (nova linha do aviso).
+- Commits: (este)
+- Pendente / próxima ação: sessão de cliente EV1–EV11.

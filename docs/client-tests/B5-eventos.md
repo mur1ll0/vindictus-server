@@ -14,6 +14,7 @@ ID da linha, o que apareceu (captura), horário (para `docker compose logs game`
 
 ### EV1 — Aba Eventos
 - [ ] Ajustes de jogo → Eventos → lista de chaves com busca, filtros (Natal, Páscoa, Halloween, SAO…) e, em cada uma, as tabelas que usam a chave (riscadas as ainda não migradas); nenhuma chave `_kokr`, `_jajp` ou `_zhcn`.
+- [ ] Ligar uma chave de meta coletiva (por exemplo `Event_SAO_AllUserGoal_us`) com `AllUserGoalEvent` desligada → aviso no topo e no cartão ("Precisa de AllUserGoalEvent ligada"), com o botão "Ligar AllUserGoalEvent"; o mesmo para uma chave de `PeriodicEventInfo` sem `BoostEvent`.
 
 ### EV2 — Ligar um evento de loja
 Pré-condição: escolher uma chave com `ShopInfo` (por exemplo `Event_eneu_christmas_2012_shop` ou outra de Natal com ShopInfo).

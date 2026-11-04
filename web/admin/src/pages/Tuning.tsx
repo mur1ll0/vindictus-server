@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { CalendarHeart, CheckCircle2, Clock, Info, Save, Search, Store, Undo2 } from 'lucide-react';
+import { CalendarHeart, CheckCircle2, Clock, Info, Save, Search, Store, TriangleAlert, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import { api, type components, fail } from '@/api/client';
 import { contentState } from '@/api/content';
@@ -130,6 +130,12 @@ function MarketAutoPanel({ editable }: { editable: boolean }) {
   );
 }
 
+/** General switches of a whole event system and the table they gate. */
+const MASTER_SWITCHES: { key: string; table: string; what: string }[] = [
+  { key: 'AllUserGoalEvent', table: 'AllUserGoalInfo', what: 'metas coletivas' },
+  { key: 'BoostEvent', table: 'PeriodicEventInfo', what: 'recompensas periódicas' },
+];
+
 /** Words of the event keys, for the filter chips. */
 const EVENT_THEMES: { label: string; words: string[] }[] = [
   { label: 'Natal', words: ['christmas', 'xmas', 'santa'] },
@@ -178,6 +184,12 @@ function EventsPanel({
       void queryClient.invalidateQueries({ queryKey: ['audit'] });
     },
   });
+  const isOn = (key: string) => drafts[key] ?? events.find((x) => x.key === key)?.enabled ?? false;
+  // A system's table only acts with its general switch on (BoostEvent, AllUserGoalEvent).
+  const missing = (e: EventView) =>
+    MASTER_SWITCHES.filter((m) => m.key !== e.key && e.uses.some((u) => u.table === m.table) && !isOn(m.key));
+  const blocked = events.filter((e) => isOn(e.key) && missing(e).length > 0);
+  const masters = MASTER_SWITCHES.filter((m) => blocked.some((e) => missing(e).includes(m)));
   const shown = events
     .filter((e) => !term || e.key.toLowerCase().includes(term))
     .filter((e) => !chip || theme(e.key) === chip)
@@ -197,6 +209,26 @@ function EventsPanel({
           </span>
         </p>
       </Card>
+      {masters.length > 0 && (
+        <Card className="border-accent">
+          <p className="flex items-start gap-2 text-sm">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-accent" />
+            <span className="flex-1">
+              {masters.map((m) => (
+                <span key={m.key} className="block">
+                  {blocked.filter((e) => missing(e).includes(m)).length} evento(s) ligado(s) usam {m.what}, mas a chave geral{' '}
+                  <code className="font-medium">{m.key}</code> está desligada: sem ela nada acontece.
+                  {editable && (
+                    <button type="button" className="ml-2 text-accent underline" onClick={() => setDrafts({ ...drafts, [m.key]: true })}>
+                      Ligar {m.key}
+                    </button>
+                  )}
+                </span>
+              ))}
+            </span>
+          </p>
+        </Card>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative max-w-sm flex-1">
           <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" />
@@ -251,6 +283,13 @@ function EventsPanel({
                   </span>
                 ))}
               </p>
+              {on &&
+                missing(e).map((m) => (
+                  <p key={m.key} className="mt-1 flex items-center gap-1 text-xs text-accent">
+                    <TriangleAlert className="size-3.5 shrink-0" />
+                    Precisa de <code>{m.key}</code> ligada para as {m.what} funcionarem.
+                  </p>
+                ))}
             </div>
           );
         })}
