@@ -25,7 +25,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 5. B5 correio implementado em 03/11 (ciclo completo e GiveItem ForceMail): sessão de cliente pelo roteiro `docs/client-tests/B5-correio.md` (duas personagens; Docker reconstruído).
 6. B5 mercado implementado em 03/11: sessão de cliente pelo roteiro `docs/client-tests/B5-marketplace.md` (duas contas; Docker reconstruído). Depois, o próximo sistema restante do B5.
 7. B5 eventos: drops de chefe, BoostEvent, histórias por período, lojas de cupom, metas coletivas, agenda, descrição no painel e collabs SAO/Fairy Tail completos para EU feitos em 03/11; sessão de cliente pelo roteiro `docs/client-tests/B5-eventos.md` (EV1–EV12).
-8. B5 social/PvP (`docs/social-systems.md`): SO1, SO2 e G1–G5 (guilda completa, bônus nos outros sistemas) feitos em 04/11 (cliente pendente, `docs/client-tests/B5-social.md`); próximo G6 (armazém de guilda) ou RK1 (ranking). Faltam I-S2–I-S5 e D-S1/D-S2 (operador); clippy anterior a limpar antes do gate.
+8. B5 social/PvP (`docs/social-systems.md`): SO1, SO2 e G1–G5 feitos em 04/11; Docker reconstruído. **Parado para a sessão de cliente** pelo roteiro `docs/client-tests/B5-social.md` (SO1–G5; duas ou três contas): o G6 (armazém de guilda) depende da guilda confirmada no cliente. Depois: G6, RK1–RK3, PV1. Faltam I-S2–I-S5 e D-S1/D-S2 (operador).
    - Antes do gate do B5: 10 testes PostgreSQL já falhavam antes desta trilha (guardas de dono/perfil com a classe 10 e upgrades de esquema parados na migração 51 do launcher) e 10 achados de clippy anteriores; a suíte PostgreSQL só roda em lotes (o tmpfs enche).
 
 ## Aguardando o operador

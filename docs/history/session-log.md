@@ -3605,3 +3605,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` G5.
 - Commits: ver "feat: guild level bonuses and membership in other systems (B5 social G5)".
 - Pendente / próxima ação: G6 (armazém de guilda) ou RK1 (ranking); corrigir as 10 falhas PostgreSQL anteriores e o clippy antes do gate do B5.
+
+## 2026-11-04 — Fechamento do grupo social (SO1–G5) para o cliente
+- Feito: `COMPOSE_PARALLEL_LIMIT=1 docker compose build` e `docker compose up -d --wait` (game, server e postgres saudáveis; migrações 0061–0063 aplicadas na subida). MIGRATION.md aponta a sessão de cliente do roteiro B5-social (SO1–G5) antes do G6.
+- Verificação: build exit 0, up exit 0 (`.cache/verification/guild/docker-*.log`).
+- Cliente: `docs/client-tests/B5-social.md` SO1, SO2, G1–G5 pendentes.
+- Commits: ver "docs: social group ready for the client session (B5)".
+- Pendente / próxima ação: sessão de cliente do B5-social; depois G6 (armazém), RK1–RK3, PV1.
