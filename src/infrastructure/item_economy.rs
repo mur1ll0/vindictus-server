@@ -116,6 +116,12 @@ struct Export {
     /// The panel's collab packs (scripts/content/collabs.py): keys switched on and off together.
     #[serde(default)]
     event_packs: Vec<EventPack>,
+    /// GuildLevelUpInfo rows (absent from older exports: no guild levels).
+    #[serde(default)]
+    guild_levels: Vec<GuildLevelRow>,
+    /// GuildLevelBonusInfo rows (absent from older exports: no guild bonuses).
+    #[serde(default)]
+    guild_level_bonuses: Vec<GuildBonusRow>,
 }
 /// A collab pack of the panel: every key the whole event needs, and the other regions' copies
 /// of the same content to switch off (laboratory extension, scripts/content/collabs.py).
@@ -286,6 +292,26 @@ pub struct Profile {
     events: Vec<EventSwitch>,
     event_templates: Vec<EventTemplate>,
     event_packs: Vec<EventPack>,
+    guild_levels: Vec<GuildLevelRow>,
+    guild_level_bonuses: Vec<GuildBonusRow>,
+}
+/// A GuildLevelUpInfo row (RequiredExp as stored; GuildContents multiplies it by 10).
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GuildLevelRow {
+    pub level: i32,
+    pub required_exp: i64,
+    pub reward: Option<String>,
+    pub feature: Option<String>,
+}
+/// A GuildLevelBonusInfo row.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GuildBonusRow {
+    pub level: i32,
+    pub bonus: Option<String>,
+    pub arg: i32,
+    pub feature: Option<String>,
 }
 impl Profile {
     pub fn read(reader: impl Read) -> Result<Self, MinimumError> {
@@ -450,7 +476,17 @@ impl Profile {
             events: export.events,
             event_templates: export.event_templates,
             event_packs: export.event_packs,
+            guild_levels: export.guild_levels,
+            guild_level_bonuses: export.guild_level_bonuses,
         })
+    }
+    /// GuildLevelUpInfo rows (features unevaluated).
+    pub fn guild_levels(&self) -> &[GuildLevelRow] {
+        &self.guild_levels
+    }
+    /// GuildLevelBonusInfo rows (features unevaluated).
+    pub fn guild_level_bonuses(&self) -> &[GuildBonusRow] {
+        &self.guild_level_bonuses
     }
     /// The event schedule's templates (EventTemplate).
     pub fn event_templates(&self) -> &[EventTemplate] {

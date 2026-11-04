@@ -159,3 +159,181 @@ pub fn days_since(now_units300: i64, last_units300: i64) -> i32 {
     let days = (now_units300 - last_units300) / (300 * 86_400);
     i32::try_from(days).unwrap_or(i32::MAX)
 }
+
+/// GPGainType.
+pub mod gain {
+    pub const BY_PVE: u8 = 1;
+    pub const BY_PVP: u8 = 2;
+    pub const BY_CHEAT: u8 = 255;
+}
+
+/// GPGainTypeUtil.IsValidGPGainTypeValue.
+pub const fn valid_gain(value: u8, include_cheat: bool) -> bool {
+    (include_cheat && value == gain::BY_CHEAT) || (value >= 1 && value < 3)
+}
+
+/// GuildContents.LoadGuildDailyGPLimit + GetDailyGPLimit: the `;`-separated limits of
+/// FeatureMatrix GuildLevel_DailyGPLimit for PvE then PvP, each ×10 (−1 is unlimited, an
+/// unparsable value 0); a type without a value is unlimited; an invalid type gets 0.
+pub fn daily_limit(spec: &str, gain_type: u8) -> i32 {
+    if !valid_gain(gain_type, true) {
+        return 0;
+    }
+    if spec.is_empty() {
+        return -1;
+    }
+    let index = usize::from(gain_type);
+    match spec
+        .split(';')
+        .nth(index.wrapping_sub(1))
+        .filter(|_| index < 3)
+    {
+        None => -1,
+        Some(v) => match v.parse::<i32>() {
+            Ok(-1) => -1,
+            Ok(n) => n.wrapping_mul(10),
+            Err(_) => 0,
+        },
+    }
+}
+
+/// GuildContents.GetPrevDailyGPResetTime in Unix seconds: today's reset (UTC midnight plus
+/// GuildLevel_DailyGPResetTimeAdder hours; 0 when that is a day or more, and a negative adder
+/// stays negative as the source discards its TimeSpan.Add), or yesterday's when it is ahead.
+pub fn prev_reset(now: i64, adder_hours: i32) -> i64 {
+    let adder = if adder_hours.abs() >= 24 {
+        0
+    } else {
+        i64::from(adder_hours) * 3600
+    };
+    let reset = now.div_euclid(86_400) * 86_400 + adder;
+    if reset > now { reset - 86_400 } else { reset }
+}
+
+/// GuildContents.GuildLevelUpInfoDic: the enabled rows by level with RequiredExp × 10 and
+/// the level-up reward item class.
+#[derive(Clone, Debug, Default)]
+pub struct Levels {
+    rows: std::collections::BTreeMap<i32, (i64, Option<String>)>,
+}
+impl Levels {
+    /// The enabled rows; a repeated level fails as ToDictionary does.
+    pub fn new(
+        rows: impl IntoIterator<Item = (i32, i64, Option<String>)>,
+    ) -> Result<Self, &'static str> {
+        let mut out = std::collections::BTreeMap::new();
+        for (level, exp, reward) in rows {
+            if out.insert(level, (exp.wrapping_mul(10), reward)).is_some() {
+                return Err("repeated GuildLevelUpInfo level");
+            }
+        }
+        Ok(Self { rows: out })
+    }
+    /// GuildLevelUpInfoDic.Keys.Max() + 1 (None without rows).
+    pub fn max_level(&self) -> Option<i32> {
+        self.rows.keys().next_back().map(|l| l.wrapping_add(1))
+    }
+    pub fn required(&self, level: i32) -> Option<i64> {
+        self.rows.get(&level).map(|(exp, _)| *exp)
+    }
+    /// GetGuildLevelUpRewardItemClass: None for a level without a row or with no class.
+    pub fn reward(&self, level: i32) -> Option<&str> {
+        self.rows
+            .get(&level)
+            .and_then(|(_, r)| r.as_deref())
+            .filter(|r| !r.is_empty())
+    }
+}
+
+/// What GuildEntity.GiveGP did.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Gain {
+    /// The GP given (after the daily limit).
+    pub given: i32,
+    /// The new daily gain of the type, with the GuildGainGP push (valid gain types only).
+    pub daily: Option<i32>,
+    /// GuildPoint before the gain (GuildGainGPMessage.GuildPoint).
+    pub point_before: i64,
+    pub level: i32,
+    pub point: i64,
+    /// The level reached by each level up, in order.
+    pub level_ups: Vec<i32>,
+}
+
+/// GuildEntity.GiveGP on the guild's level and point with today's gain of the type
+/// (`daily`, None when the type has no entry yet). None when nothing is given.
+pub fn give_gp(
+    levels: &Levels,
+    level: i32,
+    point: i64,
+    daily: Option<i32>,
+    limit: i32,
+    gp: i32,
+    gain_type: u8,
+) -> Option<Gain> {
+    if gp == 0 {
+        return None;
+    }
+    let max = levels.max_level()?;
+    if level >= max {
+        return None;
+    }
+    let mut required = levels.required(level)?;
+    let mut gp = gp;
+    let mut new_daily = None;
+    if valid_gain(gain_type, false) {
+        let current = daily.unwrap_or(0);
+        if gp > 0 {
+            if limit >= 0 {
+                if current >= limit {
+                    return None;
+                }
+                if current.wrapping_add(gp) > limit {
+                    gp = limit.wrapping_sub(current);
+                    if gp < 0 {
+                        return None;
+                    }
+                }
+            }
+        } else {
+            if current.wrapping_add(gp) < 0 {
+                gp = current.wrapping_neg();
+            }
+            if gp == 0 {
+                return None;
+            }
+        }
+        new_daily = Some(current.wrapping_add(gp));
+    }
+    let point_before = point;
+    let mut level = level;
+    let mut point = point;
+    let mut level_ups = Vec::new();
+    let mut rest = point.wrapping_add(i64::from(gp)).wrapping_sub(required);
+    if rest >= 0 {
+        while rest >= 0 {
+            level = level.wrapping_add(1);
+            point = rest;
+            level_ups.push(level);
+            if level >= max {
+                point = 0;
+                break;
+            }
+            let Some(next) = levels.required(level) else {
+                break;
+            };
+            required = next;
+            rest = point.wrapping_sub(required);
+        }
+    } else {
+        point = point.wrapping_add(i64::from(gp));
+    }
+    Some(Gain {
+        given: gp,
+        daily: new_daily,
+        point_before,
+        level,
+        point,
+        level_ups,
+    })
+}

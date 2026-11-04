@@ -38,6 +38,10 @@ class ItemEconomyExportTests(unittest.TestCase):
             db.execute("INSERT INTO ItemTradeLimitInfo VALUES('phoenix_feather',700),('empty_bottle',NULL)")
             db.execute('CREATE TABLE MailTypeInfo(MailType INT,Description TEXT,Sender TEXT,System TEXT,ItemAttached TEXT,Charged TEXT,Replyable TEXT,Returnable TEXT,Expire_in INT,Arrive_in INT,Fee INT,FeeForItem INT,Fee_Express INT,FeeForItem_Express INT)')
             db.execute("INSERT INTO MailTypeInfo VALUES(9,'Heroes_MailType_DungeonItem','SYSTEM','True','True','False','False','False',10080,0,0,0,0,0),(2,'Heroes_MailType_Item',NULL,'False','True','False','True','True',10080,60,100,2,200,5)")
+            db.execute('CREATE TABLE GuildLevelUpInfo(Level INT,RequiredExp INT,LevelUpRewardItemClass TEXT,Feature TEXT)')
+            db.execute("INSERT INTO GuildLevelUpInfo VALUES(2,130,'capsule_ap[VALUE:100]','GuildLevel'),(1,100,'capsule_ap[VALUE:100]','GuildLevel'),(1,9,NULL,'Disable')")
+            db.execute('CREATE TABLE GuildLevelBonusInfo(Level INT,LevelBonus TEXT,Arg INT,Feature TEXT)')
+            db.execute("INSERT INTO GuildLevelBonusInfo VALUES(1,'BattleExp',1,NULL)")
             db.commit()
     def test_rows_keep_catalog_order_duplicates_and_hashes_are_readonly(self):
         before = [digest(p) for p in (self.db, self.config)]
@@ -55,6 +59,10 @@ class ItemEconomyExportTests(unittest.TestCase):
         self.assertEqual(c['trade_restriction'], 'ACCOUNTONLY')
         self.assertEqual([(m['mail_type'], m['sender'], m['system'], m['returnable'], m['arrive_in'], m['fee_for_item_express']) for m in p['mail_types']],
                          [(2, None, False, True, 60, 5), (9, 'SYSTEM', True, False, 0, 0)])
+        # Guild rows keep their Feature for the server policy (repeated levels included).
+        self.assertEqual([(g['level'], g['required_exp'], g['reward'], g['feature']) for g in p['guild_levels']],
+                         [(1, 100, 'capsule_ap[VALUE:100]', 'GuildLevel'), (1, 9, None, 'Disable'), (2, 130, 'capsule_ap[VALUE:100]', 'GuildLevel')])
+        self.assertEqual(p['guild_level_bonuses'], [dict(level=1, bonus='BattleExp', arg=1, feature=None)])
         self.assertEqual(before, [digest(p) for p in (self.db, self.config)])
     def test_marketplace_categories_limits_and_region_features(self):
         p = read_package(self.db, self.config)

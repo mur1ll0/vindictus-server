@@ -3591,3 +3591,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` G3 (e linha do G2 sobre presença offline corrigida).
 - Commits: ver "feat: guild chat room and immediate presence (B5 social G3)".
 - Pendente / próxima ação: G4 (GP por AP de recompensa, teto diário, reset 07:00 UTC, nível até 20, cápsula de AP, GuildGainGP 89, GuildLevelUp 90).
+
+## 2026-11-04 — G4 GP e nível de guilda (B5 social)
+- Feito: GuildGainGP (89) e GuildLevelUp (90) no oráculo e no `protocol::guild` (192 casos). Migração `0063_guild_gp` (`game_guild_daily_gain_gp`, `game_guild_character_max_level`). `domain::guild`: `daily_limit` (GuildLevel_DailyGPLimit ×10), `prev_reset` (07:00 UTC), `Levels` (RequiredExp ×10, recompensa), `give_gp` (GuildEntity.GiveGP: teto diário, GP negativo, subidas em cadeia, nível máximo). `infrastructure::guild`: `GuildConfig` da política, ganhos diários com reset preguiçoso em `info`, `give_gp` (GiveGuildGPProcessor: membro online regular, GuildGainGP a todos online, GuildLevelUp, cápsula `GuildLevelUp` no QueuedItem com GuildCharacterMaxLevel, ponto do membro, nível/exp salvos e Sync), `give_ap_gp` (GiveAPWithGuild). `lab_frontend`: GP do AP dado por `run_jobs`, aviso `ProcessQueue` (fila processada na hora). Exportador `export_item_economy.py` com `guild_levels`/`guild_level_bonuses` (tabelas opcionais) e `item_economy::Profile`; `item-economy.json` regenerado (resto idêntico). Retomado após duas quedas de energia sem perda.
+- Verificação: `cargo test --test guild --test guild_wire --test whisper` 3+1+3 passed; PostgreSQL `guild` 3 passed no test-postgres (removido depois); Python `test_export_item_economy` 6 OK; clippy sem achados novos (10 anteriores). Logs `.cache/verification/guild/g4-*.log`.
+- Cliente: `docs/client-tests/B5-social.md` G4.
+- Commits: ver "feat: guild GP, levels and level-up rewards (B5 social G4)".
+- Pendente / próxima ação: G5 (GuildLevelBonusInfo nos pontos fixos em zero, FailInGuild na exclusão, renomear personagem, CharacterSummary com a guilda).

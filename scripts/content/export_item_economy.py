@@ -81,6 +81,19 @@ def read_package(database, config):
                 raise ValueError('MailTypeInfo type')
             mail_types.append(row)
             if len(mail_types) > 256: raise ValueError('MailTypeInfo row bound')
+        # GuildContents.GuildLevelUpInfoDic and CharacterContents GuildLevelBonusInfo: raw rows
+        # with their Feature, which the server's FeatureMatrix policy evaluates.
+        tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        guild_levels = []
+        for r in (db.execute('Select * From [GuildLevelUpInfo] Order By Level') if 'GuildLevelUpInfo' in tables else ()):
+            guild_levels.append(dict(level=integer(r['Level']), required_exp=integer(r['RequiredExp']),
+                                     reward=plain(r['LevelUpRewardItemClass']), feature=plain(r['Feature'])))
+            if len(guild_levels) > 1000: raise ValueError('Guild level row bound')
+        guild_bonuses = []
+        for r in (db.execute('Select * From [GuildLevelBonusInfo] Order By Level') if 'GuildLevelBonusInfo' in tables else ()):
+            guild_bonuses.append(dict(level=integer(r['Level']), bonus=plain(r['LevelBonus']),
+                                      arg=integer(r['Arg']), feature=plain(r['Feature'])))
+            if len(guild_bonuses) > 1000: raise ValueError('Guild bonus row bound')
         marketplace = read_marketplace(db, integer, plain, catalog['manifest'])
         events = read_events(db, catalog['manifest'], npc_xml_root(database))
         # AdminContents.EventTemplate (ToDictionary by Name: a repeated name throws).
@@ -104,7 +117,8 @@ def read_package(database, config):
                'manifest': dict(database_sha256=m['database_sha256'], config_sha256=m['config_sha256'], class_rows=len(rows)),
                'classes': rows, 'hot_spring': hot_spring, 'mail_types': mail_types,
                'marketplace': marketplace, 'events': events, 'event_templates': templates,
-               'event_packs': collabs.check_packs({e['key'] for e in events})}
+               'event_packs': collabs.check_packs({e['key'] for e in events}),
+               'guild_levels': guild_levels, 'guild_level_bonuses': guild_bonuses}
     if pets is not None:
         package['pets'] = pets
     return package

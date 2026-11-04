@@ -156,6 +156,9 @@ impl Runtime {
                     .unwrap_or(0),
             ),
         );
+        let guilds = Arc::new(super::guild::GuildHub::new(
+            super::guild::GuildConfig::from_policy(p).map_err(|_| RuntimeError::Profile)?,
+        ));
         Ok(Self {
             profile,
             content,
@@ -164,7 +167,7 @@ impl Runtime {
             channel: None,
             relay: None,
             party,
-            guilds: Arc::default(),
+            guilds,
             web_shop: super::lab_web_shop::Sessions::default(),
             maintenance: super::maintenance::Maintenance::default(),
             content_output: None,
@@ -2565,16 +2568,18 @@ impl Connection {
         let mut packets = Vec::new();
         let state = self.guild;
         match (state, message) {
-            (_, Message::QueryGuildList(query)) => match guilds::search(pool, &query).await {
-                Ok(Some(list)) => packets.push(
-                    guilds::packet(&Message::GuildList(list))
-                        .map_err(|_| RuntimeError::Operation)?,
-                ),
-                Ok(None) | Err(_) => packets.push(
-                    guilds::result_packet(result::GUILD_SEARCH_FAIL, "", 0)
-                        .map_err(|_| RuntimeError::Operation)?,
-                ),
-            },
+            (_, Message::QueryGuildList(query)) => {
+                match guilds::search(pool, &runtime.guilds, &query).await {
+                    Ok(Some(list)) => packets.push(
+                        guilds::packet(&Message::GuildList(list))
+                            .map_err(|_| RuntimeError::Operation)?,
+                    ),
+                    Ok(None) | Err(_) => packets.push(
+                        guilds::result_packet(result::GUILD_SEARCH_FAIL, "", 0)
+                            .map_err(|_| RuntimeError::Operation)?,
+                    ),
+                }
+            }
             (State::Initial, Message::ReconnectGuild) => {
                 let (next, out) = guilds::enter(pool, &runtime.party, &runtime.guilds, cid).await;
                 self.guild = next;
@@ -3363,7 +3368,12 @@ impl Connection {
             }
             super::party_hub::Notice::AllUserGoalReward { goal_id } => {
                 return self
-                    .all_user_goal_reward(runtime, pool, stream, sender, goal_id)
+                    .all_user_goal_reward(runtime, pool, stream, sender, Some(goal_id))
+                    .await;
+            }
+            super::party_hub::Notice::ProcessQueue => {
+                return self
+                    .all_user_goal_reward(runtime, pool, stream, sender, None)
                     .await;
             }
             super::party_hub::Notice::Announce {
@@ -4102,7 +4112,7 @@ impl Connection {
         pool: &PgPool,
         stream: &mut TcpStream,
         sender: &mut LegacySender,
-        goal_id: i32,
+        goal_id: Option<i32>,
     ) -> Result<(), RuntimeError> {
         let (Some(cid), Some(password), Some(minimum)) = (
             self.selected.as_ref().map(|s| s.cid),
@@ -4138,6 +4148,7 @@ impl Connection {
                     send(stream, sender, packet.category, &packet.body).await?;
                 }
                 if done.event_rows > 0
+                    && let Some(goal_id) = goal_id
                     && let Ok(p) = super::minimum_all_user_goal::packet(
                         &crate::protocol::all_user_goal::Message::Reward(goal_id),
                     )
@@ -4233,6 +4244,7 @@ impl Connection {
             .map_err(|_| RuntimeError::Operation)?;
         let mut ids = ids.into_iter();
         let state = self.mission.as_mut().ok_or(RuntimeError::Operation)?;
+        let ap_before = state.completion.given.2;
         let packets = super::minimum_mission_finish::run_jobs(
             state,
             ctx,
@@ -4243,6 +4255,30 @@ impl Connection {
         .await
         .map_err(|_| RuntimeError::Operation)?;
         let mut packets = packets;
+        // RewardCharacterProcessor → APManager.GiveAPWithGuild for the AP just given.
+        let ap = state.completion.given.2.wrapping_sub(ap_before);
+        if ap > 0
+            && let Some(economy) = assets.economy.as_ref()
+        {
+            let gp = match super::guild::levels(economy.guild_levels(), &runtime.content.policy) {
+                Ok(levels) => {
+                    super::guild::give_ap_gp(
+                        pool,
+                        &runtime.party,
+                        &runtime.guilds,
+                        &levels,
+                        state.completion.cid,
+                        ap,
+                    )
+                    .await
+                }
+                Err(e) => Err(e),
+            };
+            match gp {
+                Ok(out) => packets.extend(out),
+                Err(_) => tracing::warn!("guild GP of the mission AP rejected; values omitted"),
+            }
+        }
         packets.extend(Self::mission_titles(state, runtime, pool, &owner, journal).await?);
         // RewardPetEndBattle changed the current pet (PushUpdatePetStatus).
         let pet_summary = state.pets.take_summary();

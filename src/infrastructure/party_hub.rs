@@ -64,6 +64,9 @@ pub enum Notice {
     /// GuildKicked (FrontendServiceOperations): GuildResultMessage(result), then the
     /// GuildServiceProxy goes back to Initial.
     GuildKicked { result: i32 },
+    /// QueuedItem rows were stored for this character: process them now (the original sends
+    /// the mail to an online member at once).
+    ProcessQueue,
 }
 
 /// MicroPlayEntityInfo of players disconnected from a play in progress

@@ -404,7 +404,7 @@ async fn guild_open_connect_search_and_presence() {
         .await
         .unwrap()
         .unwrap();
-    let list = guilds::search(&p, &search("night", 0, 1, 10))
+    let list = guilds::search(&p, &hub, &search("night", 0, 1, 10))
         .await
         .unwrap()
         .unwrap();
@@ -415,24 +415,24 @@ async fn guild_open_connect_search_and_presence() {
         .map(|g| g.unwrap().guild_name.unwrap())
         .collect();
     assert_eq!(names, ["Night_Owls", "Night_Larks"]);
-    let page2 = guilds::search(&p, &search("night", 0, 2, 1))
+    let page2 = guilds::search(&p, &hub, &search("night", 0, 2, 1))
         .await
         .unwrap()
         .unwrap();
     assert_eq!(page2.total_page, 2);
-    let by_master = guilds::search(&p, &search("carol", 1, 1, 10))
+    let by_master = guilds::search(&p, &hub, &search("carol", 1, 1, 10))
         .await
         .unwrap()
         .unwrap();
     assert_eq!(by_master.guild_list.unwrap().len(), 1);
     assert!(
-        guilds::search(&p, &search("n", 0, 1, 10))
+        guilds::search(&p, &hub, &search("n", 0, 1, 10))
             .await
             .unwrap()
             .is_none()
     );
     assert!(
-        guilds::search(&p, &search("night", 0, 1, 0))
+        guilds::search(&p, &hub, &search("night", 0, 1, 0))
             .await
             .unwrap()
             .is_none()
@@ -449,7 +449,7 @@ async fn guild_open_connect_search_and_presence() {
         Ok(())
     );
     assert_eq!(guilds::membership(&p, 2).await.unwrap(), None);
-    let names: Vec<_> = guilds::search(&p, &search("night", 0, 1, 10))
+    let names: Vec<_> = guilds::search(&p, &hub, &search("night", 0, 1, 10))
         .await
         .unwrap()
         .unwrap()
@@ -471,5 +471,140 @@ async fn guild_open_connect_search_and_presence() {
             .unwrap(),
         Err(open_error::DUPLICATED_ID)
     );
+    cleanup_game_pool(admin, p, schema).await;
+}
+
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
+async fn guild_gp_levels_and_level_up_rewards() {
+    use vindictus_server::domain::guild::{Levels, gain};
+    use vindictus_server::infrastructure::guild::GuildConfig;
+    let (admin, p, schema) = isolated_game_pool().await;
+    character(&p, 1, 10, "Alice", 25).await;
+    character(&p, 2, 20, "Bob", 30).await;
+    sqlx::query("UPDATE game_queue_identity SET initialized=true")
+        .execute(&p)
+        .await
+        .unwrap();
+    let party = PartyHub::new(false, false);
+    let hub = GuildHub::new(GuildConfig {
+        level_enabled: true,
+        ap_gain_ratio: 100,
+        daily_limit: "200;60".to_owned(),
+        reset_hours: 7,
+    });
+    let levels = Levels::new([
+        (1, 100, Some("capsule_ap[VALUE:100]".to_owned())),
+        (2, 130, Some("capsule_ap[VALUE:100]".to_owned())),
+    ])
+    .unwrap();
+    let sn = guilds::open(&p, 1, "Night_Owls", "nightowls", None)
+        .await
+        .unwrap()
+        .unwrap();
+    sqlx::query("INSERT INTO game_guild_user(cid,guild_sn,intro,created_seconds,modified_seconds,group_user_type) VALUES(2,$1,'',0,0,155)")
+        .bind(sn)
+        .execute(&p)
+        .await
+        .unwrap();
+    // Offline: no GP.
+    assert!(
+        guilds::give_ap_gp(&p, &party, &hub, &levels, 1, 500)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let (a_tx, _a_rx) = tokio::sync::mpsc::channel(64);
+    party.register(1, "Alice", a_tx);
+    let (b_tx, mut b_rx) = tokio::sync::mpsc::channel(64);
+    party.register(2, "Bob", b_tx);
+    guilds::enter(&p, &party, &hub, 1).await;
+    guilds::enter(&p, &party, &hub, 2).await;
+    pushed(&mut b_rx);
+    // A waiting member gives nothing.
+    assert!(
+        guilds::give_ap_gp(&p, &party, &hub, &levels, 2, 500)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    // 1200 AP: GuildGainGP, a level up and the info; the member keeps the given GP.
+    let out = guilds::give_ap_gp(&p, &party, &hub, &levels, 1, 1200)
+        .await
+        .unwrap();
+    let Message::GuildGainGp(g) = wire::decode(Kind::GuildGainGp, &out[0].body, DEFAULT_MAX_BODY)
+        .unwrap()
+        .unwrap()
+    else {
+        panic!("no GuildGainGP")
+    };
+    assert_eq!(g.guild_point, 0);
+    assert_eq!(g.daily_gain_gp.0.unwrap(), [(gain::BY_PVE, 1200)]);
+    assert_eq!(out[1].category, Kind::GuildLevelUp.category());
+    let info = out
+        .iter()
+        .filter(|p| p.category == Kind::GuildInfo.category())
+        .map(|p| info_of(p).unwrap())
+        .last()
+        .unwrap();
+    assert_eq!((info.guild_level, info.guild_point), (2, 200));
+    assert_eq!(info.daily_gain_gp.0.unwrap(), [(gain::BY_PVE, 1200)]);
+    // Everyone online gets GuildGainGP and GuildLevelUp, waiting members too.
+    let to_bob: Vec<i32> = pushed(&mut b_rx).iter().map(|p| p.category).collect();
+    assert!(to_bob.contains(&Kind::GuildGainGp.category()));
+    assert!(to_bob.contains(&Kind::GuildLevelUp.category()));
+    let (level, exp): (i32, i64) =
+        sqlx::query_as("SELECT level,exp FROM game_guild WHERE oid_guild=$1")
+            .bind(sn)
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!((level, exp), (2, 200));
+    let point: i64 = sqlx::query_scalar("SELECT point FROM game_guild_character_info WHERE cid=1")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(point, 1200);
+    // The level-1 reward is queued once for the regular member, not for the waiting one.
+    let queued: Vec<i64> =
+        sqlx::query_scalar("SELECT cid FROM game_queued_items WHERE NOT processed ORDER BY cid")
+            .fetch_all(&p)
+            .await
+            .unwrap();
+    assert_eq!(queued, [1]);
+    let max: i32 =
+        sqlx::query_scalar("SELECT max_level FROM game_guild_character_max_level WHERE cid=1")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(max, 2);
+    // The daily limit (2000): 800 more, then nothing.
+    guilds::give_ap_gp(&p, &party, &hub, &levels, 1, 5000)
+        .await
+        .unwrap();
+    let daily: i32 = sqlx::query_scalar(
+        "SELECT point FROM game_guild_daily_gain_gp WHERE oid_guild=$1 AND gp_gain_type=1",
+    )
+    .bind(sn)
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(daily, 2000);
+    assert!(
+        guilds::give_ap_gp(&p, &party, &hub, &levels, 1, 100)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    // A reset older than the previous reset time clears today's gains.
+    sqlx::query("UPDATE game_guild SET last_daily_gp_reset_seconds=0 WHERE oid_guild=$1")
+        .bind(sn)
+        .execute(&p)
+        .await
+        .unwrap();
+    let out = guilds::give_ap_gp(&p, &party, &hub, &levels, 1, 100)
+        .await
+        .unwrap();
+    assert!(!out.is_empty());
     cleanup_game_pool(admin, p, schema).await;
 }

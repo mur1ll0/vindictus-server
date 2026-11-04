@@ -62,7 +62,7 @@ fn framework_guild_messages_match_x86_x64() {
     let profiles = fixture["profiles"].as_array().unwrap();
     assert_eq!(profiles[0]["wire_cases"], profiles[1]["wire_cases"]);
     let cases = profiles[0]["wire_cases"].as_array().unwrap();
-    assert_eq!(cases.len(), 171);
+    assert_eq!(cases.len(), 192);
     for (n, case) in cases.iter().enumerate() {
         let kind = match case["kind"].as_str().unwrap() {
             "open_guild" => Kind::OpenGuild,
@@ -83,6 +83,8 @@ fn framework_guild_messages_match_x86_x64() {
             "guild_chat_member_info" => Kind::GuildChatMemberInfo,
             "guild_chat" => Kind::GuildChat,
             "join_guild_chat_room" => Kind::JoinGuildChatRoom,
+            "guild_gain_gp" => Kind::GuildGainGp,
+            "guild_level_up" => Kind::GuildLevelUp,
             _ => panic!("unknown fixture type"),
         };
         let category = case["category"].as_i64().unwrap() as i32;
@@ -179,6 +181,22 @@ fn framework_guild_messages_match_x86_x64() {
                 assert_eq!(c.message, text(&f["Message"]));
             }
             Some(Message::JoinGuildChatRoom(key)) => assert_eq!(key, int(&f["GuildKey"])),
+            Some(Message::GuildGainGp(g)) => {
+                assert_eq!(g.guild_point, int(&f["GuildPoint"]));
+                let theirs = f["DailyGainGP"].as_array().map(Vec::as_slice);
+                assert_eq!(g.daily_gain_gp.0.is_none(), theirs.is_none());
+                for ((k, v), t) in g
+                    .daily_gain_gp
+                    .0
+                    .unwrap_or_default()
+                    .iter()
+                    .zip(theirs.unwrap_or_default())
+                {
+                    assert_eq!(i64::from(*k), int(&t["key"]));
+                    assert_eq!(i64::from(*v), int(&t["value"]));
+                }
+            }
+            Some(Message::GuildLevelUp(level)) => assert_eq!(i64::from(level), int(&f["Level"])),
             Some(Message::LeaveGuild)
             | Some(Message::CloseGuild)
             | Some(Message::ReconnectGuild)

@@ -57,3 +57,61 @@ fn guild_ranks_limits_and_pages_follow_the_guild_api() {
     assert_eq!(rules::days_since(10 * day + 5, 3 * day), 7);
     assert_eq!(rules::days_since(day - 1, 0), 0);
 }
+
+fn levels() -> rules::Levels {
+    rules::Levels::new([
+        (1, 100, Some("capsule_ap[VALUE:100]".to_owned())),
+        (2, 130, Some("capsule_ap[VALUE:110]".to_owned())),
+        (3, 160, None),
+    ])
+    .unwrap()
+}
+
+#[test]
+fn guild_gp_follows_the_daily_limit_and_levels_up() {
+    use rules::gain::{BY_CHEAT, BY_PVE, BY_PVP};
+    assert_eq!(rules::daily_limit("200;60", BY_PVE), 2000);
+    assert_eq!(rules::daily_limit("200;60", BY_PVP), 600);
+    assert_eq!(rules::daily_limit("200;60", BY_CHEAT), -1);
+    assert_eq!(rules::daily_limit("200;60", 0), 0);
+    assert_eq!(rules::daily_limit("-1;x", BY_PVE), -1);
+    assert_eq!(rules::daily_limit("-1;x", BY_PVP), 0);
+    assert_eq!(rules::daily_limit("", BY_PVE), -1);
+    assert!(rules::Levels::new([(1, 1, None), (1, 2, None)]).is_err());
+    let l = levels();
+    assert_eq!(
+        (l.max_level(), l.required(2), l.reward(3)),
+        (Some(4), Some(1300), None)
+    );
+    // 2500 GP with 2000 left today: 2000 given, level 1 → 2 with 1000 left over.
+    let g = rules::give_gp(&l, 1, 0, None, 2000, 2500, BY_PVE).unwrap();
+    assert_eq!((g.given, g.daily, g.point_before), (2000, Some(2000), 0));
+    assert_eq!((g.level, g.point, g.level_ups.clone()), (2, 1000, vec![2]));
+    // The limit is reached.
+    assert_eq!(
+        rules::give_gp(&l, 2, 1000, Some(2000), 2000, 10, BY_PVE),
+        None
+    );
+    // Two levels at once; the last level leaves the point at 0.
+    let g = rules::give_gp(&l, 2, 1200, None, -1, 1800, BY_PVE).unwrap();
+    assert_eq!((g.level, g.point, g.level_ups.clone()), (4, 0, vec![3, 4]));
+    assert_eq!(rules::give_gp(&l, 4, 0, None, -1, 10, BY_PVE), None);
+    // A cheat gain skips the daily limit and the GuildGainGP push.
+    let g = rules::give_gp(&l, 1, 0, None, 0, 50, BY_CHEAT).unwrap();
+    assert_eq!((g.given, g.daily, g.point), (50, None, 50));
+    // Negative GP never goes below today's gain.
+    let g = rules::give_gp(&l, 1, 500, Some(30), 2000, -100, BY_PVE).unwrap();
+    assert_eq!((g.given, g.daily, g.point), (-30, Some(0), 470));
+    assert_eq!(rules::give_gp(&l, 1, 0, None, 2000, 0, BY_PVE), None);
+    // The previous reset: 07:00 UTC today, or yesterday's before 07:00.
+    let day = 86_400;
+    assert_eq!(
+        rules::prev_reset(10 * day + 8 * 3600, 7),
+        10 * day + 7 * 3600
+    );
+    assert_eq!(
+        rules::prev_reset(10 * day + 6 * 3600, 7),
+        9 * day + 7 * 3600
+    );
+    assert_eq!(rules::prev_reset(10 * day + 6 * 3600, 30), 10 * day);
+}

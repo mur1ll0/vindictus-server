@@ -96,6 +96,8 @@ class GuildWireOracle {
   AddCases("guild_chat_member_info",85,new Guid("95a85ad2-b272-3422-9b92-3a664dc0cba9"),new[]{null,Obj<GuildChatMemberInfoMessage>("Sender","Alice","IsOnline",true),Obj<GuildChatMemberInfoMessage>("Sender",null,"IsOnline",false)},cases);
   AddCases("guild_chat",86,new Guid("76a1e908-29cf-3ecd-8275-9453e1534766"),new[]{null,Obj<GuildChatMessage>("Sender","Alice","Message","Olá, guilda"),Obj<GuildChatMessage>("Sender",null,"Message",null),Obj<GuildChatMessage>("Sender","","Message","")},cases);
   AddCases("join_guild_chat_room",88,new Guid("6ea314db-4675-36a1-979a-d0942107da04"),new[]{null,Obj<JoinGuildChatRoomMessage>("GuildKey",1001L),Obj<JoinGuildChatRoomMessage>("GuildKey",long.MinValue)},cases);
+  AddCases("guild_gain_gp",89,new Guid("d829f2cb-baba-3bbf-828b-cab4fa8aaae4"),new[]{null,new GuildGainGPMessage(150L,new Dictionary<byte,int>{{1,200},{2,60}}),new GuildGainGPMessage(long.MinValue),new GuildGainGPMessage(0L,null)},cases);
+  AddCases("guild_level_up",90,new Guid("2d17a076-99cb-33c5-8eff-d05926933c7a"),new[]{null,Obj<GuildLevelUpMessage>("Level",2),Obj<GuildLevelUpMessage>("Level",int.MinValue)},cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }
 }

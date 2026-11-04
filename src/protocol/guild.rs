@@ -4,7 +4,7 @@
 //! GuildList (279), JoinGuild (284), LeaveGuild (285), CloseGuild (277), ReconnectGuild
 //! (286), GuildOperation (337, GuildOperationInfo), ChangeMaster (84), InviteGuild (283),
 //! GuildNoticeEdit (280), GuildStoryRequest (282) and the guild chat: GuildChatMemberInfo
-//! (85), GuildChat (86) and JoinGuildChatRoom (88).
+//! (85), GuildChat (86) and JoinGuildChatRoom (88); GuildGainGP (89) and GuildLevelUp (90).
 use super::{
     inventory::{Wire, object},
     wire::{PayloadError, Reader, Writer},
@@ -35,6 +35,8 @@ pub enum Kind {
     GuildChatMemberInfo,
     GuildChat,
     JoinGuildChatRoom,
+    GuildGainGp,
+    GuildLevelUp,
 }
 impl Kind {
     /// Messages the client sends (GuildServiceProxy and its states).
@@ -73,6 +75,8 @@ impl Kind {
             Self::GuildChatMemberInfo => 85,
             Self::GuildChat => 86,
             Self::JoinGuildChatRoom => 88,
+            Self::GuildGainGp => 89,
+            Self::GuildLevelUp => 90,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -95,6 +99,8 @@ impl Kind {
             Self::GuildChatMemberInfo => 0x95a85ad2_b272_3422_9b92_3a664dc0cba9,
             Self::GuildChat => 0x76a1e908_29cf_3ecd_8275_9453e1534766,
             Self::JoinGuildChatRoom => 0x6ea314db_4675_36a1_979a_d0942107da04,
+            Self::GuildGainGp => 0xd829f2cb_baba_3bbf_828b_cab4fa8aaae4,
+            Self::GuildLevelUp => 0x2d17a076_99cb_33c5_8eff_d05926933c7a,
         })
     }
 }
@@ -316,6 +322,17 @@ pub struct ChatMemberInfo {
 }
 object!(ChatMemberInfo { sender, is_online });
 
+/// GuildGainGPMessage: the guild point before the gain and today's gains by GPGainType.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GainGp {
+    pub guild_point: i64,
+    pub daily_gain_gp: ByteDict,
+}
+object!(GainGp {
+    guild_point,
+    daily_gain_gp
+});
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Message {
     OpenGuild(OpenGuild),
@@ -342,6 +359,9 @@ pub enum Message {
     GuildChat(GuildChat),
     /// JoinGuildChatRoomMessage.GuildKey.
     JoinGuildChatRoom(i64),
+    GuildGainGp(GainGp),
+    /// GuildLevelUpMessage.Level.
+    GuildLevelUp(i32),
 }
 impl Message {
     pub const fn kind(&self) -> Kind {
@@ -364,6 +384,8 @@ impl Message {
             Self::GuildChatMemberInfo(_) => Kind::GuildChatMemberInfo,
             Self::GuildChat(_) => Kind::GuildChat,
             Self::JoinGuildChatRoom(_) => Kind::JoinGuildChatRoom,
+            Self::GuildGainGp(_) => Kind::GuildGainGp,
+            Self::GuildLevelUp(_) => Kind::GuildLevelUp,
         }
     }
 }
@@ -397,6 +419,8 @@ pub fn encode(
             Message::GuildChatMemberInfo(v) => v.write(&mut w)?,
             Message::GuildChat(v) => v.write(&mut w)?,
             Message::JoinGuildChatRoom(v) => v.write(&mut w)?,
+            Message::GuildGainGp(v) => v.write(&mut w)?,
+            Message::GuildLevelUp(v) => v.write(&mut w)?,
             Message::GuildOperation(v) => v.write(&mut w)?,
             Message::ChangeMaster(v) | Message::InviteGuild(v) | Message::GuildNoticeEdit(v) => {
                 v.write(&mut w)?
@@ -455,6 +479,8 @@ fn decode_body(
             Kind::GuildChatMemberInfo => Message::GuildChatMemberInfo(Wire::read(r)?),
             Kind::GuildChat => Message::GuildChat(Wire::read(r)?),
             Kind::JoinGuildChatRoom => Message::JoinGuildChatRoom(Wire::read(r)?),
+            Kind::GuildGainGp => Message::GuildGainGp(Wire::read(r)?),
+            Kind::GuildLevelUp => Message::GuildLevelUp(Wire::read(r)?),
         })
     };
     if strict && !r.remaining.is_empty() {

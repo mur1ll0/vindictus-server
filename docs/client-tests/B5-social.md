@@ -62,3 +62,11 @@ Pré-condição: G2 até a troca de mestre (A e B membros regulares, os dois no 
 - [ ] A escreve no chat de guilda (com acentos) → A e B veem a mensagem com o nome de A; C não vê.
 - [ ] C (aguardando) tenta escrever no chat de guilda → aviso `GameUI_Heroes_InGameGuildChat_Fail_NotEnoughPermission`.
 - [ ] B sai do jogo → A vê o aviso de que B saiu do chat e B offline na lista.
+
+### G4 — GP e nível de guilda
+Pré-condição: A mestre de uma guilda nível 1, no jogo; B membro regular, no jogo. Anotar o AP de recompensa de cada missão. Os números vêm do conteúdo EN-EU: nível 1 → 2 exige 1.000 GP; teto diário de 2.000 GP (PvE); GP = AP da recompensa; reset diário às 07:00 UTC.
+- [ ] A conclui uma missão com recompensa de AP → a janela da guilda mostra o GP ganho hoje e o GP da guilda subindo; B vê o mesmo.
+- [ ] Ao passar de 1.000 GP → aviso de nível de guilda para A e B; a guilda mostra nível 2.
+- [ ] A e B recebem pelo correio a cápsula de AP da subida de nível (título `GameUI_Heroes_GuildLevelUpItemMail_Title`); um membro offline recebe ao entrar.
+- [ ] Depois de 2.000 GP no dia, novas missões não somam GP até o reset das 07:00 UTC.
+- [ ] Um membro aguardando aprovação conclui uma missão → a guilda não ganha GP.

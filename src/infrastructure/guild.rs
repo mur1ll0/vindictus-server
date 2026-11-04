@@ -111,8 +111,42 @@ struct Pending {
 #[derive(Default)]
 pub struct GuildHub {
     entities: Mutex<HashMap<i32, Entity>>,
+    config: GuildConfig,
+}
+
+/// The FeatureMatrix values of the guild levels (GuildLevel on in EN-EU).
+#[derive(Clone, Debug, Default)]
+pub struct GuildConfig {
+    /// FeatureMatrix GuildLevel.
+    pub level_enabled: bool,
+    /// GuildLevel_APGainRatio.
+    pub ap_gain_ratio: i32,
+    /// GuildLevel_DailyGPLimit ("200;60").
+    pub daily_limit: String,
+    /// GuildLevel_DailyGPResetTimeAdder (hours after UTC midnight).
+    pub reset_hours: i32,
+}
+impl GuildConfig {
+    pub fn from_policy(
+        p: &crate::domain::feature_policy::FeaturePolicy,
+    ) -> Result<Self, crate::error::Error> {
+        Ok(Self {
+            level_enabled: p.is_enabled(Some("GuildLevel"))?,
+            ap_gain_ratio: p.get_integer("GuildLevel_APGainRatio").unwrap_or(0),
+            daily_limit: p.get_string("GuildLevel_DailyGPLimit").to_owned(),
+            reset_hours: p
+                .get_integer("GuildLevel_DailyGPResetTimeAdder")
+                .unwrap_or(0),
+        })
+    }
 }
 impl GuildHub {
+    pub fn new(config: GuildConfig) -> Self {
+        Self {
+            entities: Mutex::default(),
+            config,
+        }
+    }
     fn lock(&self) -> MutexGuard<'_, HashMap<i32, Entity>> {
         self.entities.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -244,7 +278,11 @@ pub async fn membership(pool: &PgPool, cid: i64) -> Result<Option<(i32, i32)>, M
 /// HeroesGuildInfo.ToGuildInfo (NewbieGuildRecommend and GuildLevel on): GuildGetInfoBySn
 /// with the master's name, GetMaxMemberLimit and GetInGameGuildInfo. The daily GP gains
 /// (GuildDailyGainGP) arrive with the GP step; until then the dictionary is empty.
-pub async fn info(pool: &PgPool, guild_sn: i32) -> Result<Option<GuildInfo>, MinimumError> {
+pub async fn info(
+    pool: &PgPool,
+    config: &GuildConfig,
+    guild_sn: i32,
+) -> Result<Option<GuildInfo>, MinimumError> {
     let row: Option<InfoRow> = sqlx::query_as(
         "SELECT g.guild_name,g.real_user_count,c.name_utf16,d.max_member_limit,\
              d.newbie_recommend,d.level,d.exp,d.notice FROM game_guild_info g \
@@ -271,8 +309,54 @@ pub async fn info(pool: &PgPool, guild_sn: i32) -> Result<Option<GuildInfo>, Min
         is_newbie_recommend: newbie,
         guild_point: exp,
         guild_notice: Some(notice),
-        daily_gain_gp: ByteDict(Some(Vec::new())),
+        daily_gain_gp: ByteDict(Some(daily_gains(pool, config, guild_sn).await?)),
     }))
+}
+
+/// ToGuildInfo's daily gains (GuildLevel on): GetGuildDailyGainGP when the last reset is not
+/// before the previous reset time, else ResetInGameGuildDailyGainGP (points to 0 and
+/// LastDailyGPReset now) and an empty dictionary.
+async fn daily_gains(
+    pool: &PgPool,
+    config: &GuildConfig,
+    guild_sn: i32,
+) -> Result<Vec<(u8, i32)>, MinimumError> {
+    if !config.level_enabled {
+        return Ok(Vec::new());
+    }
+    let now = now_seconds();
+    let last: Option<i64> =
+        sqlx::query_scalar("SELECT last_daily_gp_reset_seconds FROM game_guild WHERE oid_guild=$1")
+            .bind(guild_sn)
+            .fetch_optional(pool)
+            .await?;
+    let Some(last) = last else {
+        return Ok(Vec::new());
+    };
+    if last >= rules::prev_reset(now, config.reset_hours) {
+        let rows: Vec<(i16, i32)> = sqlx::query_as(
+            "SELECT gp_gain_type,point FROM game_guild_daily_gain_gp WHERE oid_guild=$1 ORDER BY gp_gain_type",
+        )
+        .bind(guild_sn)
+        .fetch_all(pool)
+        .await?;
+        return rows
+            .into_iter()
+            .map(|(t, p)| Ok((u8::try_from(t).map_err(|_| fail())?, p)))
+            .collect();
+    }
+    let mut tx = pool.begin().await?;
+    sqlx::query("UPDATE game_guild_daily_gain_gp SET point=0 WHERE oid_guild=$1")
+        .bind(guild_sn)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("UPDATE game_guild SET last_daily_gp_reset_seconds=$2 WHERE oid_guild=$1")
+        .bind(guild_sn)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(Vec::new())
 }
 
 /// GuildAllMemberGetList with each member's level, guild point (GuildCharacterInfo) and
@@ -375,7 +459,7 @@ async fn sync(
     let mut outbox: BTreeMap<i64, Vec<OutgoingPacket>> = BTreeMap::new();
     let mut kicked = Vec::new();
     if p.info_changed || !p.not_synched.is_empty() {
-        let mut guild = info(pool, guild_sn).await?;
+        let mut guild = info(pool, &hub.config, guild_sn).await?;
         if let Some(g) = guild.as_mut() {
             // MakeGuildInfoMessage: MemberCount = GetRegularMemberCount().
             g.member_count = dict.values().filter(|m| rules::is_regular(m.rank)).count() as i32;
@@ -467,7 +551,7 @@ async fn connect_member(
     guild_sn: i32,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
     let name = super::minimum_party::name_of(pool, cid).await?;
-    if info(pool, guild_sn).await?.is_none() {
+    if info(pool, &hub.config, guild_sn).await?.is_none() {
         return Err(fail());
     }
     hub.connect(guild_sn, &name, cid);
@@ -773,6 +857,7 @@ fn like_prefix(name: &str, key: &str) -> bool {
 /// name, unpaged, TotalPage 1). None when the operation fails (GuildSearchFail).
 pub async fn search(
     pool: &PgPool,
+    hub: &GuildHub,
     query: &wire::QueryGuildList,
 ) -> Result<Option<GuildList>, MinimumError> {
     let Some(key) = query
@@ -830,7 +915,7 @@ pub async fn search(
     };
     let mut list = Vec::with_capacity(matched.len());
     for sn in matched {
-        if let Some(i) = info(pool, sn).await? {
+        if let Some(i) = info(pool, &hub.config, sn).await? {
             list.push(Some(i));
         }
     }
@@ -1337,4 +1422,242 @@ pub async fn edit_notice(
     }
     hub.report_info_changed(guild_sn);
     sync(pool, party, hub, guild_sn, cid).await
+}
+
+/// GuildContents.GuildLevelUpInfoDic from the content rows whose Feature the policy enables.
+pub fn levels(
+    rows: &[super::item_economy::GuildLevelRow],
+    policy: &crate::domain::feature_policy::FeaturePolicy,
+) -> Result<rules::Levels, MinimumError> {
+    let mut enabled = Vec::new();
+    for r in rows {
+        if policy
+            .is_enabled(r.feature.as_deref())
+            .map_err(|_| fail())?
+        {
+            enabled.push((r.level, r.required_exp, r.reward.clone()));
+        }
+    }
+    rules::Levels::new(enabled).map_err(|_| fail())
+}
+
+/// GiveLevelUpRewardToMembers(old level): every regular member whose
+/// GuildCharacterMaxLevel is below the new level gets the reward through StoreToQueuedItem
+/// ("GuildLevelUp", GuildLevelUpItemMail title and content, 7 days; an online member's queue is
+/// processed at once, as the original mails it), and its max level becomes the new one.
+async fn level_up_rewards(
+    pool: &PgPool,
+    party: &PartyHub,
+    hub: &GuildHub,
+    guild_sn: i32,
+    guild_name: &str,
+    new_level: i32,
+    reward: &str,
+) -> Result<(), MinimumError> {
+    let initialized: bool =
+        sqlx::query_scalar("SELECT initialized FROM game_queue_identity WHERE singleton")
+            .fetch_one(pool)
+            .await?;
+    if !initialized {
+        return Err(fail());
+    }
+    let utf16 = |s: &str| -> Vec<u8> { s.encode_utf16().flat_map(u16::to_le_bytes).collect() };
+    let now = now_seconds();
+    let title = "GameUI_Heroes_GuildLevelUpItemMail_Title";
+    let content = format!("GameUI_Heroes_GuildLevelUpItemMail_Content,{guild_name},{new_level}");
+    let online = hub.online(guild_sn);
+    for (cid, member_rank) in roster(pool, guild_sn).await?.into_values() {
+        if !rules::is_regular(member_rank) {
+            continue;
+        }
+        let max: Option<i32> =
+            sqlx::query_scalar("SELECT max_level FROM game_guild_character_max_level WHERE cid=$1")
+                .bind(cid)
+                .fetch_optional(pool)
+                .await?;
+        if max.unwrap_or(0) >= new_level {
+            continue;
+        }
+        let mut tx = pool.begin().await?;
+        sqlx::query("INSERT INTO game_queued_items(row_id,cid,item_class_ex_utf16,count,is_character_binded,mail_title_utf16,mail_content_utf16,color1,color2,color3,reduced_durability,max_durability_bonus,item_id,processed,event_code_utf16,processed_time_units300,expire_time_units300,log_date_units300) VALUES(nextval('game_queued_item_row_id')::integer,$1,$2,1,FALSE,$3,$4,-1,-1,-1,0,0,NULL,FALSE,$5,NULL,$6,$7)")
+            .bind(cid)
+            .bind(utf16(reward))
+            .bind(utf16(title))
+            .bind(utf16(&content))
+            .bind(utf16("GuildLevelUp"))
+            .bind((now + 7 * 86_400 + 2_208_988_800) * 300)
+            .bind((now + 2_208_988_800) * 300)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query(
+            "INSERT INTO game_guild_character_max_level(cid,max_level) VALUES($1,$2) \
+             ON CONFLICT (cid) DO UPDATE SET max_level=GREATEST(game_guild_character_max_level.max_level,EXCLUDED.max_level)",
+        )
+        .bind(cid)
+        .bind(new_level)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        if online.values().any(|c| *c == cid) {
+            party.notify(cid, Notice::ProcessQueue);
+        }
+    }
+    Ok(())
+}
+
+/// GiveGuildGPProcessor + GuildEntity.GiveGP for one member: the member must be online in its
+/// guild and regular; the daily limit of the gain type applies, GuildGainGP goes to every
+/// online member, each level up broadcasts GuildLevelUp and its rewards, the member's guild
+/// point grows by the given GP and, when GP was given, the guild's level and point are saved
+/// and synced. The caller's packets (None when no GP was given: a FailMessage).
+#[allow(clippy::too_many_arguments)]
+pub async fn give_gp(
+    pool: &PgPool,
+    party: &PartyHub,
+    hub: &GuildHub,
+    levels: &rules::Levels,
+    guild_sn: i32,
+    cid: i64,
+    gp: i32,
+    gain_type: u8,
+) -> Result<Option<Vec<OutgoingPacket>>, MinimumError> {
+    if !hub.config.level_enabled {
+        return Ok(None);
+    }
+    let Some(name) = hub.online_name(guild_sn, cid) else {
+        return Ok(None);
+    };
+    let members = roster(pool, guild_sn).await?;
+    if !members
+        .get(&name)
+        .is_some_and(|(_, r)| rules::is_regular(*r))
+    {
+        return Ok(None);
+    }
+    let Some(guild) = info(pool, &hub.config, guild_sn).await? else {
+        return Ok(None);
+    };
+    let daily = guild
+        .daily_gain_gp
+        .0
+        .as_ref()
+        .and_then(|d| d.iter().find(|(t, _)| *t == gain_type).map(|(_, p)| *p));
+    let limit = rules::daily_limit(&hub.config.daily_limit, gain_type);
+    let gained = rules::give_gp(
+        levels,
+        guild.guild_level,
+        guild.guild_point,
+        daily,
+        limit,
+        gp,
+        gain_type,
+    );
+    let given = gained.as_ref().map_or(0, |g| g.given);
+    let mut own = Vec::new();
+    let online = hub.online(guild_sn);
+    let to_all = |own: &mut Vec<OutgoingPacket>, message: OutgoingPacket| {
+        for member in online.values() {
+            if *member == cid {
+                own.push(message.clone());
+            } else {
+                party.deliver(*member, vec![message.clone()]);
+            }
+        }
+    };
+    if let Some(g) = &gained {
+        if let Some(new_daily) = g.daily {
+            sqlx::query(
+                "INSERT INTO game_guild_daily_gain_gp(oid_guild,gp_gain_type,point) VALUES($1,$2,$3) \
+                 ON CONFLICT (oid_guild,gp_gain_type) DO UPDATE SET point=EXCLUDED.point",
+            )
+            .bind(guild_sn)
+            .bind(i16::from(gain_type))
+            .bind(new_daily)
+            .execute(pool)
+            .await?;
+            let mut gains = guild.daily_gain_gp.0.clone().unwrap_or_default();
+            match gains.iter_mut().find(|(t, _)| *t == gain_type) {
+                Some(row) => row.1 = new_daily,
+                None => gains.push((gain_type, new_daily)),
+            }
+            to_all(
+                &mut own,
+                packet(&Message::GuildGainGp(wire::GainGp {
+                    guild_point: g.point_before,
+                    daily_gain_gp: ByteDict(Some(gains)),
+                }))?,
+            );
+        }
+        for new_level in &g.level_ups {
+            to_all(&mut own, packet(&Message::GuildLevelUp(*new_level))?);
+            if let Some(reward) = levels.reward(new_level.wrapping_sub(1)) {
+                level_up_rewards(
+                    pool,
+                    party,
+                    hub,
+                    guild_sn,
+                    guild.guild_name.as_deref().unwrap_or(""),
+                    *new_level,
+                    reward,
+                )
+                .await?;
+            }
+        }
+    }
+    // GuildMember.AddPoint and UpdateGuildCharacterInfo, even for 0.
+    sqlx::query(
+        "INSERT INTO game_guild_character_info(cid,point) VALUES($1,$2) \
+         ON CONFLICT (cid) DO UPDATE SET point=game_guild_character_info.point+EXCLUDED.point",
+    )
+    .bind(cid)
+    .bind(i64::from(given))
+    .execute(pool)
+    .await?;
+    hub.report_changed(guild_sn, &name);
+    let Some(g) = gained else {
+        return Ok(None);
+    };
+    sqlx::query("UPDATE game_guild SET level=$2,exp=$3 WHERE oid_guild=$1")
+        .bind(guild_sn)
+        .bind(g.level)
+        .bind(g.point)
+        .execute(pool)
+        .await?;
+    hub.report_info_changed(guild_sn);
+    own.extend(sync(pool, party, hub, guild_sn, cid).await?.packets);
+    Ok(Some(own))
+}
+
+/// APManager.GiveAPWithGuild (GuildLevel on): a regular member's AP reward gives the guild
+/// AP × GuildLevel_APGainRatio / 100 GP of type ByPVE. The caller's packets.
+pub async fn give_ap_gp(
+    pool: &PgPool,
+    party: &PartyHub,
+    hub: &GuildHub,
+    levels: &rules::Levels,
+    cid: i64,
+    ap: i32,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    if !hub.config.level_enabled || ap <= 0 {
+        return Ok(Vec::new());
+    }
+    let Some((guild_sn, member_rank)) = membership(pool, cid).await? else {
+        return Ok(Vec::new());
+    };
+    if !rules::is_regular(member_rank) {
+        return Ok(Vec::new());
+    }
+    let gp = ap.wrapping_mul(hub.config.ap_gain_ratio) / 100;
+    Ok(give_gp(
+        pool,
+        party,
+        hub,
+        levels,
+        guild_sn,
+        cid,
+        gp,
+        rules::gain::BY_PVE,
+    )
+    .await?
+    .unwrap_or_default())
 }
