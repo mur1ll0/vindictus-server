@@ -41,20 +41,29 @@ Ordem: SO1 → SO2 → G1–G5 → RK1–RK3 → PV1 → (decisão D-S2) PV2–P
 
 ## Decisões do operador
 
-- D-S1: amigos — só o lado do servidor que o cliente usar (sem emular o Nexon Messenger) ou outra abordagem depois de I-A1/I-A2.
-- D-S2: PvP — rodar o `srcds.exe` como processo no host Windows (fora do Docker Linux), mudar o perfil para os modos P2P, ou ficar no duelo livre por enquanto.
+- D-S1: amigos — sem amigos (só SO1–SO3), ou Messenger próprio: `nmcogame.dll` substituto em Rust + módulo `messenger` no servidor (recomendado, `docs/nexon-services-replacement.md`), ou servidor compatível com o `nmconew.dll`.
+- D-S2: PvP — partida hospedada por um jogador via relay (experimento recomendado, sem DS), lançador próprio do DS (`DedicatedMain` do `bin/dedicated.dll`, sem o `srcds.exe`) numa VM/host Windows, ou ficar no duelo livre por enquanto.
 - D-S3: ranking — fórmula e periodicidade do cálculo (a regra original não está nos binários).
 
 ## Investigações
 
 ### Com o operador (no original)
 
-- I-A1: `en-EU/scaleform/CommunityDialog.gfx` (e outros `.gfx` com "Friend"/"Community"): decompilar com o JPEXS FFDec e trazer as abas, e os nomes chamados em `ExternalInterface.call`/`fscommand` e os callbacks registrados (o que a UI pede ao jogo em amigos, bloqueio, grupo, guilda).
-- I-A2: no servidor original em execução (se houver acesso, ou relato de quem jogou): a lista de amigos, o "Add Friend" do menu do personagem e a aba de bloqueados funcionavam? Com que argumento o cliente era aberto (`-nonmco`?).
-- I-A3: o executável e a configuração do `NMServer` no pacote `ServidorVindictus` (onde está, que portas e serviços expõe); só o inventário, sem executar.
-- I-P1: `srcds.exe` numa cópia isolada do cliente, com os argumentos acima e `-nonmco`, sem servidor ouvindo: inicia? o que o console mostra (mapa, erros de Steam/Nexon, tentativa de conexão em `-connectip`)? Executar um binário legado é decisão do operador.
-- I-P2: os mapas p01–p06 no HFS do 1.69 EN (nomes de `.bsp` de PvP/arena) e se a UI do 1.69 EN mostra o botão de PvP e quais modos.
-- I-P3: `ServidorVindictus` en-EU/en-US: `DSExecPath`, `DSPort`, `DSAuxParams`, portas do PvP relay e do DSService no `ServiceCore.dll.config`.
+- I-A1/I-A2/I-A3: **resolvidas** por REA + parse dos `.gfx` (03/11/2026, [`friends-nexon-messenger-investigation.md`](friends-nexon-messenger-investigation.md)). Em resumo: a UI usa `fscommand("CommunityDialog", …)` (abas Amigos/Guilda/Bloqueados/Sussurro/Histórico); amigos/presença/grupos são do **Nexon Messenger** (`nmconew.dll` ↔ `NMServer` em `:47611`, config em `nmconew.ini`), enquanto sussurro/bloqueio/guilda são do servidor do jogo; o cliente sobe sem `-nonmco` (só o `srcds.exe` o usa); o `NMServer.exe` do pacote é uma reimplementação Go (Willi Network) que autentica em `nexon.net`. D-S1 passa a ter 3 opções (ver doc).
+- I-P1/I-P2/I-P3: **resolvidas** por REA + leitura (03/11/2026, [`pvp-srcds-investigation.md`](pvp-srcds-investigation.md)). Em resumo: I-P3 — não há `ServiceCore.dll.config` de en-EU/en-US (só o `zh-tw-x-gm`): `DSPort 26000`, `DSServicePort 27018`, `ClientDSServicePort 28018`, `DSAuxParams -allowdebug -dev -nonmco -lang <região>`, relay de PvP TCP `27006` (UDP 27016/27006). I-P2 — UI mostra o botão de PvP (`UI_PvPButton`) com Arena (p05), DeathMatch (p03) e GodMatch (p04); mapas no HFS p02–p07 (p01 ausente); UI = `ArenaDialog.gfx`. I-P1 — `srcds.exe` é lançador do Source empacotado com VMProtect, que embute o Nexon Game Security e chama `gamelog.heroes.nexon.com`; **execução declinada** (risco de anticheat/sistema), comportamento previsto no doc; D-S2 segue do operador.
+
+### Avaliação das investigações (03/11/2026)
+
+- O `NMServer.exe` (Go) só tem os handlers `HandleLogin`, `HandleLogin2`, `HandleLogin3` e `HandleNothing` (27 símbolos `main.*`, nenhum de amigo, categoria ou presença). Ele aceita o login do messenger e mais nada: a opção 2 do D-S1 não entrega lista de amigos. Para amigos, só a opção 3 (Messenger em Rust), que exige o protocolo do `nmconew.dll` além do login.
+- O `srcds.exe` do Windictus 2023 é outro build (1.034.312 bytes contra 843.536 do 1.69, ainda com `.vmp0`) **sem** a string do Nexon Game Security, e mantém `gamelog.heroes`. É indício de que o servidor privado usou um DS sem o NGS.
+- O botão e os modos de PvP (I-P2) vêm da flag `UI_PvPButton` e dos `.gfx`, não de observação no cliente.
+- I-P3 deu só as portas; o formato das mensagens DSService ↔ DS continua no I-S4.
+
+### Lacunas para o operador
+
+- I-A4: no Windictus 2023, a lista de amigos funcionava de fato (adicionar, aceitar, ver online)? Ou só sumia o aviso de "Buddy List unavailable"?
+- I-P4: no Windictus 2023, Arena, DeathMatch ou GodMatch chegavam a abrir partida?
+- I-P5 (opcional, decisão do operador): executar o `srcds.exe` numa VM descartável e sem rede, pela receita de `docs/pvp-srcds-investigation.md`, para saber se o DS do 1.69 sobe e conecta ao DSService. Se o NGS impedir, comparar com o build do Windictus.
 
 ### Do lado do Claude (sem o operador)
 

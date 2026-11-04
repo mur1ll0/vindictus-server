@@ -25,7 +25,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 5. B5 correio implementado em 03/11 (ciclo completo e GiveItem ForceMail): sessão de cliente pelo roteiro `docs/client-tests/B5-correio.md` (duas personagens; Docker reconstruído).
 6. B5 mercado implementado em 03/11: sessão de cliente pelo roteiro `docs/client-tests/B5-marketplace.md` (duas contas; Docker reconstruído). Depois, o próximo sistema restante do B5.
 7. B5 eventos: drops de chefe, BoostEvent, histórias por período, lojas de cupom, metas coletivas, agenda, descrição no painel e collabs SAO/Fairy Tail completos para EU feitos em 03/11; sessão de cliente pelo roteiro `docs/client-tests/B5-eventos.md` (EV1–EV12).
-8. B5 social/PvP (`docs/social-systems.md`): começar pelo SO1 (sussurro); operador investiga I-A1–I-A3 e I-P1–I-P3 no original; Claude faz I-S1–I-S5.
+8. B5 social/PvP (`docs/social-systems.md`): começar pelo SO1 (sussurro). Investigações I-A1–I-A3 e I-P1–I-P3 feitas (amigos = Nexon Messenger; PvP do EU = DS); substituição dos serviços da Nexon em `docs/nexon-services-replacement.md`. Faltam I-S1–I-S5 (Claude) e D-S1/D-S2 (operador).
 
 ## Aguardando o operador
 
@@ -48,7 +48,7 @@ Testes de cliente adiados do B0: aprender skill nova com ouro (B1.2), empilhar p
 
 Decisões pendentes:
 - Launcher (`docs/future/game-launcher.md` §5): D-L5 assinatura do exe (D-L2, D-L3, D-L4 e D-L6 decididos em 03/11).
-- Social/PvP (`docs/social-systems.md`): D-S1 amigos, D-S2 PvP com `srcds.exe`, D-S3 cálculo do ranking.
+- Social/PvP (`docs/social-systems.md`, `docs/nexon-services-replacement.md`): D-S1 amigos (Messenger próprio recomendado), D-S2 PvP (host jogador recomendado, ou lançador próprio do DS), D-S3 cálculo do ranking; I-A4, I-P4 e I-P5 opcionais do operador.
 - Customização: poses animadas e rotação dos atores da grade (opcional, comando `cc_create_character_selection_play_sequence` do NA).
 
 ## Blocos do roteiro
