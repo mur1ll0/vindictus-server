@@ -3563,3 +3563,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` SO2.
 - Commits: ver "feat: whisper filter with the WhisperBlock table (B5 social SO2)".
 - Pendente / próxima ação: G1 (criar guilda, GuildInfo, GuildMemberList, reconexão no login); clippy anterior antes do gate.
+
+## 2026-11-04 — G1a codecs de guilda e I-S1 (B5 social)
+- Feito: I-S1 de guilda resolvido pelas `sql_modules` de `docs/evidence/database/study_heroes.schema.json` (13 tabelas, 53 procedures; sem subir o SQL Server). Levantamento G1/G2 do GuildServiceProxy/GuildEntity (estados Initial/Connecting/OutGuild/InGuild, processors, Sync, regras de nome e cargo). `protocol::guild` com as 15 mensagens G1/G2 (OpenGuild 338, GuildResult 281, GuildInfo 278, GuildMemberList 336, QueryGuildList 339, GuildList 279, JoinGuild 284, LeaveGuild 285, CloseGuild 277, ReconnectGuild 286, GuildOperation 337, ChangeMaster 84, InviteGuild 283, GuildNoticeEdit 280, GuildStoryRequest 282) e os tipos InGameGuildInfo, GuildMemberInfo, GuildOperationInfo, `ByteDict`. Oráculo `scripts/reverse/framework/GuildWireOracle.cs` + `scripts/reverse/generate-guild-wire-fixtures.ps1` → `tests/fixtures/framework-guild-wire.json`.
+- Verificação: oráculo 141 casos por arquitetura, x86=x64, zero avisos; `cargo test --test guild_wire` 1 passed (`.cache/verification/guild/g1-wire.log`).
+- Cliente: não necessário (só codecs).
+- Commits: ver "feat: guild wire codecs from the C# oracle (B5 social G1a)".
+- Pendente / próxima ação: G1b — tabelas de guilda (GuildInfo, GuildUser, Guild, GuildCharacterInfo), conexão no InGame (ConnectSuccess + GuildInfo nula ou da guilda + GuildMemberList), OpenGuild e QueryGuildList.

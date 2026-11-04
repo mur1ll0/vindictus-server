@@ -67,7 +67,7 @@ Ordem: SO1 → SO2 → G1–G5 → RK1–RK3 → PV1 → (decisão D-S2) PV2–P
 
 ### Do lado do Claude (sem o operador)
 
-- I-S1: corpos das procedures de guilda, amizade, `WhisperBlock`, `PvpResultInfo` e ranking no SQL Server legado restaurado (`docker compose --profile legacy up -d --wait legacy-sqlserver`, só leitura; nada de catálogo bruto no git).
+- I-S1: **guilda resolvida em 04/11** sem subir o SQL Server: `docs/evidence/database/study_heroes.schema.json` (`sql_modules.definition`) tem as 13 tabelas e as 53 procedures de guilda (GuildCreate, GuildUserJoin/JoinApply/JoinReject/Secede/TypeModify, GuildGroupChangeMaster, GuildRemove, GuildAllMemberGetList, GuildUserGroupGetList, GuildCheckGroupName/ID, Get/UpdateGuildInfo…). Ranking e `PvpResultInfo` seguem pelo mesmo caminho (`study_heroesRank`, `study_heroes`); amizade não é necessária (D-S1).
 - I-S2: categoria das mensagens de armazém/newbie/compra direta de guilda (`candidate_category: 0` em `docs/evidence/reverse/messages.json`) e do `PvpRegisterGameWaitingQueue`.
 - I-S3: limites do GroupTalk (flags nulas no EU) e se o cliente 1.69 abre salas de grupo.
 - I-S4: protocolo TCP DSService ↔ `srcds` (`DSHostConnectionEstablish`, `LaunchPvpDS`, ping, encaminhamento de Report/Penalty/Kick) a partir do `DSEntity.cs`, com fixtures do oráculo C#.
