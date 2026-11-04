@@ -41,6 +41,8 @@ fn decode(p: &OutgoingPacket) -> Message {
         Kind::GuildInfo,
         Kind::GuildMemberList,
         Kind::GuildList,
+        Kind::GuildChat,
+        Kind::GuildChatMemberInfo,
     ]
     .into_iter()
     .find(|k| k.category() == p.category)
@@ -80,6 +82,8 @@ fn shape(packets: &[OutgoingPacket]) -> Vec<String> {
             Message::GuildMemberList(l) if l.is_full_update => "F".to_owned(),
             Message::GuildMemberList(_) => "U".to_owned(),
             Message::GuildResult(r) => format!("R{}", r.result),
+            Message::GuildChat(_) => "C".to_owned(),
+            Message::GuildChatMemberInfo(i) => format!("M{}", u8::from(i.is_online)),
             _ => "?".to_owned(),
         })
         .collect()
@@ -317,17 +321,41 @@ async fn guild_open_connect_search_and_presence() {
         Some("Raide às 21h")
     );
 
-    // A disconnect is only seen at the next sync.
-    guilds::leave(&hub, 1);
-    assert!(pushed(&mut b_rx).is_empty());
-    let synced = guilds::edit_notice(&p, &party, &hub, 2, sn, None)
+    // Guild chat: both join the room; the members already there see the newcomer.
+    assert!(guilds::join_chat(&p, &party, &hub, 1, sn).await.unwrap());
+    assert!(guilds::join_chat(&p, &party, &hub, 2, sn).await.unwrap());
+    assert_eq!(shape(&pushed(&mut a_rx)), ["M1"]);
+    let (failed, own) = guilds::chat(&p, &party, &hub, 1, sn, Some("Olá, guilda"))
         .await
         .unwrap();
-    assert_eq!(shape(&synced.packets), ["I", "U"]);
-    let (_, lines) = list_of(&synced.packets[1]);
+    assert_eq!((failed, shape(&own)), (None, vec!["C".to_owned()]));
+    let to_bob = pushed(&mut b_rx);
+    let Message::GuildChat(said) = decode(&to_bob[0]) else {
+        panic!("not a GuildChat")
+    };
+    assert_eq!(said.sender.as_deref(), Some("Alice"));
+    assert_eq!(said.message.as_deref(), Some("Olá, guilda"));
+    // Not online in the guild: Unknown.
+    assert_eq!(
+        guilds::chat(&p, &party, &hub, 3, sn, Some("x"))
+            .await
+            .unwrap()
+            .0,
+        Some(guilds::chat_error::UNKNOWN)
+    );
+
+    // The PlayerConn closes: LeaveChatRoom, Disconnect and Sync at once.
+    guilds::leave(&p, &party, &hub, 1).await;
+    let to_bob = pushed(&mut b_rx);
+    assert_eq!(shape(&to_bob), ["M0", "U"]);
+    let (_, lines) = list_of(&to_bob[1]);
     assert_eq!(lines[0].character_name.as_deref(), Some("Alice"));
     assert!(!lines[0].is_online);
     // The notice stays when the text is null.
+    let synced = guilds::edit_notice(&p, &party, &hub, 2, sn, None)
+        .await
+        .unwrap();
+    assert_eq!(shape(&synced.packets), ["I"]);
     assert_eq!(
         info_of(&synced.packets[0]).unwrap().guild_notice.as_deref(),
         Some("Raide às 21h")
@@ -355,6 +383,14 @@ async fn guild_open_connect_search_and_presence() {
         .unwrap()
         .unwrap();
     guilds::enter(&p, &party, &hub, 1).await;
+    // A waiting member may not chat.
+    assert_eq!(
+        guilds::chat(&p, &party, &hub, 1, sn, Some("x"))
+            .await
+            .unwrap()
+            .0,
+        Some(guilds::chat_error::NOT_ENOUGH_PERMISSION)
+    );
     let left = guilds::leave_guild(&p, &party, &hub, 1, sn)
         .await
         .unwrap()

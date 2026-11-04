@@ -51,7 +51,14 @@ Pré-condição: G1 (A mestre de `Teste_Guilda`); B sem guilda; A e B no jogo ao
 - [ ] C pede para entrar e B (operador) recusa → C some da lista e C fica sem guilda.
 - [ ] B (operador) tenta passar a liderança → aviso `GameUI_Heroes_ChangeMaster_NotMatchOldMaster`. A passa a liderança a B → diálogo `GameUI_Heroes_ChangeMaster_Success`; B vira mestre e A operador para os dois.
 - [ ] A edita a notícia da guilda → os dois veem a notícia nova.
-- [ ] A sai para a seleção → B só vê A offline na próxima mudança da guilda (por exemplo, depois que B editar a notícia).
+- [ ] A sai para a seleção → B vê A offline na lista na hora.
 - [ ] A volta; B expulsa A → A recebe o aviso de saída da guilda e fica sem guilda; B vê 1 membro.
 - [ ] A pede para entrar de novo e sai por conta própria antes da aprovação → aviso de saída; A sem guilda.
 - [ ] B dissolve a guilda com outro membro aguardando → falha `HasMember`; sem outros membros → sucesso; B sem guilda; a busca não mostra mais a guilda e o nome pode ser usado de novo (o ID não).
+
+### G3 — Chat de guilda
+Pré-condição: G2 até a troca de mestre (A e B membros regulares, os dois no jogo); C aguardando aprovação na guilda, no jogo.
+- [ ] A abre o chat de guilda (aba de guilda do chat) → entra sem erro. B abre o chat → A vê o aviso de que B entrou.
+- [ ] A escreve no chat de guilda (com acentos) → A e B veem a mensagem com o nome de A; C não vê.
+- [ ] C (aguardando) tenta escrever no chat de guilda → aviso `GameUI_Heroes_InGameGuildChat_Fail_NotEnoughPermission`.
+- [ ] B sai do jogo → A vê o aviso de que B saiu do chat e B offline na lista.

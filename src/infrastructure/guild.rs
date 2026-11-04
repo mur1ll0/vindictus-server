@@ -96,6 +96,8 @@ struct Entity {
     not_synched: BTreeSet<String>,
     /// IsGuildInfoChanged.
     info_changed: bool,
+    /// GuildChatRoom game members: CID → sender name.
+    room: BTreeMap<i64, String>,
 }
 /// What one Sync starts from (the flags are cleared when it is taken).
 struct Pending {
@@ -137,8 +139,9 @@ impl GuildHub {
         })?;
         let close = entities.get_mut(&sn).is_some_and(|e| {
             e.online.remove(&name);
+            e.room.remove(&cid);
             e.changed.insert(name);
-            e.online.is_empty()
+            e.online.is_empty() && e.room.is_empty()
         });
         if close {
             entities.remove(&sn);
@@ -178,6 +181,43 @@ impl GuildHub {
             not_synched: std::mem::take(&mut e.not_synched),
             info_changed: std::mem::take(&mut e.info_changed),
         })
+    }
+    /// GuildChatRoom.JoinGameMember of an online member: the members already in the room
+    /// (who get its GuildChatMemberInfo), None when it is not online in the guild.
+    fn join_room(&self, guild_sn: i32, cid: i64) -> Option<(String, Vec<i64>)> {
+        let mut entities = self.lock();
+        let e = entities.get_mut(&guild_sn)?;
+        let name = e.online.iter().find(|(_, c)| **c == cid)?.0.clone();
+        e.room.remove(&cid);
+        let others = e.room.keys().copied().collect();
+        e.room.insert(cid, name.clone());
+        Some((name, others))
+    }
+    /// GuildChatRoom.LeaveMember: the guild, the member's name and the members left in
+    /// the room.
+    fn leave_room(&self, cid: i64) -> Option<(i32, String, Vec<i64>)> {
+        let mut entities = self.lock();
+        let (sn, e) = entities
+            .iter_mut()
+            .find(|(_, e)| e.room.contains_key(&cid))?;
+        let name = e.room.remove(&cid)?;
+        Some((*sn, name, e.room.keys().copied().collect()))
+    }
+    /// The chat room members of a guild and whether `cid` is one of them.
+    fn room(&self, guild_sn: i32) -> Vec<i64> {
+        self.lock()
+            .get(&guild_sn)
+            .map(|e| e.room.keys().copied().collect())
+            .unwrap_or_default()
+    }
+    /// The online name of a member (OnlineGuildMember.Sender).
+    fn online_name(&self, guild_sn: i32, cid: i64) -> Option<String> {
+        self.lock()
+            .get(&guild_sn)?
+            .online
+            .iter()
+            .find(|(_, c)| **c == cid)
+            .map(|(n, _)| n.clone())
     }
     /// The closed guild's entity goes away; its online members.
     fn close(&self, guild_sn: i32) -> Vec<i64> {
@@ -482,10 +522,120 @@ pub async fn enter(
     }
 }
 
-/// The connection closed: GuildEntity.Disconnect (no Sync; the others see the change at
-/// the next one).
-pub fn leave(hub: &GuildHub, cid: i64) {
-    hub.disconnect(cid);
+/// The PlayerConn closed (OnlineGuildMember): LeaveChatRoom (GuildChatMemberInfo offline
+/// to the room), GuildEntity.Disconnect and Sync (the others see the member offline).
+pub async fn leave(pool: &PgPool, party: &PartyHub, hub: &GuildHub, cid: i64) {
+    let left = async {
+        if let Some((sn, name, others)) = hub.leave_room(cid) {
+            chat_member_info(pool, party, sn, &name, false, &others, cid).await?;
+        }
+        if let Some(sn) = hub.disconnect(cid) {
+            sync(pool, party, hub, sn, cid).await?;
+        }
+        Ok::<_, MinimumError>(())
+    }
+    .await;
+    if left.is_err() {
+        tracing::warn!("guild disconnection sync failed; values omitted");
+    }
+}
+
+/// The ranks of a guild's members by CID.
+async fn ranks(pool: &PgPool, guild_sn: i32) -> Result<HashMap<i64, i32>, MinimumError> {
+    Ok(roster(pool, guild_sn).await?.into_values().collect())
+}
+
+/// BroadCastInfoMessage: GuildChatMemberInfo(sender, isOnline) to the regular room
+/// members in `to` (SendInfoMessage skips the others). The packet of `caller`, if any.
+async fn chat_member_info(
+    pool: &PgPool,
+    party: &PartyHub,
+    guild_sn: i32,
+    sender: &str,
+    is_online: bool,
+    to: &[i64],
+    caller: i64,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let ranks = ranks(pool, guild_sn).await?;
+    let message = packet(&Message::GuildChatMemberInfo(wire::ChatMemberInfo {
+        sender: Some(sender.to_owned()),
+        is_online,
+    }))?;
+    let mut own = Vec::new();
+    for cid in to {
+        if !ranks.get(cid).is_some_and(|r| rules::is_regular(*r)) {
+            continue;
+        }
+        if *cid == caller {
+            own.push(message.clone());
+        } else {
+            party.deliver(*cid, vec![message.clone()]);
+        }
+    }
+    Ok(own)
+}
+
+/// JoinGuildChatRoomProcessor (UseHeroesGuildChatServer on): GuildChatRoom.JoinGameMember
+/// of an online member, which announces it to the members already in the room. False when
+/// the member is not online in the guild (JoinGuildChatFail).
+pub async fn join_chat(
+    pool: &PgPool,
+    party: &PartyHub,
+    hub: &GuildHub,
+    cid: i64,
+    guild_sn: i32,
+) -> Result<bool, MinimumError> {
+    let Some((name, others)) = hub.join_room(guild_sn, cid) else {
+        return Ok(false);
+    };
+    chat_member_info(pool, party, guild_sn, &name, true, &others, cid).await?;
+    Ok(true)
+}
+
+/// GuildChat.ErrorCode names (SystemMessage "GameUI_Heroes_InGameGuildChat_Fail_" + code).
+pub mod chat_error {
+    pub const UNKNOWN: &str = "Unknown";
+    pub const NOT_ENOUGH_PERMISSION: &str = "NotEnoughPermission";
+}
+
+/// GuildChatProcessor: an online regular member's message goes to every regular member in
+/// the chat room (the sender too, when it is in the room). The failure code, if any, and
+/// the caller's packets.
+pub async fn chat(
+    pool: &PgPool,
+    party: &PartyHub,
+    hub: &GuildHub,
+    cid: i64,
+    guild_sn: i32,
+    text: Option<&str>,
+) -> Result<(Option<&'static str>, Vec<OutgoingPacket>), MinimumError> {
+    let Some(name) = hub.online_name(guild_sn, cid) else {
+        return Ok((Some(chat_error::UNKNOWN), Vec::new()));
+    };
+    let ranks = ranks(pool, guild_sn).await?;
+    if !ranks.get(&cid).is_some_and(|r| rules::is_regular(*r)) {
+        return Ok((Some(chat_error::NOT_ENOUGH_PERMISSION), Vec::new()));
+    }
+    let room = hub.room(guild_sn);
+    if !room.contains(&cid) {
+        return Ok((None, Vec::new()));
+    }
+    let message = packet(&Message::GuildChat(wire::GuildChat {
+        sender: Some(name),
+        message: text.map(str::to_owned),
+    }))?;
+    let mut own = Vec::new();
+    for member in room {
+        if !ranks.get(&member).is_some_and(|r| rules::is_regular(*r)) {
+            continue;
+        }
+        if member == cid {
+            own.push(message.clone());
+        } else {
+            party.deliver(member, vec![message.clone()]);
+        }
+    }
+    Ok((None, own))
 }
 
 fn now_seconds() -> i64 {

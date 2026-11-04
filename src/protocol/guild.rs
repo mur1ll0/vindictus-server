@@ -3,7 +3,8 @@
 //! (278, InGameGuildInfo), GuildMemberList (336, GuildMemberInfo), QueryGuildList (339),
 //! GuildList (279), JoinGuild (284), LeaveGuild (285), CloseGuild (277), ReconnectGuild
 //! (286), GuildOperation (337, GuildOperationInfo), ChangeMaster (84), InviteGuild (283),
-//! GuildNoticeEdit (280) and GuildStoryRequest (282).
+//! GuildNoticeEdit (280), GuildStoryRequest (282) and the guild chat: GuildChatMemberInfo
+//! (85), GuildChat (86) and JoinGuildChatRoom (88).
 use super::{
     inventory::{Wire, object},
     wire::{PayloadError, Reader, Writer},
@@ -31,10 +32,13 @@ pub enum Kind {
     InviteGuild,
     GuildNoticeEdit,
     GuildStoryRequest,
+    GuildChatMemberInfo,
+    GuildChat,
+    JoinGuildChatRoom,
 }
 impl Kind {
     /// Messages the client sends (GuildServiceProxy and its states).
-    pub const INGRESS: [Kind; 11] = [
+    pub const INGRESS: [Kind; 13] = [
         Kind::OpenGuild,
         Kind::QueryGuildList,
         Kind::JoinGuild,
@@ -46,6 +50,8 @@ impl Kind {
         Kind::InviteGuild,
         Kind::GuildNoticeEdit,
         Kind::GuildStoryRequest,
+        Kind::GuildChat,
+        Kind::JoinGuildChatRoom,
     ];
     pub const fn category(self) -> i32 {
         match self {
@@ -64,6 +70,9 @@ impl Kind {
             Self::InviteGuild => 283,
             Self::GuildNoticeEdit => 280,
             Self::GuildStoryRequest => 282,
+            Self::GuildChatMemberInfo => 85,
+            Self::GuildChat => 86,
+            Self::JoinGuildChatRoom => 88,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -83,6 +92,9 @@ impl Kind {
             Self::InviteGuild => 0x51b65671_7ce1_3ca7_8572_1b02fb80076a,
             Self::GuildNoticeEdit => 0x3df39210_4621_3c4a_b85a_a1c864c4f86d,
             Self::GuildStoryRequest => 0xefc67527_b0af_310f_a8b7_b39c1922e670,
+            Self::GuildChatMemberInfo => 0x95a85ad2_b272_3422_9b92_3a664dc0cba9,
+            Self::GuildChat => 0x76a1e908_29cf_3ecd_8275_9453e1534766,
+            Self::JoinGuildChatRoom => 0x6ea314db_4675_36a1_979a_d0942107da04,
         })
     }
 }
@@ -288,6 +300,22 @@ object!(GuildList {
     total_page
 });
 
+/// GuildChatMessage (both directions; the server fills Sender).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GuildChat {
+    pub sender: Option<String>,
+    pub message: Option<String>,
+}
+object!(GuildChat { sender, message });
+
+/// GuildChatMemberInfoMessage: a member joined or left the chat room.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ChatMemberInfo {
+    pub sender: Option<String>,
+    pub is_online: bool,
+}
+object!(ChatMemberInfo { sender, is_online });
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Message {
     OpenGuild(OpenGuild),
@@ -310,6 +338,10 @@ pub enum Message {
     /// GuildNoticeEditMessage.Text.
     GuildNoticeEdit(Option<String>),
     GuildStoryRequest,
+    GuildChatMemberInfo(ChatMemberInfo),
+    GuildChat(GuildChat),
+    /// JoinGuildChatRoomMessage.GuildKey.
+    JoinGuildChatRoom(i64),
 }
 impl Message {
     pub const fn kind(&self) -> Kind {
@@ -329,6 +361,9 @@ impl Message {
             Self::InviteGuild(_) => Kind::InviteGuild,
             Self::GuildNoticeEdit(_) => Kind::GuildNoticeEdit,
             Self::GuildStoryRequest => Kind::GuildStoryRequest,
+            Self::GuildChatMemberInfo(_) => Kind::GuildChatMemberInfo,
+            Self::GuildChat(_) => Kind::GuildChat,
+            Self::JoinGuildChatRoom(_) => Kind::JoinGuildChatRoom,
         }
     }
 }
@@ -359,6 +394,9 @@ pub fn encode(
             Message::QueryGuildList(v) => v.write(&mut w)?,
             Message::GuildList(v) => v.write(&mut w)?,
             Message::JoinGuild(v) => v.write(&mut w)?,
+            Message::GuildChatMemberInfo(v) => v.write(&mut w)?,
+            Message::GuildChat(v) => v.write(&mut w)?,
+            Message::JoinGuildChatRoom(v) => v.write(&mut w)?,
             Message::GuildOperation(v) => v.write(&mut w)?,
             Message::ChangeMaster(v) | Message::InviteGuild(v) | Message::GuildNoticeEdit(v) => {
                 v.write(&mut w)?
@@ -414,6 +452,9 @@ fn decode_body(
             Kind::InviteGuild => Message::InviteGuild(Wire::read(r)?),
             Kind::GuildNoticeEdit => Message::GuildNoticeEdit(Wire::read(r)?),
             Kind::GuildStoryRequest => Message::GuildStoryRequest,
+            Kind::GuildChatMemberInfo => Message::GuildChatMemberInfo(Wire::read(r)?),
+            Kind::GuildChat => Message::GuildChat(Wire::read(r)?),
+            Kind::JoinGuildChatRoom => Message::JoinGuildChatRoom(Wire::read(r)?),
         })
     };
     if strict && !r.remaining.is_empty() {

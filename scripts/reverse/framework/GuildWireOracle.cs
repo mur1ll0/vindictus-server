@@ -93,6 +93,9 @@ class GuildWireOracle {
   AddCases("invite_guild",283,new Guid("51b65671-7ce1-3ca7-8572-1b02fb80076a"),new[]{null,Obj<InviteGuildMessage>("Name","Bob"),Obj<InviteGuildMessage>("Name",null)},cases);
   AddCases("guild_notice_edit",280,new Guid("3df39210-4621-3c4a-b85a-a1c864c4f86d"),new[]{null,Obj<GuildNoticeEditMessage>("Text","Raide às 21h"),Obj<GuildNoticeEditMessage>("Text",null)},cases);
   AddCases("guild_story_request",282,new Guid("efc67527-b0af-310f-a8b7-b39c1922e670"),new[]{null,Obj<GuildStoryRequestMessage>()},cases);
+  AddCases("guild_chat_member_info",85,new Guid("95a85ad2-b272-3422-9b92-3a664dc0cba9"),new[]{null,Obj<GuildChatMemberInfoMessage>("Sender","Alice","IsOnline",true),Obj<GuildChatMemberInfoMessage>("Sender",null,"IsOnline",false)},cases);
+  AddCases("guild_chat",86,new Guid("76a1e908-29cf-3ecd-8275-9453e1534766"),new[]{null,Obj<GuildChatMessage>("Sender","Alice","Message","Olá, guilda"),Obj<GuildChatMessage>("Sender",null,"Message",null),Obj<GuildChatMessage>("Sender","","Message","")},cases);
+  AddCases("join_guild_chat_room",88,new Guid("6ea314db-4675-36a1-979a-d0942107da04"),new[]{null,Obj<JoinGuildChatRoomMessage>("GuildKey",1001L),Obj<JoinGuildChatRoomMessage>("GuildKey",long.MinValue)},cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }
 }

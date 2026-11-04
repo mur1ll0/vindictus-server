@@ -62,7 +62,7 @@ fn framework_guild_messages_match_x86_x64() {
     let profiles = fixture["profiles"].as_array().unwrap();
     assert_eq!(profiles[0]["wire_cases"], profiles[1]["wire_cases"]);
     let cases = profiles[0]["wire_cases"].as_array().unwrap();
-    assert_eq!(cases.len(), 141);
+    assert_eq!(cases.len(), 171);
     for (n, case) in cases.iter().enumerate() {
         let kind = match case["kind"].as_str().unwrap() {
             "open_guild" => Kind::OpenGuild,
@@ -80,6 +80,9 @@ fn framework_guild_messages_match_x86_x64() {
             "invite_guild" => Kind::InviteGuild,
             "guild_notice_edit" => Kind::GuildNoticeEdit,
             "guild_story_request" => Kind::GuildStoryRequest,
+            "guild_chat_member_info" => Kind::GuildChatMemberInfo,
+            "guild_chat" => Kind::GuildChat,
+            "join_guild_chat_room" => Kind::JoinGuildChatRoom,
             _ => panic!("unknown fixture type"),
         };
         let category = case["category"].as_i64().unwrap() as i32;
@@ -167,6 +170,15 @@ fn framework_guild_messages_match_x86_x64() {
             Some(Message::ChangeMaster(name)) => assert_eq!(name, text(&f["NewMasterName"])),
             Some(Message::InviteGuild(name)) => assert_eq!(name, text(&f["Name"])),
             Some(Message::GuildNoticeEdit(t)) => assert_eq!(t, text(&f["Text"])),
+            Some(Message::GuildChatMemberInfo(i)) => {
+                assert_eq!(i.sender, text(&f["Sender"]));
+                assert_eq!(Some(i.is_online), f["IsOnline"].as_bool());
+            }
+            Some(Message::GuildChat(c)) => {
+                assert_eq!(c.sender, text(&f["Sender"]));
+                assert_eq!(c.message, text(&f["Message"]));
+            }
+            Some(Message::JoinGuildChatRoom(key)) => assert_eq!(key, int(&f["GuildKey"])),
             Some(Message::LeaveGuild)
             | Some(Message::CloseGuild)
             | Some(Message::ReconnectGuild)

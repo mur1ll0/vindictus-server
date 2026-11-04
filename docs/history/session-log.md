@@ -3584,3 +3584,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` G2.
 - Commits: ver "feat: guild membership, ranks and dissolution (B5 social G2)".
 - Pendente / próxima ação: G3 (chat de guilda: JoinGuildChatRoom 88, GuildChat 86, GuildChatMemberInfo 85).
+
+## 2026-11-04 — G3 chat de guilda e presença imediata (B5 social)
+- Feito: GuildChatMemberInfo (85), GuildChat (86) e JoinGuildChatRoom (88) no oráculo e no `protocol::guild` (171 casos). `GuildHub` com a GuildChatRoom de membros do jogo; `join_chat` (aviso aos que já estão na sala), `chat` (membros regulares na sala; Unknown fora da guilda online, NotEnoughPermission para quem aguarda), `leave` agora faz LeaveChatRoom + Disconnect + Sync, como o `PlayerConn.Closed` do OnlineGuildMember (correção do G2: a presença offline é difundida na hora). `lab_frontend`: JoinGuildChatRoom (só a chave da própria guilda; JoinGuildChatSuccess/Fail com a chave) e GuildChat (SystemMessage `GameUI_Heroes_InGameGuildChat_Fail_<código>`).
+- Verificação: oráculo 171 casos, x86=x64, zero avisos; `cargo test --test guild --test guild_wire --test whisper` 2+1+3 passed; PostgreSQL `guild` 2 passed no test-postgres (removido depois); clippy sem achados no código novo. Logs `.cache/verification/guild/g3-*.log`.
+- Cliente: `docs/client-tests/B5-social.md` G3 (e linha do G2 sobre presença offline corrigida).
+- Commits: ver "feat: guild chat room and immediate presence (B5 social G3)".
+- Pendente / próxima ação: G4 (GP por AP de recompensa, teto diário, reset 07:00 UTC, nível até 20, cápsula de AP, GuildGainGP 89, GuildLevelUp 90).

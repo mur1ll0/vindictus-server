@@ -657,7 +657,7 @@ impl Connection {
             // The frontend connection closed: RemoveMember("FrontendDisconnected").
             runtime.party.unregister(selected.cid);
             // The PlayerConn closed: OnlineGuildMember leaves its GuildEntity.
-            super::guild::leave(&runtime.guilds, selected.cid);
+            super::guild::leave(pool, &runtime.party, &runtime.guilds, selected.cid).await;
         }
         self.guild = super::guild::State::Initial;
         if let Some(selected) = self.selected.take() {
@@ -2751,6 +2751,48 @@ impl Connection {
                     };
                     packets.push(
                         guilds::result_packet(code, "", 0).map_err(|_| RuntimeError::Operation)?,
+                    );
+                }
+            }
+            (State::InGuild { guild_sn }, Message::JoinGuildChatRoom(key)) => {
+                // InGuild: only the own guild's key starts JoinGuildChatRoom.
+                if key != i64::from(guild_sn) {
+                    self.log_unhandled(category, body);
+                    return Ok(());
+                }
+                let joined =
+                    guilds::join_chat(pool, &runtime.party, &runtime.guilds, cid, guild_sn)
+                        .await
+                        .map_err(|_| RuntimeError::Operation)?;
+                let code = if joined {
+                    result::JOIN_GUILD_CHAT_SUCCESS
+                } else {
+                    result::JOIN_GUILD_CHAT_FAIL
+                };
+                packets.push(
+                    guilds::result_packet(code, "", key).map_err(|_| RuntimeError::Operation)?,
+                );
+            }
+            (State::InGuild { guild_sn }, Message::GuildChat(chat)) => {
+                let (failed, out) = guilds::chat(
+                    pool,
+                    &runtime.party,
+                    &runtime.guilds,
+                    cid,
+                    guild_sn,
+                    chat.message.as_deref(),
+                )
+                .await
+                .map_err(|_| RuntimeError::Operation)?;
+                packets = out;
+                if let Some(code) = failed {
+                    packets.push(
+                        super::minimum_shop::system_message(
+                            0,
+                            &format!("GameUI_Heroes_InGameGuildChat_Fail_{code}"),
+                            &[],
+                        )
+                        .map_err(|_| RuntimeError::Operation)?,
                     );
                 }
             }
