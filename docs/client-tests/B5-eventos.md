@@ -1,19 +1,19 @@
 # Roteiro de testes no cliente — B5 eventos (chaves no painel)
 
-Chaves de evento do FeatureMatrix ligadas e desligadas pelo painel (`docs/content-tuning.md`, "Chaves de evento no painel"). É uma extensão do laboratório; drops de evento dos chefes (EV5), recompensas periódicas (EV6), histórias por período (EV7), lojas de cupom (EV8), metas coletivas (EV10) e a agenda de eventos com modelos (EV11) funcionam.
+Chaves de evento do FeatureMatrix ligadas e desligadas pelo painel (`docs/content-tuning.md`, "Chaves de evento no painel"). É uma extensão do laboratório; drops de evento dos chefes (EV5), recompensas periódicas (EV6), histórias por período (EV7), lojas de cupom (EV8), metas coletivas (EV10), a agenda de eventos com modelos (EV11) e os collabs SAO e Fairy Tail completos para EU (EV12) funcionam.
 
 ## Preparação
 1. Runtime reconstruído com a migração `0057_content_event_switches` e o `item-economy.json` com a seção `events`.
 2. Painel com papel admin; cliente pelo `.cache/play-client/start-lab.bat`.
 
 ## Ordem de gameplay
-1. **EV1**: abrir a aba Eventos. 2. **EV2**: ligar um evento de loja. 3. **EV3**: desligar. 4. **EV4**: evento de história. 5. **EV5**: drop de evento de um chefe. 6. **EV6**: ficar 30 min online com BoostEvent. 7. **EV7**: bico no dia seguinte. 8. **EV8**: loja de cupom. 9. **EV9**: descrição no painel. 10. **EV10**: meta coletiva. 11. **EV11**: agenda de eventos.
+1. **EV1**: abrir a aba Eventos. 2. **EV2**: ligar um evento de loja. 3. **EV3**: desligar. 4. **EV4**: evento de história. 5. **EV5**: drop de evento de um chefe. 6. **EV6**: ficar 30 min online com BoostEvent. 7. **EV7**: bico no dia seguinte. 8. **EV8**: loja de cupom. 9. **EV9**: descrição no painel. 10. **EV10**: meta coletiva. 11. **EV11**: agenda de eventos. 12. **EV12**: collabs SAO e Fairy Tail (pacotes, NPCs, histórias, lojas, textos e sets em todas as classes).
 
 ## Como relatar
 ID da linha, o que apareceu (captura), horário (para `docker compose logs game`) e o nome do relatório de queda, se houver.
 
 ### EV1 — Aba Eventos
-- [ ] Ajustes de jogo → Eventos → lista de chaves com busca, filtros (Natal, Páscoa, Halloween, SAO…) e, em cada uma, as tabelas que usam a chave (riscadas as ainda não migradas); nenhuma chave `_kokr`, `_jajp` ou `_zhcn`.
+- [ ] Ajustes de jogo → Eventos → lista de chaves com busca, filtros (Natal, Páscoa, Halloween… e Collabs: SAO, Fairy Tail) e, em cada uma, as tabelas que usam a chave (riscadas as ainda não migradas); chaves `_kokr`, `_jajp` ou `_zhcn` só nos collabs, marcadas "adaptado de JP/KR/CN".
 - [ ] Ligar uma chave de meta coletiva (por exemplo `Event_SAO_AllUserGoal_us`) com `AllUserGoalEvent` desligada → aviso no topo e no cartão ("Precisa de AllUserGoalEvent ligada"), com o botão "Ligar AllUserGoalEvent"; o mesmo para uma chave de `PeriodicEventInfo` sem `BoostEvent`.
 
 ### EV2 — Ligar um evento de loja
@@ -77,3 +77,16 @@ Pré-condição: painel com papel admin; Ajustes de jogo → Agenda.
 - [ ] No fim → mensagem de fim, chaves e drops voltam; o evento passado some da lista.
 - [ ] Remover um evento rodando → ele termina no minuto seguinte.
 Limites conhecidos: `freetoken`, `droptable mod_fishing/add_fishing` e outros comandos aparecem como "sem efeito no laboratório"; o cliente recebe as chaves no próximo login (como no original, o FeatureMatrix do cliente só chega na entrada).
+
+### EV12 — Collabs SAO e Fairy Tail completos (EU)
+Pré-condição: Docker reconstruído e cópia do cliente atualizada (`refresh_item_content.py` e `apply_lab_content_additions.py --apply`, pelo `start-lab.bat`); personagens de uma classe masculina (Lann, Karok, Kai, Hurk ou Hagie) e de uma feminina (Fiona, Evie, Vella, Lynn, Arisha, Delia ou Miri), nível ≥ 10, com ouro.
+- [ ] Painel → Eventos → cartão **Collabs** → "Ligar tudo" em **SAO completo (EU)** → filtro SAO mostra marcadas `AllUserGoalEvent`, `Event_sao_npc_jajp`, `Event_SAO_AllUserGoal_enus`, `Event_SAO_AllUserGoal_Cat_Shop_enus`, `Event_SAO_AllUserGoal_us`, `Event_SAO_asuna_cooking_jajp`, `Event_SAO_lisbet_blacksmith_jajp` e desmarcadas as cópias (`_aus`, `_jajp`, `_kokr`, `_cn`…); Salvar publica uma versão. O mesmo com **Fairy Tail completo (EU)** (7 chaves).
+- [ ] O (i) de `Event_sao_npc_jajp` mostra Kirito e Asuna (`t01_inn`) e Lisbeth (`t01_bs`); o de `Event_Fairytail_npc` mostra Makarov, Erza (`t01_adv_guild`), Lucy (`t01_store`), Natsu (`t01_bs`) e Gray (`t01_inn`); as tabelas NpcTalkInfo e NpcCondition aparecem como migradas.
+- [ ] Relogar → Kirito e Asuna na estalagem, Lisbeth na ferraria; Makarov e Erza no escritório dos mercenários, Lucy no armazém, Natsu na ferraria, Gray na estalagem; nomes, descrições e falas em inglês (nenhum texto em coreano ou chave crua).
+- [ ] Kirito → história do Ultimate Objective (`Event_SAO_allusergoal_enus`) → concluir → botão da loja do Kirito abre `SAO_KIRITO_ENUS_Shop` (Treasure Chest por Revival Stone); o gato estranho da estalagem mostra o botão da loja SAO; a janela de metas coletivas mostra as 8 metas (um só conjunto).
+- [ ] Comprar e abrir `randomitem_sao_treasure_box_enus` → recebe um item da lista (consumíveis, padrões SAO).
+- [ ] Asuna (culinária) e Lisbeth/gato (ferraria) → histórias em inglês; os drops de história e de chefe da Asuna caem nas missões indicadas.
+- [ ] Fairy Tail: histórias de Natsu, Lucy, Gray, Erza e Makarov e a do Monster Bingo em inglês; Makarov abre a loja de bingo (`FAIRYTAIL_MAKALOV_Shop`) e os bingos caem dos monstros.
+- [ ] Cash shop do laboratório → os conjuntos do Kirito, Asuna, Lisbeth, Klein, Yui e Fairy Tail (Natsu, Lucy, Erza, Wendy) aparecem com nome em inglês; comprar uma peça do conjunto masculino com a personagem feminina e uma do feminino com a masculina → as duas equipam (ClassRestriction de todas as classes).
+- [ ] Anotar a aparência da peça na classe do outro corpo: os conjuntos masculinos têm modelos `male/giant/tall`, os femininos só `female` (12 peças têm os quatro) — esperado: peça invisível ou corpo base nessas classes. Relogar → peças e histórias preservadas.
+Limites conhecidos: a cartela de bingo (BingoEvent/BingoReward) não foi migrada — os números `bingo_N` caem e são comprados, mas a cartela não marca; `Event_sao_attendanceUI_jajp` (só cliente) fica de fora; sem modelo da classe a peça não ganha aparência nova (não inventamos modelos); textos dos collabs sem inglês oficial são traduções do laboratório (`scripts/content/collab_texts.json`, seção `lab`).

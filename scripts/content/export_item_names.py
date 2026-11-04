@@ -7,6 +7,7 @@ import argparse, json, pathlib, re
 from export_cash_shop import LOCALIZED, UNTRANSLATED
 from export_item_catalog import digest
 import class_imports
+import collabs
 import content_additions
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -36,7 +37,11 @@ def read_package(localized_path=LOCALIZED, additions=None, overrides=None):
     # Imported NA classes (class_imports.py): their names where the 1.69 localization has none.
     imported = (class_imports.class_text(imports=class_imports.load_imports(content_additions.CLASS_IMPORTS))
                 if localized_path == LOCALIZED else {})
-    entries = {**imported, **localized_entries(localized_path), **content_additions.text_entries(additions, overrides)}
+    entries = {**imported, **localized_entries(localized_path)}
+    if localized_path == LOCALIZED:
+        # Collab texts (collabs.py) where the EU text has no English line.
+        entries.update(collabs.missing_in(entries))
+    entries.update(content_additions.text_entries(additions, overrides))
     package = dict(format_version=1, source='heroes_text_english_eu', localized_sha256=digest(localized_path))
     for kind, prefix in PREFIXES.items():
         names = {}

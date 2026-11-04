@@ -9,6 +9,7 @@ of their features, and the client's english_eu item names and descriptions
 (HEROES_ITEM_NAME_/HEROES_ITEM_DESC_<CLASS> of heroes_text_english_eu.txt) shown by the
 in-game cash shop; a class whose EU text is still Korean (never released there) has none."""
 import argparse, contextlib, json, pathlib, re, sqlite3
+import collabs
 import content_additions
 import content_edits
 from export_item_catalog import read_package as catalog_read, digest
@@ -126,6 +127,9 @@ def status_effect(r):
 def read_package(database, config, prices_path=PRICES, localized_path=LOCALIZED, edits=content_edits.EMPTY):
     package = catalog_read(database, config)
     entries = localized_entries(localized_path)
+    if localized_path == LOCALIZED:
+        # Collab item names (collabs.py) where the EU text has no English line.
+        entries.update({k: v for k, v in collabs.missing_in(entries).items() if k.startswith('HEROES_ITEM_')})
     manifest = package['manifest']
     prices = json.loads(prices_path.read_text(encoding='utf-8'))
     # Published panel edits (content-edits.json) over the versioned prices.

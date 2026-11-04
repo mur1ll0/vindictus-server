@@ -18,6 +18,7 @@ type EditRequest = components['schemas']['EditRequest'];
 type Applied = components['schemas']['TuningApplied'];
 type MarketAuto = components['schemas']['MarketAutoView'];
 type EventView = components['schemas']['EventView'];
+type EventPackView = components['schemas']['EventPackView'];
 
 async function tuning(): Promise<Tuning> {
   const { data, error, response } = await api.GET('/api/tuning');
@@ -141,23 +142,27 @@ const EVENT_THEMES: { label: string; words: string[] }[] = [
   { label: 'Natal', words: ['christmas', 'xmas', 'santa'] },
   { label: 'Páscoa', words: ['easter'] },
   { label: 'Halloween', words: ['halloween'] },
-  { label: 'SAO (collab)', words: ['sao'] },
   { label: 'Ano novo', words: ['newyear', 'new_year', 'lunar'] },
   { label: 'Verão', words: ['summer', 'beach'] },
   { label: 'Dia dos namorados', words: ['valentine', 'whiteday'] },
 ];
-const theme = (key: string) => {
-  const k = key.toLowerCase();
+/** Collabs of the content (scripts/content/collabs.py), each a filter chip of the Collabs group. */
+const COLLABS = ['SAO', 'Fairy Tail'];
+const theme = (e: EventView) => {
+  if (e.collab) return e.collab;
+  const k = e.key.toLowerCase();
   return EVENT_THEMES.find((t) => t.words.some((w) => k.includes(w)))?.label ?? null;
 };
 
 /** FeatureMatrix event switches (laboratory extension): saved as tuning, live on the server. */
 function EventsPanel({
   events,
+  packs,
   editable,
   onSaved,
 }: {
   events: EventView[];
+  packs: EventPackView[];
   editable: boolean;
   onSaved: (applied: Applied) => void;
 }) {
@@ -192,7 +197,7 @@ function EventsPanel({
   const masters = MASTER_SWITCHES.filter((m) => blocked.some((e) => missing(e).includes(m)));
   const shown = events
     .filter((e) => !term || e.key.toLowerCase().includes(term))
-    .filter((e) => !chip || theme(e.key) === chip)
+    .filter((e) => !chip || theme(e) === chip)
     .filter((e) => !onlyOn || (drafts[e.key] ?? e.enabled));
   return (
     <div className="space-y-3">
@@ -200,7 +205,8 @@ function EventsPanel({
         <p className="flex items-start gap-2 text-sm text-muted">
           <CalendarHeart className="mt-0.5 size-4 shrink-0 text-accent" />
           <span>
-            Chaves de evento do FeatureMatrix da nossa região (as de outras regiões ficam de fora), mais as chaves gerais BoostEvent
+            Chaves de evento do FeatureMatrix da nossa região (as de outras regiões ficam de fora, menos as dos collabs, marcadas
+            adaptado de JP/KR), as chaves que só as falas de NPC usam (NpcTalkInfo e condições de botão), mais as chaves gerais BoostEvent
             (recompensas periódicas) e AllUserGoalEvent (metas coletivas, cujas datas passam a começar quando a chave da meta é
             ligada). Ligar vale na hora para lojas, lojas de cupom, drops de chefe, recompensas periódicas, metas coletivas,
             histórias, quests e itens do servidor, e o cliente recebe a chave no próximo login. As
@@ -229,6 +235,44 @@ function EventsPanel({
           </p>
         </Card>
       )}
+      {packs.length > 0 && (
+        <Card>
+          <p className="mb-2 text-sm font-medium">Collabs</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {packs.map((p) => {
+              const done = p.enable.every((k) => isOn(k)) && p.disable.every((k) => !isOn(k));
+              return (
+                <div key={p.id} className="rounded-lg border border-border px-3 py-2 text-xs">
+                  <p className="flex items-center gap-2">
+                    <span className="flex-1 text-sm font-medium">{p.name}</span>
+                    {editable && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={done}
+                        onClick={() => {
+                          const next = { ...drafts };
+                          for (const k of p.enable) next[k] = true;
+                          for (const k of p.disable) next[k] = false;
+                          setDrafts(next);
+                          setChip(p.collab);
+                        }}
+                      >
+                        {done ? 'Ligado' : 'Ligar tudo'}
+                      </Button>
+                    )}
+                  </p>
+                  <p className="mt-1 text-muted">
+                    Liga {p.enable.length} chave(s): {p.enable.join(', ')}.
+                    {p.disable.length > 0 && <> Desliga as cópias de outras regiões: {p.disable.join(', ')}.</>} Depois, Salvar
+                    publica tudo numa versão.
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative max-w-sm flex-1">
           <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" />
@@ -242,6 +286,17 @@ function EventsPanel({
             className={cn('rounded-full border border-border px-3 py-1 text-xs', chip === t.label && 'border-accent bg-raised font-medium')}
           >
             {t.label}
+          </button>
+        ))}
+        <span className="text-xs text-muted">Collabs:</span>
+        {COLLABS.map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => setChip(chip === c ? null : c)}
+            className={cn('rounded-full border border-border px-3 py-1 text-xs', chip === c && 'border-accent bg-raised font-medium')}
+          >
+            {c}
           </button>
         ))}
         <label className="flex items-center gap-1 text-xs">
@@ -266,7 +321,8 @@ function EventsPanel({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-mono text-sm">{e.key}</span>
                     <span className="block text-xs text-muted">
-                      {theme(e.key) ? `${theme(e.key)} · ` : ''}original {e.original ? 'ligado' : 'desligado'}
+                      {theme(e) ? `${theme(e)} · ` : ''}
+                      {e.adapted ? `adaptado de ${e.adapted} · ` : ''}original {e.original ? 'ligado' : 'desligado'}
                     </span>
                   </span>
                 </label>
@@ -582,7 +638,7 @@ export function TuningPage() {
         ))}
       </div>
       {tab === 'market' && <MarketAutoPanel editable={editable} />}
-      {tab === 'events' && data.data && <EventsPanel events={data.data.events} editable={editable} onSaved={setResult} />}
+      {tab === 'events' && data.data && <EventsPanel events={data.data.events} packs={data.data.packs} editable={editable} onSaved={setResult} />}
       {tab === 'schedule' && <SchedulePanel editable={editable} />}
       {tab !== 'rates' && tab !== 'enhance' && tab !== 'market' && tab !== 'events' && (
         <div className="relative max-w-sm">

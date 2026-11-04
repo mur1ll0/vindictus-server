@@ -113,6 +113,32 @@ struct Export {
     /// EventTemplate rows (the event schedule's templates).
     #[serde(default)]
     event_templates: Vec<EventTemplate>,
+    /// The panel's collab packs (scripts/content/collabs.py): keys switched on and off together.
+    #[serde(default)]
+    event_packs: Vec<EventPack>,
+}
+/// A collab pack of the panel: every key the whole event needs, and the other regions' copies
+/// of the same content to switch off (laboratory extension, scripts/content/collabs.py).
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct EventPack {
+    pub id: String,
+    pub name: String,
+    pub collab: String,
+    pub enable: Vec<String>,
+    pub disable: Vec<String>,
+}
+/// Packs name only exported event keys, never the same key on and off, within bounds.
+pub fn packs_valid(packs: &[EventPack], events: &[EventSwitch]) -> bool {
+    packs.len() <= 16
+        && packs.iter().all(|p| {
+            p.enable.len() + p.disable.len() <= 64
+                && p.enable
+                    .iter()
+                    .chain(&p.disable)
+                    .all(|k| events.iter().any(|e| &e.key == k))
+                && !p.enable.iter().any(|k| p.disable.contains(k))
+        })
 }
 /// AdminContents.EventTemplate: Name, Feature, StartScript, EndScript.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
@@ -133,6 +159,12 @@ pub struct EventSwitch {
     /// What the event brings (the panel's description), absent from older exports.
     #[serde(default)]
     pub detail: EventDetail,
+    /// The collab the key belongs to (SAO, Fairy Tail), laboratory extension.
+    #[serde(default)]
+    pub collab: Option<String>,
+    /// The other service a collab key comes from (JP, KR, CN...), adapted to the EU laboratory.
+    #[serde(default)]
+    pub adapted: Option<String>,
 }
 /// The content rows naming an event switch, at most 60 per table, in provider order.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq)]
@@ -197,6 +229,9 @@ pub struct EventDetail {
         Option<String>,
         Option<String>,
     )>,
+    /// NpcTalkInfo defaults the key enables: the NPC id and its town location.
+    #[serde(default)]
+    pub npcs: Vec<(Option<String>, Option<String>)>,
 }
 /// HotSpringPotionInfo row (UntilEffectSec and ShowName are not read by the server).
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
@@ -250,6 +285,7 @@ pub struct Profile {
     marketplace: Option<Marketplace>,
     events: Vec<EventSwitch>,
     event_templates: Vec<EventTemplate>,
+    event_packs: Vec<EventPack>,
 }
 impl Profile {
     pub fn read(reader: impl Read) -> Result<Self, MinimumError> {
@@ -377,6 +413,9 @@ impl Profile {
         {
             return Err(MinimumError::Conflict);
         }
+        if !packs_valid(&export.event_packs, &export.events) {
+            return Err(MinimumError::Conflict);
+        }
         let marketplace = match export.marketplace {
             None => None,
             Some(m) => {
@@ -410,6 +449,7 @@ impl Profile {
             marketplace,
             events: export.events,
             event_templates: export.event_templates,
+            event_packs: export.event_packs,
         })
     }
     /// The event schedule's templates (EventTemplate).
@@ -419,6 +459,10 @@ impl Profile {
     /// The region's FeatureMatrix event switches (the panel's Eventos tab).
     pub fn events(&self) -> &[EventSwitch] {
         &self.events
+    }
+    /// The panel's collab packs.
+    pub fn event_packs(&self) -> &[EventPack] {
+        &self.event_packs
     }
     /// The marketplace contents, when the export has them.
     pub fn marketplace(&self) -> Option<&Marketplace> {
@@ -469,5 +513,59 @@ impl Profile {
     }
     pub fn get(&self, source_index: usize) -> Option<&EconomyClass> {
         self.classes.get(source_index)
+    }
+}
+
+#[cfg(test)]
+mod collab_tests {
+    use super::*;
+
+    fn event(key: &str) -> EventSwitch {
+        serde_json::from_value(serde_json::json!({
+            "key": key, "value": null, "uses": {"NpcTalkInfo": 3},
+            "detail": {"npcs": [["SAO_Kirito", "t01_inn"]]}, "collab": "SAO", "adapted": "JP"
+        }))
+        .expect("event switch")
+    }
+
+    fn pack(enable: &[&str], disable: &[&str]) -> EventPack {
+        EventPack {
+            id: "sao_eu".into(),
+            name: "SAO completo (EU)".into(),
+            collab: "SAO".into(),
+            enable: enable.iter().map(|k| (*k).to_owned()).collect(),
+            disable: disable.iter().map(|k| (*k).to_owned()).collect(),
+        }
+    }
+
+    #[test]
+    fn collab_event_fields_and_npcs_deserialize() {
+        let e = event("Event_sao_npc_jajp");
+        assert_eq!(e.collab.as_deref(), Some("SAO"));
+        assert_eq!(e.adapted.as_deref(), Some("JP"));
+        assert_eq!(
+            e.detail.npcs,
+            vec![(Some("SAO_Kirito".to_owned()), Some("t01_inn".to_owned()))]
+        );
+    }
+
+    #[test]
+    fn packs_name_known_keys_once() {
+        let events = [
+            event("Event_sao_npc_jajp"),
+            event("Event_SAO_AllUserGoal_aus"),
+        ];
+        assert!(packs_valid(
+            &[pack(
+                &["Event_sao_npc_jajp"],
+                &["Event_SAO_AllUserGoal_aus"]
+            )],
+            &events
+        ));
+        assert!(!packs_valid(&[pack(&["Event_unknown"], &[])], &events));
+        assert!(!packs_valid(
+            &[pack(&["Event_sao_npc_jajp"], &["Event_sao_npc_jajp"])],
+            &events
+        ));
     }
 }

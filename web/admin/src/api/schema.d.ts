@@ -1565,6 +1565,17 @@ export interface components {
             icon?: string | null;
             name?: string | null;
         };
+        /**
+         * @description A collab pack (scripts/content/collabs.py): the keys the whole event needs, switched on
+         *     together, and the other regions' copies switched off, in one published version.
+         */
+        EventPackView: {
+            collab: string;
+            disable: string[];
+            enable: string[];
+            id: string;
+            name: string;
+        };
         EventPeriodicView: {
             /** Format: int64 */
             amount: number;
@@ -1621,6 +1632,10 @@ export interface components {
         };
         /** @description A FeatureMatrix event switch of the region (Ajustes de jogo → Eventos). */
         EventView: {
+            /** @description The other service a collab key comes from (JP, KR...): "adaptado de" in the panel. */
+            adapted?: string | null;
+            /** @description The collab of the key (SAO, Fairy Tail), laboratory extension. */
+            collab?: string | null;
             /** @description On now (the panel's switch, else the original). */
             enabled: boolean;
             key: string;
@@ -2349,6 +2364,7 @@ export interface components {
             enhance: components["schemas"]["EnhanceRatioView"][];
             events: components["schemas"]["EventView"][];
             features: components["schemas"]["FeatureView"][];
+            packs: components["schemas"]["EventPackView"][];
             quests: components["schemas"]["QuestDropView"][];
         };
         UpgradeChange: components["schemas"]["UpgradeValues"] & {

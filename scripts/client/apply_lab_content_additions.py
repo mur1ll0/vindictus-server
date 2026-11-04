@@ -21,6 +21,7 @@ from prepare_lab_client import PreparationError, reject_original
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'content'))
 import class_costumes  # noqa: E402
 import class_imports  # noqa: E402
+import collabs  # noqa: E402
 import content_additions  # noqa: E402
 import content_edits  # noqa: E402
 import hfs  # noqa: E402
@@ -573,7 +574,7 @@ def class_packs(client_copy: Path, plan: list, ks: bytes, apply_changes: bool) -
 
 
 def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_changes: bool, assets: Path = ASSETS,
-              overrides: dict | None = None) -> dict:
+              overrides: dict | None = None, collab_texts: dict | None = None) -> dict:
     """Rebuilds the English text packs (item text) and the scripts pack (player_costume.txt entries) from their
     backups, adds packs for the items' asset files and points the HFS index at them (docs/future/
     game-launcher.md, L0-e to L0-g). Without items, the original packs and index come back."""
@@ -613,7 +614,9 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     costumes += class_weapon_costumes(assets)
     class_tokens = class_imports.class_text(assets / 'classes', class_imports.load_imports(content_additions.CLASS_IMPORTS))
     class_names = [class_imports.read_meta(p)['name'] for p in class_imports.load_imports(content_additions.CLASS_IMPORTS)]
-    if (not items and not entries and not class_files and not merges and not class_tokens and not replacements
+    # Collab texts (collabs.py): English where the EU text has no line or a Korean one.
+    collab_texts = collab_texts or {}
+    if (not items and not entries and not collab_texts and not class_files and not merges and not class_tokens and not replacements
             and not any(b.exists() for b in originals.values()) and not previously_added):
         return {'hfs': 'unchanged: no added items'}
     if apply_changes:
@@ -624,7 +627,7 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     source = {path: (backup if backup.exists() else path).read_bytes() for path, backup in originals.items()}
     wanted = dict(source)
     rebuilt = []
-    if entries or class_tokens:
+    if entries or class_tokens or collab_texts:
         for path, language in texts:
             pack = []
             for e in hfs.read_pack(source[path], ks):
@@ -634,7 +637,8 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
                     present = {k.lower() for k, _ in class_imports.TOKEN_LINE.findall(text)}
                     tokens = {**class_imports.donor_xe_tokens(text, class_names), **class_tokens}
                     added = {k: v for k, v in tokens.items() if k.lower() not in present}
-                    e = hfs.Entry(e.name, with_tokens(e.data, {**added, **entries}), e.attr)
+                    collab = collabs.missing_in(dict(class_imports.TOKEN_LINE.findall(text)), collab_texts)
+                    e = hfs.Entry(e.name, with_tokens(e.data, {**collab, **added, **entries}), e.attr)
                 pack.append(e)
             wanted[path] = hfs.build_pack(pack, ks)
             rebuilt.append((path.name, wanted[path]))
@@ -737,7 +741,7 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
 
 
 def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDITIONS, edits: dict | None = None,
-          items: list[dict] | None = None, keystream: Path | None = None) -> dict:
+          items: list[dict] | None = None, keystream: Path | None = None, collab_texts: dict | None = None) -> dict:
     database = reject_original(client_copy / 'sql/heroes.db3')
     if not database.is_file():
         raise PreparationError('The client copy must contain sql/heroes.db3.')
@@ -758,7 +762,13 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
                 'shop_rows_missing': len(missing_rows(db, rows)), 'shop_rows': len(rows),
                 'edits_version': edits.get('version', 0), 'changed': current != target}
         items = content_additions.load(edits=edits) if items is None else items
-        overrides = content_additions.load_overrides(edits)
+        # Collab outfits wearable by every class (collabs.py), as on the server: chosen from the copy
+        # before any lab change (an applied unlock must stay an override, or the next run restores it).
+        if backup.exists():
+            with closing(sqlite3.connect(backup.resolve().as_uri() + '?mode=ro', uri=True)) as original_db:
+                overrides = content_additions.with_collab_unlocks(original_db, content_additions.load_overrides(edits))
+        else:
+            overrides = content_additions.with_collab_unlocks(db, content_additions.load_overrides(edits))
         previous = json.loads(written.read_text(encoding='utf-8')) if written.exists() else {}
         plan['items'] = len(items)
         plan['item_overrides'] = len(overrides)
@@ -800,7 +810,8 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
     if imports:
         plan['loose_fixes'] = apply_loose_fixes(client_copy, apply_changes)
     keystream = client_copy / 'hfs-keystream.bin' if keystream is None else keystream
-    plan.update(apply_hfs(client_copy, items, keystream, apply_changes, overrides=overrides))
+    plan.update(apply_hfs(client_copy, items, keystream, apply_changes, overrides=overrides,
+                          collab_texts=collabs.texts() if collab_texts is None else collab_texts))
     return plan
 
 

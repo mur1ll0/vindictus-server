@@ -24,7 +24,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 4. B5 multijogador implementado (MP1–MP7): sessão de cliente do operador pelo roteiro `docs/client-tests/B5-multijogador.md` (duas contas, dois clientes; Docker já reconstruído). Depois, os sistemas restantes do B5.
 5. B5 correio implementado em 03/11 (ciclo completo e GiveItem ForceMail): sessão de cliente pelo roteiro `docs/client-tests/B5-correio.md` (duas personagens; Docker reconstruído).
 6. B5 mercado implementado em 03/11: sessão de cliente pelo roteiro `docs/client-tests/B5-marketplace.md` (duas contas; Docker reconstruído). Depois, o próximo sistema restante do B5.
-7. B5 eventos: drops de chefe, BoostEvent, histórias por período, lojas de cupom, metas coletivas, agenda de eventos e descrição no painel feitos em 03/11; sessão de cliente pelo roteiro `docs/client-tests/B5-eventos.md` (EV1–EV11).
+7. B5 eventos: drops de chefe, BoostEvent, histórias por período, lojas de cupom, metas coletivas, agenda, descrição no painel e collabs SAO/Fairy Tail completos para EU feitos em 03/11; sessão de cliente pelo roteiro `docs/client-tests/B5-eventos.md` (EV1–EV12).
 8. B5 social/PvP (`docs/social-systems.md`): começar pelo SO1 (sussurro); operador investiga I-A1–I-A3 e I-P1–I-P3 no original; Claude faz I-S1–I-S5.
 
 ## Aguardando o operador
@@ -38,7 +38,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 | `docs/client-tests/B5-multijogador.md` | MP1–MP7 pendentes (sessão única); requer duas contas e dois clientes (três para MP6). |
 | `docs/client-tests/B5-correio.md` | CO1–CO11 pendentes; duas personagens (A nível ≥ 10). |
 | `docs/client-tests/B5-marketplace.md` | MK1–MK11 pendentes; duas contas (o ouro é da conta). |
-| `docs/client-tests/B5-eventos.md` | EV1–EV11 pendentes (chaves do painel, drops de chefe, BoostEvent, histórias por período, loja de cupom, descrição, meta coletiva, agenda). |
+| `docs/client-tests/B5-eventos.md` | EV1–EV12 pendentes (chaves do painel, drops de chefe, BoostEvent, histórias por período, loja de cupom, descrição, meta coletiva, agenda, collabs SAO/Fairy Tail). |
 | `docs/client-tests/C2-delia.md` | Aceito (D0–D23); D6 passou para o C3. |
 | `docs/client-tests/C4-miri.md` | Aceito em 02/11 (combate, MG1–MG4, MI44, MI45); sem relato isolado MI1–MI3 e MI30–MI36. |
 | `docs/client-tests/L-launcher.md` | LA0, LA2, LA4 e LA5 aceitos; LA3 coberto pelo LA4/LA5; LA1 dispensável. |
@@ -84,7 +84,7 @@ Decisões pendentes:
 - [ ] Ranking (RK1–RK3) e PvP/arena (PV1–PV4, `docs/social-systems.md`); modos do EU exigem o `srcds.exe` (D-S2).
 - Trade direto não existe no 1.69 (o `TradeService` é o mercado, já feito).
 - [x] Correio (03/11/2026): listar, ler, enviar, retirar, apagar, devolver, avisos, chegada/expiração e GiveItem ForceMail nas origens migradas (`docs/mail-reference.md`); cliente pendente. Correio de eventos e amizade depende desses sistemas.
-- [ ] Eventos/UserCare: chaves de evento ligáveis no painel (extensão, 03/11; `docs/content-tuning.md`); drops de evento dos chefes (EventDropItemInfo, EV5), recompensas periódicas do BoostEvent (PeriodicEventInfo, EV6), histórias por período (StoryLinePeriodInfo, EV7) e lojas de cupom com limite de compra (CouponShopItemInfo, ShopBuyRestrict, EV8), 03/11; descrição de cada evento no painel (EV9); metas coletivas AllUserGoal com as janelas deslocadas para a publicação da chave (decisão de 03/11), entrega pelo QueuedItem (EV10); agenda de eventos com os 370 modelos EventTemplate, chaves `Chave[valor]` e `droptable mod/reset` (decisão de 03/11, EV11). Sem efeito: `freetoken` e `droptable` de pesca.
+- [ ] Eventos/UserCare: chaves de evento ligáveis no painel (extensão, 03/11; `docs/content-tuning.md`); drops de evento dos chefes (EventDropItemInfo, EV5), recompensas periódicas do BoostEvent (PeriodicEventInfo, EV6), histórias por período (StoryLinePeriodInfo, EV7) e lojas de cupom com limite de compra (CouponShopItemInfo, ShopBuyRestrict, EV8), 03/11; descrição de cada evento no painel (EV9); metas coletivas AllUserGoal com as janelas deslocadas para a publicação da chave (decisão de 03/11), entrega pelo QueuedItem (EV10); agenda de eventos com os 370 modelos EventTemplate, chaves `Chave[valor]` e `droptable mod/reset` (decisão de 03/11, EV11); collabs SAO e Fairy Tail completos para EU (filtros e pacotes no painel, chaves só de NPC, textos em inglês, roupas para todas as classes; EV12; cartela de bingo não migrada). Sem efeito: `freetoken` e `droptable` de pesca.
 - [x] Pets P1–P6 (30/10/2026; cliente pendente; detalhes em `docs/future/pet-system.md`).
 - [ ] Pets P7 (pets do NA, junto com a importação das classes) e pet de outro jogador (multijogador).
 - [ ] Títulos/achievements restantes (títulos adquiridos e por ação de combate já feitos no B2).

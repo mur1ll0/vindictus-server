@@ -174,6 +174,25 @@ class ApplyLabHfsTest(unittest.TestCase):
         self.run_apply([])
         self.assertEqual({p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}, self.original)
 
+    def test_collab_texts_replace_only_untranslated_lines_and_undo(self):
+        texts = {'OLD': 'english old', 'HEROES_NPC_FAIRYTAIL_NATSU': 'Natsu', 'KOREAN': 'Translated'}
+        korean = TEXT.decode('utf-16').replace('"OLD"', '"KOREAN"\t"\ub098\uce20"\r\n\t\t"OLD"').encode('utf-16')
+        for path in (self.client / 'hfs').iterdir():
+            if path.name.startswith(tuple(hfs.pack_name(f) for f in TEXT_FOLDERS)):
+                entry = hfs.read_pack(path.read_bytes(), KS)[0]
+                path.write_bytes(hfs.build_pack([hfs.Entry(entry.name, korean, entry.attr)], KS))
+        original = {p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}
+        apply_hfs(self.client, [], Path(self.temp.name) / 'ks.bin', True, self.assets, collab_texts=texts)
+        pack = self.client / 'hfs' / (hfs.pack_name(TEXT_FOLDERS[0]) + '.hfs')
+        text = hfs.read_pack(pack.read_bytes(), KS)[0].data.decode('utf-16')
+        self.assertIn('"HEROES_NPC_FAIRYTAIL_NATSU"\t"Natsu"', text)
+        self.assertIn('"KOREAN"\t"Translated"', text)
+        self.assertNotIn('\ub098\uce20', text)
+        self.assertIn('"OLD"\t"old"', text)  # English already there stays
+        self.assertNotIn('english old', text)
+        apply_hfs(self.client, [], Path(self.temp.name) / 'ks.bin', True, self.assets)
+        self.assertEqual({p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}, original)
+
     def test_class_merges_add_the_class_lines_to_the_169_script_and_undo(self):
         import json
         root = self.assets / 'classes/miri'

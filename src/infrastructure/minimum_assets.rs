@@ -254,6 +254,10 @@ impl Assets {
     pub fn event_switches(&self) -> &[super::item_economy::EventSwitch] {
         self.economy.as_ref().map_or(&[], |e| e.events())
     }
+    /// The panel's collab packs of the economy export.
+    pub fn event_packs(&self) -> &[super::item_economy::EventPack] {
+        self.economy.as_ref().map_or(&[], |e| e.event_packs())
+    }
     /// The event schedule's templates (EventTemplate).
     pub fn event_templates(&self) -> &[super::item_economy::EventTemplate] {
         self.economy.as_ref().map_or(&[], |e| e.event_templates())

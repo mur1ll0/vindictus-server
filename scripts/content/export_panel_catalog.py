@@ -26,6 +26,7 @@ names, and the icon of each item class, for the shop and inventory screens. Read
   character class, e.g. fiona_noluck_inner_devilhunter → delia_inner_devilhunter)."""
 import argparse, contextlib, json, pathlib, re, sqlite3
 import class_imports
+import collabs
 import content_additions
 import xml.etree.ElementTree as ET
 from export_cash_shop import LOCALIZED, UNTRANSLATED
@@ -106,6 +107,13 @@ def read_package(xml_root=SERVER / 'Data/XML', database=SERVER / 'Bin/heroesCont
         # and their sets' name and bonus text (class_imports.set_tokens), which the tooltip's set block reads
         tooltip_text = {**{k.upper(): v.replace('\\n', '\n') for k, v in imported.items()
                            if k.upper().startswith(('HEROES_ITEM_SETITEM_NAME_', 'HEROES_SET_ITEM_DESC_'))}, **tooltip_text}
+    if pathlib.Path(localized).resolve() == pathlib.Path(LOCALIZED).resolve():
+        # Collab texts (collabs.py): NPC and item names where the EU text has no English line.
+        for key, value in collabs.texts().items():
+            if key.startswith(('HEROES_NPC_', 'GAMEUI_HEROES_NPCDESCRIPTION_')) and key not in texts:
+                texts[key] = value.replace('\\n', '\n')
+            elif key.startswith('HEROES_ITEM_') and (key not in item_text or UNTRANSLATED.search(item_text[key])):
+                item_text[key] = value
     trade_names = {k.upper(): v.strip() for k, v in TRADE_NAME.findall(decoded)
                    if not UNTRANSLATED.search(v) and v.strip() and len(v) <= 128}
     quest_titles = {k.upper(): v for k, v in QUEST_TITLE.findall(decoded)

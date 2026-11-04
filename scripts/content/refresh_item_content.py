@@ -14,6 +14,7 @@ read-only, so the host does this step: start-lab.bat runs it before the client c
 Never runs anything taken from the overlay: the exporters and their arguments are the list below."""
 from __future__ import annotations
 import argparse
+import hashlib
 import json
 import os
 import pathlib
@@ -23,6 +24,7 @@ import sys
 import time
 
 import class_imports
+import collabs
 import content_additions
 import content_edits
 
@@ -63,7 +65,10 @@ def state(overlay_path: pathlib.Path = OVERLAY) -> dict:
             'items_sha256': content_additions.digest(items, overrides),
             'items': len(items), 'overrides': len(overrides), 'hidden': len(content_additions.hidden_items(edits)),
             # Imported NA classes (class_imports.py) change the same exports.
-            'classes_sha256': class_imports.digest(class_imports.load_imports(content_additions.CLASS_IMPORTS))}
+            'classes_sha256': class_imports.digest(class_imports.load_imports(content_additions.CLASS_IMPORTS)),
+            # Collab definitions and texts (collabs.py) change the item, event and name exports.
+            'collabs_sha256': hashlib.sha256(pathlib.Path(collabs.__file__).read_bytes()
+                                             + collabs.TEXTS.read_bytes()).hexdigest()}
 
 
 def current_stamp(stamp: pathlib.Path = STAMP) -> dict:

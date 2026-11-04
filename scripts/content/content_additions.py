@@ -27,6 +27,7 @@ import sqlite3
 
 import class_costumes
 import class_imports
+import collabs
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 ADDITIONS = pathlib.Path(__file__).resolve().parent / 'item_additions.json'
@@ -297,6 +298,19 @@ def class_remap(imports: list[pathlib.Path], items: list[dict]) -> dict:
     return remap
 
 
+def with_collab_unlocks(db: sqlite3.Connection, overrides: dict[str, dict]) -> dict[str, dict]:
+    """The overrides plus the collab outfits wearable by every class (collabs.py): ClassRestriction
+    with every named class bit, unless the panel's own override sets that column."""
+    out = {name: dict(o) for name, o in overrides.items()}
+    for name in collabs.wearable_items(db):
+        o = out.setdefault(name, {})
+        tables = {t: dict(c) for t, c in o.get('set', {}).items()}
+        cells = tables.setdefault('ItemClassInfo', {})
+        cells.setdefault('ClassRestriction', collabs.ALL_CLASSES)
+        o['set'] = tables
+    return out
+
+
 def connect(database: pathlib.Path | str) -> sqlite3.Connection:
     """Read-only connection; the server content database also sees the added and edited items
     and the added classes' creation rows."""
@@ -304,7 +318,7 @@ def connect(database: pathlib.Path | str) -> sqlite3.Connection:
     db = sqlite3.connect(path.as_uri() + '?mode=ro', uri=True)
     if path == SERVER_DATABASE.resolve():
         items = load()
-        overrides = load_overrides()
+        overrides = with_collab_unlocks(db, load_overrides())
         classes = load_classes()
         imports = class_imports.load_imports(CLASS_IMPORTS)
         try:

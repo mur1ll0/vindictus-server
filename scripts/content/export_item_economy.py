@@ -1,5 +1,6 @@
 """Readonly ItemClassInfo economy columns bound by row position to the item catalog projection."""
 import argparse, contextlib, datetime, json, pathlib, re, sqlite3
+import collabs
 import content_additions
 from export_item_catalog import read_package as catalog_read, digest
 import content_overrides as overrides
@@ -81,7 +82,7 @@ def read_package(database, config):
             mail_types.append(row)
             if len(mail_types) > 256: raise ValueError('MailTypeInfo row bound')
         marketplace = read_marketplace(db, integer, plain, catalog['manifest'])
-        events = read_events(db, catalog['manifest'])
+        events = read_events(db, catalog['manifest'], npc_xml_root(database))
         # AdminContents.EventTemplate (ToDictionary by Name: a repeated name throws).
         templates = []
         def script(v):
@@ -102,7 +103,8 @@ def read_package(database, config):
     package = {'format_version': 4, 'source': 'heroesContents.item-economy', 'alchemist_boxes': boxes,
                'manifest': dict(database_sha256=m['database_sha256'], config_sha256=m['config_sha256'], class_rows=len(rows)),
                'classes': rows, 'hot_spring': hot_spring, 'mail_types': mail_types,
-               'marketplace': marketplace, 'events': events, 'event_templates': templates}
+               'marketplace': marketplace, 'events': events, 'event_templates': templates,
+               'event_packs': collabs.check_packs({e['key'] for e in events})}
     if pets is not None:
         package['pets'] = pets
     return package
@@ -157,9 +159,53 @@ SWITCH = re.compile(r'^(1|[0-9]+\.[0-9]+(\.[0-9]+)*)$')
 # (PeriodicEventScheduler.ItemOwnerEvent, AllUserGoalEventScheduler).
 MASTER_SWITCHES = {'BoostEvent': 'PeriodicEventInfo', 'AllUserGoalEvent': 'AllUserGoalInfo'}
 
-def read_events(db, manifest):
+def npc_xml_root(database):
+    """The server's NPC scripts (Data/XML next to Bin/heroesContents.db3), or None."""
+    root = pathlib.Path(database).resolve().parent.parent / 'Data/XML'
+    return root if (root / 'NpcTalkInfo.xml').is_file() else None
+
+def npc_feature_uses(xml_root):
+    """FeatureMatrix keys the NPC scripts read: NpcTalkInfo defaults by their Feature (an NPC stays
+    in town only while its default talk is enabled) and <feature> button conditions of the
+    defaults, with the NPC (id, location) of each default."""
+    from export_npc_scripts import load, condition_atoms
+    from export_reward_policy import feature_atoms
+    import hashlib
+    hasher = hashlib.sha256()
+    root = load(xml_root / 'NpcTalkInfo.xml', hasher)
+    if root[0] != 'FileList': raise ValueError('NpcTalkInfo root')
+    defaults, conditions, npcs = {}, {}, {}
+    for element in root[3]:
+        if element[0] != 'Default': continue
+        feature = next((v for k, v in element[1] if k == 'Feature'), '')
+        relative = pathlib.PureWindowsPath(element[2])
+        path = xml_root.joinpath(*relative.parts).with_suffix('.xml')
+        if not path.resolve().is_relative_to(xml_root.resolve()): raise ValueError('Default script outside XML root')
+        tree = load(path, hasher)
+        talk = next((c for c in tree[3] if c[0] == 'Talk'), None)
+        npc = [dict(talk[1]).get('id'), dict(talk[1]).get('location')] if talk else None
+        try:
+            atoms = feature_atoms(feature) if feature else set()
+        except ValueError:
+            atoms = set()
+        for atom in atoms:
+            defaults[atom] = defaults.get(atom, 0) + 1
+            if npc and npc[0] and npc not in npcs.setdefault(atom, []): npcs[atom].append(npc)
+        found = []
+        def walk(node):
+            if node[0] == 'Condition':
+                out = set(); condition_atoms(node, out); found.extend(out)
+            else:
+                for c in node[3]: walk(c)
+        walk(tree)
+        for atom in found:
+            conditions[atom] = conditions.get(atom, 0) + 1
+    return defaults, conditions, npcs
+
+def read_events(db, manifest, xml_root=None):
     """The FeatureMatrix event switches of the region (keys starting with Event, without another
-    region's token) that some content row references, with the rows per table."""
+    region's token) that some content row or NPC script references, with the rows per table. The
+    collab keys (collabs.py) are listed with their region (`adapted`) even from another service."""
     from export_reward_policy import feature_atoms
     columns = {r[1] for r in db.execute('PRAGMA table_info(FeatureMatrix)')}
     def load(tag):
@@ -176,7 +222,7 @@ def read_events(db, manifest):
             continue
         if not isinstance(key, str) or not key.lower().startswith('event') or not key.isascii() or len(key) > 256:
             continue
-        if OTHER_REGIONS & set(key.lower().split('_')):
+        if OTHER_REGIONS & set(key.lower().split('_')) and not collabs.collab(key):
             continue
         if value not in (None, '') and not (isinstance(value, str) and SWITCH.match(value)):
             continue
@@ -200,8 +246,22 @@ def read_events(db, manifest):
     for key, table in MASTER_SWITCHES.items():
         if key in uses and table in tables:
             uses[key][table] = db.execute('SELECT count(*) FROM "' + table + '"').fetchone()[0]
-    details = event_details(db, [k for k in sorted(keys) if uses[k]], tables)
-    out = [dict(key=k, value=keys[k], uses=uses[k], detail=details[k]) for k in sorted(keys) if uses[k]]
+    npcs = {}
+    if xml_root is not None:
+        defaults, conditions, npcs = npc_feature_uses(xml_root)
+        for table, counts in (('NpcTalkInfo', defaults), ('NpcCondition', conditions)):
+            for atom, n in counts.items():
+                if atom in uses: uses[atom][table] = n
+    listed = [k for k in sorted(keys) if uses[k]]
+    details = event_details(db, listed, tables)
+    out = []
+    for k in listed:
+        entry = dict(key=k, value=keys[k], uses=uses[k], detail=details[k])
+        if npcs.get(k): entry['detail']['npcs'] = npcs[k][:DETAIL_ROWS]
+        if collabs.collab(k):
+            entry['collab'] = collabs.collab(k)
+            if collabs.adapted(k): entry['adapted'] = collabs.adapted(k)
+        out.append(entry)
     if len(out) > 1000 or any(len(e['uses']) > 64 for e in out): raise ValueError('Event bound')
     return out
 

@@ -126,7 +126,7 @@ pub enum EditRequest {
 }
 
 /// The content tables whose Feature the migrated server already evaluates.
-pub const MIGRATED_EVENT_TABLES: [&str; 11] = [
+pub const MIGRATED_EVENT_TABLES: [&str; 13] = [
     "ShopInfo",
     "StoryLineInfo",
     "QuestInfo",
@@ -138,6 +138,9 @@ pub const MIGRATED_EVENT_TABLES: [&str; 11] = [
     "CouponShopVersionInfo",
     "CouponShopItemInfo",
     "AllUserGoalInfo",
+    // NPC scripts: NpcTalkInfo defaults (the NPC stays in town) and <feature> button conditions.
+    "NpcTalkInfo",
+    "NpcCondition",
 ];
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -156,6 +159,20 @@ pub struct EventView {
     /// On now (the panel's switch, else the original).
     pub enabled: bool,
     pub uses: Vec<EventUseView>,
+    /// The collab of the key (SAO, Fairy Tail), laboratory extension.
+    pub collab: Option<String>,
+    /// The other service a collab key comes from (JP, KR...): "adaptado de" in the panel.
+    pub adapted: Option<String>,
+}
+/// A collab pack (scripts/content/collabs.py): the keys the whole event needs, switched on
+/// together, and the other regions' copies switched off, in one published version.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct EventPackView {
+    pub id: String,
+    pub name: String,
+    pub collab: String,
+    pub enable: Vec<String>,
+    pub disable: Vec<String>,
 }
 
 /// An item of an event's description, with its English name and icon (icons/item/<icon>.png).
@@ -281,6 +298,7 @@ pub struct TuningView {
     pub enhance: Vec<EnhanceRatioView>,
     pub enchants: Vec<EnchantRatioView>,
     pub events: Vec<EventView>,
+    pub packs: Vec<EventPackView>,
 }
 
 pub struct Actor<'a> {
@@ -473,7 +491,20 @@ pub fn tuning(
                         rows: *rows,
                     })
                     .collect(),
+                collab: x.collab.clone(),
+                adapted: x.adapted.clone(),
             }
+        })
+        .collect();
+    let packs = assets
+        .event_packs()
+        .iter()
+        .map(|p| EventPackView {
+            id: p.id.clone(),
+            name: p.name.clone(),
+            collab: p.collab.clone(),
+            enable: p.enable.clone(),
+            disable: p.disable.clone(),
         })
         .collect();
     Ok(TuningView {
@@ -482,6 +513,7 @@ pub fn tuning(
         enhance,
         enchants,
         events,
+        packs,
     })
 }
 
@@ -526,6 +558,12 @@ pub fn event_detail(
             npcs.push(view);
         }
     };
+    // NPCs whose default talk the key enables (they stay in town only while it is on).
+    for (id, location) in &d.npcs {
+        if let Some(id) = id.as_deref().filter(|i| !i.is_empty()) {
+            add_npc(npc(id, location.clone().unwrap_or_default()));
+        }
+    }
     let trade = |shop: String,
                  item: Option<&str>,
                  count: Option<i64>,

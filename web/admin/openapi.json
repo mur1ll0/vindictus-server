@@ -5162,6 +5162,40 @@
           }
         }
       },
+      "EventPackView": {
+        "type": "object",
+        "description": "A collab pack (scripts/content/collabs.py): the keys the whole event needs, switched on\ntogether, and the other regions' copies switched off, in one published version.",
+        "required": [
+          "id",
+          "name",
+          "collab",
+          "enable",
+          "disable"
+        ],
+        "properties": {
+          "collab": {
+            "type": "string"
+          },
+          "disable": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "enable": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "EventPeriodicView": {
         "type": "object",
         "required": [
@@ -5348,6 +5382,20 @@
           "uses"
         ],
         "properties": {
+          "adapted": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The other service a collab key comes from (JP, KR...): \"adaptado de\" in the panel."
+          },
+          "collab": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The collab of the key (SAO, Fairy Tail), laboratory extension."
+          },
           "enabled": {
             "type": "boolean",
             "description": "On now (the panel's switch, else the original)."
@@ -7421,7 +7469,8 @@
           "quests",
           "enhance",
           "enchants",
-          "events"
+          "events",
+          "packs"
         ],
         "properties": {
           "enchants": {
@@ -7446,6 +7495,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/FeatureView"
+            }
+          },
+          "packs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventPackView"
             }
           },
           "quests": {
