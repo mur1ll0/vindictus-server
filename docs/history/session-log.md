@@ -3724,3 +3724,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário.
 - Commits: ver "test: bring the PostgreSQL suite and clippy back to green before the B5 gate".
 - Pendente / próxima ação: parado para o operador — D-S2 (PvP: PV2–PV4) e D-S1 (amigos e chat em grupo: SO3/SO4); sessão de cliente B5 social (G6b–G6f, carruagem).
+
+## 2026-11-05 — D-S2 decidida e PV2a codecs de PvP (B5)
+- Feito: operador decidiu D-S2 = partida hospedada por um jogador via relay (registrado em `docs/social-systems.md`; o original já tem o caminho `PvpPlay` sem DSInfo com P2PGroup e anfitrião `PvpPlayer`). `protocol::pvp` com as 17 mensagens do PvpService além do FreeMatchReport: QueryChannelList 130, ChannelList 129, Register 442, Unregister 611, ConfirmJoin 143, RegisterResult 378, Command 376, Kicked 377, Report 379, TeamInfo 380, GameHosted 435, HostInfo 436, MemberInfo 437, ArenaResultInfo 647, Penalty 648 e os não registrados RegisterGameWaitingQueue/UnregisterGameWaitingQueue (envelope GUID); `packet()` e `decode_ingress` para as formas registrada, genérica e nula. Oráculo `scripts/reverse/framework/PvpMatchWireOracle.cs` + `scripts/reverse/generate-pvp-match-wire-fixtures.ps1` (GameJoinMemberInfo/GameInfo do oráculo da missão; stub do `Utility.DictionaryExtension.TryGetValue` só para o ToString).
+- Verificação: oráculo 57 casos por arquitetura, x86=x64, zero avisos; `cargo test --test pvp_match_wire --test pvp_wire` 1+2 passed. Logs `.cache/verification/pv2-*.log`.
+- Cliente: não necessário (só codecs).
+- Commits: ver "feat: PvP match wire codecs (B5 PV2a)".
+- Pendente / próxima ação: PV2b (exportar PvpInfo/PvpPresetInfo e PvpConfig com Feature), depois PV2c (canais/fila da Arena e partida no relay).
