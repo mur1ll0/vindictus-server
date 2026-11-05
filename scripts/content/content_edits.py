@@ -47,7 +47,7 @@ def load(path=EDITS):
     for k in ('features', 'quest_drops', 'enhance_ratios', 'enchant_ratios'):
         overlay.setdefault(k, {})
     for k, v in overlay['features'].items():
-        _text(k, 'feature'); _int(v, 0, 10_000, 'rate')
+        _text(k, 'feature'); _int(v, 0, 2_000_000_000, 'feature value')
     for k, (low, high) in overlay['quest_drops'].items():
         _text(k, 'quest'); _int(high, 0, 100, 'drop max'); _int(low, 0, high, 'drop min')
     for k, v in overlay['enhance_ratios'].items():

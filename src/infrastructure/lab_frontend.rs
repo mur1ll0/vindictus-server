@@ -2801,8 +2801,8 @@ impl Connection {
         Ok(())
     }
     /// GuildServiceProxy guild storage messages (InGuild): HandleGuildStorageSession and
-    /// UpdateGuildStorageSetting (B5 G6b); deposits, picks, arranging and slot purchases are
-    /// G6c–G6e and are only logged.
+    /// UpdateGuildStorageSetting (B5 G6b) and PurchaseGuildStorage (G6e); deposits, picks
+    /// and arranging are G6c–G6d and are only logged.
     #[allow(clippy::too_many_arguments)]
     async fn guild_storage_message(
         &mut self,
@@ -2865,9 +2865,40 @@ impl Connection {
                 )
                 .await
             }
+            Message::PurchaseGuildStorage(request) => {
+                let id = self
+                    .frontend
+                    .accepted_identity()
+                    .map_err(|_| RuntimeError::Operation)?;
+                let owner = super::character_lobby::UserKey {
+                    uid: id.nexon_sn,
+                    name: &id.nexon_id,
+                    revision: self
+                        .password
+                        .as_ref()
+                        .ok_or(RuntimeError::Operation)?
+                        .revision(),
+                };
+                // GuildServiceProxy: GuildStorageSecondPassworded is off in EN-EU.
+                super::guild_storage::purchase(
+                    pool,
+                    assets,
+                    config,
+                    &runtime.guilds,
+                    &runtime.party,
+                    guild_sn,
+                    super::guild_storage::Buyer {
+                        owner: &owner,
+                        cid,
+                        log: runtime.item_log_context(assets)?,
+                    },
+                    request.product_no,
+                )
+                .await
+            }
             _ => {
                 tracing::info!(
-                    "guild storage item operation not migrated (G6c-G6e); values omitted"
+                    "guild storage item operation not migrated (G6c, G6d); values omitted"
                 );
                 Ok(Vec::new())
             }

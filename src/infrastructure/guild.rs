@@ -100,6 +100,8 @@ struct Entity {
     room: BTreeMap<i64, String>,
     /// OnlineGuildMember.IsGuildStorageListening of each online member (B5 G6b).
     storage_listening: BTreeSet<i64>,
+    /// GuildStorageManager.Processing (a slot purchase in progress, B5 G6e).
+    storage_processing: bool,
 }
 /// What one Sync starts from (the flags are cleared when it is taken).
 struct Pending {
@@ -277,6 +279,24 @@ impl GuildHub {
             e.storage_listening.remove(&cid);
         }
         true
+    }
+    /// Sets GuildStorageManager.Processing: false when the guild is not loaded or a purchase
+    /// is already in progress.
+    pub(super) fn begin_storage_processing(&self, guild_sn: i32) -> bool {
+        let mut entities = self.lock();
+        match entities.get_mut(&guild_sn) {
+            Some(e) if !e.storage_processing => {
+                e.storage_processing = true;
+                true
+            }
+            _ => false,
+        }
+    }
+    /// Clears GuildStorageManager.Processing.
+    pub(super) fn end_storage_processing(&self, guild_sn: i32) {
+        if let Some(e) = self.lock().get_mut(&guild_sn) {
+            e.storage_processing = false;
+        }
     }
     /// BroadCastInventoryInfo's targets: the online members listening to the storage.
     pub(super) fn storage_listeners(&self, guild_sn: i32) -> Vec<i64> {

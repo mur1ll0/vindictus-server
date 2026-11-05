@@ -114,3 +114,11 @@ Pré-condição: no painel, **Ajustes de jogo → Guilda**, "Membros para usar o
 Pré-condição: personagem em Rochester, perto da carruagem (CARRIAGE_ROCHEST).
 - [ ] Falar com a carruagem e escolher a ida para Colhen → depois da contagem, o personagem entra em Colhen (o servidor soma 1 no ranking "GamePlay_take_carriage" e segue com `cc_enter_colhen_from_rochest`).
 - [ ] Na variante paga, o ouro cai 2000 antes da viagem; sem ouro, aparece a mensagem de falta de ouro e não há viagem.
+
+### G6e — Armazém da guilda: comprar slots
+Pré-condição: roteiro G6b (o armazém abre; confirmado em 05/11). No EU original toda compra usa o cupom `guildstorage_ticket` do cash shop, que o catálogo do laboratório não tem. Para testar, em Ajustes de jogo → Guilda ligue **Slots do armazém grátis** (1), ou desligue **Slots do armazém só por cash** (0) para pagar a primeira compra em ouro (**Preço em ouro da primeira compra**, original 30.000.000; ponha um valor que o personagem tenha).
+- [ ] A abre o armazém e clica em Purchase → a primeira bolsa mostra 24 slots; com ouro, o ouro de A cai pelo preço.
+- [ ] B com o armazém aberto ao mesmo tempo → a janela de B mostra os 24 slots sem reabrir.
+- [ ] Comprar de novo → +24 slots por compra (grátis, ou falha "compra falhou" sem o cupom).
+- [ ] Com os valores originais (só por cash ligado, grátis desligado) → aviso de compra falhou, nada muda.
+- [ ] Fechar e reabrir o armazém, e relogar → os slots continuam.

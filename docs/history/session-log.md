@@ -3696,3 +3696,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: entrada "Carruagem" em docs/client-tests/B5-social.md; o operador relatou a falha e reteste está pendente.
 - Commits: (este)
 - Pendente / próxima ação: sem mudança — G6c após confirmar o G6b no cliente. Visto no log: `story_sector` (entrar em dungeon de história pela conversa) segue não migrado.
+
+## 2026-11-05 — G6e compra de slots do armazém da guilda (B5)
+- Feito: operador confirmou que o armazém abre (I-S2 para o armazém). `guild_storage::purchase` (PurchaseGuildStorageProcessor: Processing no `GuildHub`, Stopped/Full/PurchaseFailed, 24 slots por compra até 504, ouro na primeira sem GuildStoargeSlotAllCash via `minimum_shop::destroy_class`, produto `guildstorage_ticket` pelo saldo de cash ou GuildStoargeSlotFree, AddGuildStorageSlots por upsert e difusão do InventoryMessage pelo `PartyHub`); `lab_frontend` despacha PurchaseGuildStorage. Aba Ajustes de jogo → Guilda: GuildStoargeSlotAllCash, GuildStoargeSlotFree, GuildStorageSlotGoldPrice (limite do content_edits.py elevado para 2.000.000.000). Exportador com as chaves de slot, ouro e segunda senha; npc-scripts.json reexportado. ReportExtendSlot fica para G6f.
+- Verificação: `cargo test --lib -- guild_storage content_overlay` 6 passed; clippy sem achados novos (só os antigos; `tests/periodic_event.rs` segue sem compilar, anterior). Docker reconstruído, serviços saudáveis, 0 erros no game. Logs `.cache/verification/g6e-*.log`.
+- Cliente: `docs/client-tests/B5-social.md` G6e (ligar "Slots grátis" ou desligar "só por cash" no painel; o catálogo do laboratório não tem o cupom).
+- Commits: ver "feat: guild storage slot purchase (B5 G6e)".
+- Pendente / próxima ação: teste G6e no cliente; depois G6c (depositar/retirar itens e ouro), G6d, G6f.

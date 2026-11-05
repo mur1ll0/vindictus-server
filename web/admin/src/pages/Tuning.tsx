@@ -388,6 +388,18 @@ const GUILD_LABEL: Record<string, { title: string; hint: string }> = {
     title: 'Membros para usar o armazém',
     hint: 'Membros regulares (mestre, oficiais e membros) que a guilda precisa ter para o armazém funcionar. Original: 20.',
   },
+  GuildStoargeSlotAllCash: {
+    title: 'Slots do armazém só por cash',
+    hint: '1 = toda compra de slots usa o cupom do cash shop (original EU); 0 = a primeira compra (24 slots) é paga em ouro.',
+  },
+  GuildStoargeSlotFree: {
+    title: 'Slots do armazém grátis',
+    hint: '1 = as compras por cash não cobram nada (sem cupom do cash shop); cada compra dá 24 slots, até 504.',
+  },
+  GuildStorageSlotGoldPrice: {
+    title: 'Preço em ouro da primeira compra',
+    hint: 'Ouro cobrado do comprador na primeira compra (24 slots) quando "só por cash" está desligado. Original: 30.000.000.',
+  },
   GuildLevel: { title: 'Nível de guilda (GP)', hint: '1 = ligado, 0 = desligado. Desligado, a guilda não ganha GP nem sobe de nível.' },
   GuildLevel_APGainRatio: { title: 'GP por AP gasto', hint: 'Porcentagem do AP gasto pelos membros que vira GP da guilda.' },
   GuildLevel_DailyGPResetTimeAdder: {

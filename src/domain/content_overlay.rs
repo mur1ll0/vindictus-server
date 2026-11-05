@@ -73,7 +73,7 @@ pub struct GuildSetting {
 
 /// The guild values the migrated server reads (B5 G2/G6b); all within the overlay's rate
 /// bound so the client copy accepts them.
-pub const GUILD_SETTINGS: [GuildSetting; 5] = [
+pub const GUILD_SETTINGS: [GuildSetting; 8] = [
     GuildSetting {
         key: "GuildStorage",
         switch: true,
@@ -83,6 +83,23 @@ pub const GUILD_SETTINGS: [GuildSetting; 5] = [
         key: "GuildStorageRequiredMember",
         switch: false,
         max: super::guild::DEFAULT_MAX_MEMBER,
+    },
+    // PurchaseGuildStorageProcessor: every slot purchase by cash (EU "2.01"), purchases
+    // without the guildstorage_ticket product, and the first purchase's gold price.
+    GuildSetting {
+        key: "GuildStoargeSlotAllCash",
+        switch: true,
+        max: 1,
+    },
+    GuildSetting {
+        key: "GuildStoargeSlotFree",
+        switch: true,
+        max: 1,
+    },
+    GuildSetting {
+        key: "GuildStorageSlotGoldPrice",
+        switch: false,
+        max: MAX_GOLD_PRICE,
     },
     GuildSetting {
         key: "GuildLevel",
@@ -100,6 +117,9 @@ pub const GUILD_SETTINGS: [GuildSetting; 5] = [
         max: 23,
     },
 ];
+
+/// GuildStorageSlotGoldPrice bound: DestroyItem's gold count (Int32).
+pub const MAX_GOLD_PRICE: i32 = 2_000_000_000;
 
 /// The guild setting of `key`, when it is one.
 pub fn guild_setting(key: &str) -> Option<GuildSetting> {
@@ -338,8 +358,10 @@ mod tests {
         assert_eq!(feature_value("GuildStorageRequiredMember", 2), "2");
         assert_eq!(feature_value("ExpRate_Combat", 150), "150");
         assert!(guild_setting("ExpRate_Combat").is_none());
-        // Every guild value fits the client copy's rate bound.
-        assert!(GUILD_SETTINGS.iter().all(|s| (1..=MAX_RATE).contains(&s.max)));
+        // Every guild value fits the client copy's feature bound (content_edits.py).
+        assert!(GUILD_SETTINGS.iter().all(|s| (1..=MAX_GOLD_PRICE).contains(&s.max)));
+        assert_eq!(feature_value("GuildStoargeSlotFree", 1), "1");
+        assert_eq!(feature_value("GuildStorageSlotGoldPrice", 30_000_000), "30000000");
     }
 
     #[test]
