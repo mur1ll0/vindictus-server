@@ -3668,3 +3668,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` G6b (confirma a I-S2).
 - Commits: ver "feat: guild storage session and settings (B5 G6b)".
 - Pendente / próxima ação: parado para o cliente (regra 2): confirmar o roteiro G6b (o armazém abre com as mensagens no envelope GUID); depois G6c.
+
+## 2026-11-05 — Docker reconstruído para o teste de cliente (B5 social até G6b)
+- Feito: o `game` estava em loop de reinício ("invalid private minimum creation assets") porque o binário antigo lia o `item-economy.json` regenerado no RK3; imagens reconstruídas e serviços recriados.
+- Verificação: `COMPOSE_PARALLEL_LIMIT=1 docker compose build` exit 0; `docker compose up -d --wait` exit 0, todos saudáveis; migrate exit 0 com `_sqlx_migrations` em 66; `game` sem erros e sem reinícios (logs em .cache/verification/compose-*-g6b.log, game-post-rebuild.log).
+- Cliente: aguardando o operador (roteiro docs/client-tests/B5-social.md, G6b primeiro).
+- Commits: (este registro)
+- Pendente / próxima ação: sem mudança — G6c após confirmar o G6b no cliente.
