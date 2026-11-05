@@ -2838,10 +2838,29 @@ impl Connection {
             .map_or(crate::protocol::guild::rank::UNKNOWN, |(_, r)| r);
         let config = super::guild_storage::StorageConfig::from_assets(assets)
             .map_err(|_| RuntimeError::Profile)?;
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        let member = super::guild_storage::Member {
+            owner: &owner,
+            cid,
+            rank: member_rank,
+        };
         let outcome = match message {
             Message::HandleGuildStorageSession(starting) => {
                 super::guild_storage::session(
                     pool,
+                    assets,
                     config,
                     &runtime.guilds,
                     guild_sn,
@@ -2854,6 +2873,7 @@ impl Connection {
             Message::UpdateGuildStorageSetting(setting) => {
                 super::guild_storage::update_setting(
                     pool,
+                    assets,
                     config,
                     &runtime.guilds,
                     &runtime.party,
@@ -2866,19 +2886,6 @@ impl Connection {
                 .await
             }
             Message::PurchaseGuildStorage(request) => {
-                let id = self
-                    .frontend
-                    .accepted_identity()
-                    .map_err(|_| RuntimeError::Operation)?;
-                let owner = super::character_lobby::UserKey {
-                    uid: id.nexon_sn,
-                    name: &id.nexon_id,
-                    revision: self
-                        .password
-                        .as_ref()
-                        .ok_or(RuntimeError::Operation)?
-                        .revision(),
-                };
                 // GuildServiceProxy: GuildStorageSecondPassworded is off in EN-EU.
                 super::guild_storage::purchase(
                     pool,
@@ -2896,10 +2903,62 @@ impl Connection {
                 )
                 .await
             }
+            Message::AddGuildStorageItem(request) => {
+                // TransferToSystem makes one system item of the deposit.
+                let ids = minimum
+                    .creation
+                    .entity_ids(2)
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?;
+                super::guild_storage::add_item(
+                    pool,
+                    assets,
+                    config,
+                    &runtime.guilds,
+                    &runtime.party,
+                    guild_sn,
+                    member,
+                    &request,
+                    ids,
+                )
+                .await
+            }
+            Message::PickGuildStorageItem(request) => {
+                let ids = minimum
+                    .creation
+                    .entity_ids(4)
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?;
+                super::guild_storage::pick_item(
+                    pool,
+                    assets,
+                    config,
+                    &runtime.guilds,
+                    &runtime.party,
+                    guild_sn,
+                    member,
+                    &request,
+                    ids,
+                )
+                .await
+            }
+            Message::ArrangeGuildStorageItem(request) => {
+                super::guild_storage::arrange_item(
+                    pool,
+                    assets,
+                    config,
+                    &runtime.guilds,
+                    &runtime.party,
+                    guild_sn,
+                    cid,
+                    member_rank,
+                    request.item_id,
+                    request.slot,
+                )
+                .await
+            }
             _ => {
-                tracing::info!(
-                    "guild storage item operation not migrated (G6c, G6d); values omitted"
-                );
+                tracing::info!("guild storage message not handled by the server; values omitted");
                 Ok(Vec::new())
             }
         };

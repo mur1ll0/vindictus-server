@@ -634,6 +634,10 @@ pub async fn purge_class(
         .bind(&shared)
         .execute(&mut *tx)
         .await?;
+    sqlx::query("DELETE FROM game_guild_storage_items WHERE id = ANY($1)")
+        .bind(&shared)
+        .execute(&mut *tx)
+        .await?;
     purged.shared = shared.len() as u64;
     let prefix: Vec<u8> = format!("{class}[")
         .encode_utf16()

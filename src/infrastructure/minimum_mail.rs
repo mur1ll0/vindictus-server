@@ -284,15 +284,15 @@ async fn query_list(
 }
 
 /// MailAttachment fields of TransferredItemInfo.
-struct Transferred {
-    item_id: i64,
-    class_ex: String,
-    count: i32,
-    colors: [i32; 3],
-    reduced: i32,
-    bonus: i32,
-    bound: bool,
-    expire_ticks: Option<i64>,
+pub(super) struct Transferred {
+    pub(super) item_id: i64,
+    pub(super) class_ex: String,
+    pub(super) count: i32,
+    pub(super) colors: [i32; 3],
+    pub(super) reduced: i32,
+    pub(super) bonus: i32,
+    pub(super) bound: bool,
+    pub(super) expire_ticks: Option<i64>,
 }
 /// A mail as MailFactory.MakeMail builds it.
 struct NewMail<'a> {
@@ -518,7 +518,7 @@ async fn purge(tx: &mut Transaction<'_, Postgres>, m: &Mail) -> Result<(), Minim
     Ok(())
 }
 /// Num = 0 of system items (owner NULL): the rows, attributes and equippables go.
-async fn destroy_system_items(
+pub(super) async fn destroy_system_items(
     tx: &mut Transaction<'_, Postgres>,
     ids: &[i64],
 ) -> Result<(), MinimumError> {
@@ -721,15 +721,15 @@ struct OwnedItem {
     checksum: Option<i32>,
 }
 #[derive(sqlx::FromRow)]
-struct EquipRow {
-    part: Option<i16>,
-    color1: i32,
-    color2: i32,
-    color3: i32,
-    reduced_durability: i32,
-    max_durability_bonus: i32,
+pub(super) struct EquipRow {
+    pub(super) part: Option<i16>,
+    pub(super) color1: i32,
+    pub(super) color2: i32,
+    pub(super) color3: i32,
+    pub(super) reduced_durability: i32,
+    pub(super) max_durability_bonus: i32,
 }
-async fn equip_row(
+pub(super) async fn equip_row(
     tx: &mut Transaction<'_, Postgres>,
     id: i64,
 ) -> Result<Option<EquipRow>, MinimumError> {
@@ -740,7 +740,7 @@ async fn equip_row(
     .fetch_optional(&mut **tx)
     .await?)
 }
-async fn attributes_of(
+pub(super) async fn attributes_of(
     tx: &mut Transaction<'_, Postgres>,
     id: i64,
 ) -> Result<Attributes, MinimumError> {
@@ -1149,7 +1149,7 @@ pub(super) async fn send_auction_item(
 }
 /// ItemOwner.TransferToSystem(items, out transferredItems, IsMailableTo(toCID)).
 #[allow(clippy::too_many_arguments)]
-async fn transfer_to_system(
+pub(super) async fn transfer_to_system(
     tx: &mut Transaction<'_, Postgres>,
     assets: &Assets,
     cid: i64,
@@ -1715,7 +1715,7 @@ pub async fn get_mail_item(
 /// TransferFromSystem's user-trade binding: IsHighLevelEquipment, FeatureMatrix Bind or
 /// TradeOnBind of the class, or an enchant scroll under Macro_EnchantTradeRestriction
 /// from another account.
-fn user_trade_binds(
+pub(super) fn user_trade_binds(
     assets: &Assets,
     class: &[u8],
     attributes: &Attributes,

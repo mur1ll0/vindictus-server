@@ -3703,3 +3703,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` G6e (ligar "Slots grátis" ou desligar "só por cash" no painel; o catálogo do laboratório não tem o cupom).
 - Commits: ver "feat: guild storage slot purchase (B5 G6e)".
 - Pendente / próxima ação: teste G6e no cliente; depois G6c (depositar/retirar itens e ouro), G6d, G6f.
+
+## 2026-11-05 — G6c/G6d armazém da guilda: depositar, retirar e arrumar (B5)
+- Feito: operador confirmou a compra de slots (G6e). `guild_storage::add_item`/`pick_item`/`arrange_item` (AddGuildStorageItemProcessor, PickGuildStorageItemProcessor, ArrangeGuildStorageItemProcessor): item da guilda é linha sem dono de `game_items` ligada por `game_guild_storage_items` (bolsa coleção 0, ouro na AccountLocation 101/-1); TransferToSystem do correio (`minimum_mail` com helpers `pub(super)`), colocação por aba/slot com empilhamento, `IsAddLimited`/`IsPickLimited` (AccessLimitTag por aba, GuildStorageGoldHoldingLimit, GoldPickLimit, GuildStorageGoldDailyLimit só pela quantia até os logs), retirada como troca de usuário via `minimum_give::apply_expiring`; uma transação por operação (falha desfaz = recuperação da fonte); GuildInventoryInfo com SlotInfos (`minimum_inventory::guild_slots`) difundido aos ouvintes. `load`/`session`/`update_setting` recebem os assets. Purga de classe no admin remove os vínculos do armazém.
+- Verificação: `cargo test --lib -- guild_storage content_overlay` 8 passed; PostgreSQL `guild_storage` 2 passed (novo `guild_storage_deposits_picks_and_arranges_items_and_gold`) no test-postgres (removido); clippy sem achados novos (`tests/periodic_event.rs` segue sem compilar, anterior). Docker reconstruído, serviços saudáveis, 0 erros. Logs `.cache/verification/g6c-*.log`.
+- Cliente: `docs/client-tests/B5-social.md` G6c/G6d.
+- Commits: ver "feat: guild storage deposits, picks and arranging (B5 G6c, G6d)".
+- Pendente / próxima ação: teste G6c/G6d no cliente; depois G6f (logs do armazém).

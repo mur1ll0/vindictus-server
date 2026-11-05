@@ -122,3 +122,15 @@ Pré-condição: roteiro G6b (o armazém abre; confirmado em 05/11). No EU origi
 - [ ] Comprar de novo → +24 slots por compra (grátis, ou falha "compra falhou" sem o cupom).
 - [ ] Com os valores originais (só por cash ligado, grátis desligado) → aviso de compra falhou, nada muda.
 - [ ] Fechar e reabrir o armazém, e relogar → os slots continuam.
+
+### G6c/G6d — Armazém da guilda: depositar, retirar e arrumar
+Pré-condição: G6e (a guilda já comprou slots). A é o mestre, B um membro, ambos com o armazém aberto. A configuração inicial (898779) limita cada aba ao posto de membro ou acima.
+- [ ] A arrasta um item negociável do inventário para um slot do armazém → o item sai do inventário de A e aparece no slot escolhido; a janela de B mostra o item sem reabrir.
+- [ ] A deposita mais do mesmo material empilhável → junta na pilha do armazém.
+- [ ] A deposita ouro (Deposit) → o ouro de A cai e o "Available Balance" do armazém sobe; B vê o novo saldo.
+- [ ] B retira o item (arrasta para o inventário) → o item vai para o inventário de B e some do armazém de A.
+- [ ] B retira ouro (Withdraw) → o ouro de B sobe; acima do limite de retirada da configuração ou de 2.500.000 de uma vez → aviso de limite.
+- [ ] A arrasta um item de um slot para outro do armazém → o item muda de slot (se o destino estiver ocupado, os dois trocam).
+- [ ] Item quebrado (durabilidade abaixo do máximo), não negociável ou de cash → aviso e nada muda.
+- [ ] Relogar e reabrir o armazém → itens e ouro continuam.
+- Os registros de uso do armazém (abas de histórico) ainda ficam vazios (G6f).

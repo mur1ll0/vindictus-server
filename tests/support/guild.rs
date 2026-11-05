@@ -977,6 +977,7 @@ async fn guild_storage_session_settings_and_listeners() {
     let (admin, p, schema) = isolated_game_pool().await;
     character(&p, 1, 10, "Alice", 25).await;
     character(&p, 2, 20, "Bob", 30).await;
+    let assets = super::minimum_character::assets();
     let party = PartyHub::new(false, false);
     let hub = GuildHub::default();
     let sn = guilds::open(&p, 1, "Night_Owls", "nightowls", None)
@@ -1003,7 +1004,7 @@ async fn guild_storage_session_settings_and_listeners() {
 
     let off = StorageConfig::default();
     assert!(
-        storage::session(&p, off, &hub, sn, 2, rank::MEMBER, true)
+        storage::session(&p, &assets, off, &hub, sn, 2, rank::MEMBER, true)
             .await
             .unwrap()
             .is_empty()
@@ -1013,7 +1014,7 @@ async fn guild_storage_session_settings_and_listeners() {
         required_member: 2,
     };
     // The first load initializes the setting and keeps 0/0; then the stored 898779.
-    let out = storage::session(&p, config, &hub, sn, 2, rank::MEMBER, true)
+    let out = storage::session(&p, &assets, config, &hub, sn, 2, rank::MEMBER, true)
         .await
         .unwrap();
     assert_eq!(out.len(), 3);
@@ -1051,18 +1052,30 @@ async fn guild_storage_session_settings_and_listeners() {
         };
         assert_eq!(logs.is_today_log, today);
     }
-    let again = storage::load(&p, sn).await.unwrap();
+    let again = storage::load(&p, &assets, sn).await.unwrap();
     assert_eq!(again.access_limit_tag, storage::INITIAL_ACCESS_LIMIT_TAG);
 
     // Only the master changes the setting; listening members get the new inventory info.
-    let dialog = storage::update_setting(&p, config, &hub, &party, sn, 2, rank::MEMBER, 5, 7)
-        .await
-        .unwrap();
+    let dialog =
+        storage::update_setting(&p, &assets, config, &hub, &party, sn, 2, rank::MEMBER, 5, 7)
+            .await
+            .unwrap();
     assert_eq!(dialog.len(), 1);
     assert_ne!(dialog[0].category, SKind::GuildInventoryInfo.category());
-    let own = storage::update_setting(&p, config, &hub, &party, sn, 1, rank::MASTER, 5000, 7)
-        .await
-        .unwrap();
+    let own = storage::update_setting(
+        &p,
+        &assets,
+        config,
+        &hub,
+        &party,
+        sn,
+        1,
+        rank::MASTER,
+        5000,
+        7,
+    )
+    .await
+    .unwrap();
     assert!(own.is_empty(), "the master is not listening");
     let got = pushed(&mut b_rx);
     assert_eq!(got.len(), 1);
@@ -1073,20 +1086,340 @@ async fn guild_storage_session_settings_and_listeners() {
         feature: true,
         required_member: 3,
     };
-    let refused = storage::update_setting(&p, stopped, &hub, &party, sn, 1, rank::MASTER, 1, 1)
-        .await
-        .unwrap();
+    let refused = storage::update_setting(
+        &p,
+        &assets,
+        stopped,
+        &hub,
+        &party,
+        sn,
+        1,
+        rank::MASTER,
+        1,
+        1,
+    )
+    .await
+    .unwrap();
     assert_eq!(refused.len(), 1);
     // Ending the session stops the broadcast.
     assert!(
-        storage::session(&p, config, &hub, sn, 2, rank::MEMBER, false)
+        storage::session(&p, &assets, config, &hub, sn, 2, rank::MEMBER, false)
             .await
             .unwrap()
             .is_empty()
     );
-    storage::update_setting(&p, config, &hub, &party, sn, 1, rank::MASTER, 9, 9)
+    storage::update_setting(&p, &assets, config, &hub, &party, sn, 1, rank::MASTER, 9, 9)
         .await
         .unwrap();
     assert!(pushed(&mut b_rx).is_empty());
+    cleanup_game_pool(admin, p, schema).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn guild_storage_deposits_picks_and_arranges_items_and_gold() {
+    use vindictus_server::infrastructure::guild_storage::{
+        self as storage, Buyer, Member, StorageConfig,
+    };
+    use vindictus_server::infrastructure::minimum_give;
+    use vindictus_server::protocol::guild_storage::{self as swire, ItemMove, Kind as SKind};
+    let (admin, p, schema) = isolated_game_pool().await;
+    super::minimum_character::setup(&p).await;
+    super::minimum_character::initialize(&p).await.unwrap();
+    sqlx::query("UPDATE game_character_info SET name_utf16=$1,level=25 WHERE id=1")
+        .bind(utf16("Fiona"))
+        .execute(&p)
+        .await
+        .unwrap();
+    let assets = super::minimum_give::marketplace_assets();
+    let owner = super::initial_inventory::key();
+    for (class, n) in [("synthetic_gold", 10_000), ("synthetic_ore", 50)] {
+        assert_eq!(
+            minimum_give::lab_grant(&p, &assets, Some(1), class, n, 9)
+                .await
+                .unwrap(),
+            Ok(1)
+        );
+    }
+    let party = PartyHub::new(false, false);
+    let hub = GuildHub::default();
+    let sn = guilds::open(&p, 1, "Night_Owls", "nightowls", None)
+        .await
+        .unwrap()
+        .unwrap();
+    let (tx, _rx) = tokio::sync::mpsc::channel(64);
+    party.register(1, "Fiona", tx);
+    let (state, _) = guilds::enter(&p, &party, &hub, 1).await;
+    assert_eq!(state, State::InGuild { guild_sn: sn });
+    let config = StorageConfig {
+        feature: true,
+        required_member: 1,
+    };
+    let member = || Member {
+        owner: &owner,
+        cid: 1,
+        rank: rank::MASTER,
+    };
+    let held = |class: &'static str| {
+        let p = p.clone();
+        async move {
+            let rows: Vec<(Option<i64>, i32, i16, i32)> = sqlx::query_as(
+                "SELECT owner_id,count,collection,slot FROM game_items WHERE item_class_utf16=$1 AND (owner_id=1 OR id IN (SELECT id FROM game_guild_storage_items)) ORDER BY owner_id NULLS FIRST,slot",
+            )
+            .bind(utf16(class))
+            .fetch_all(&p)
+            .await
+            .unwrap();
+            rows
+        }
+    };
+    let mv = |item_id: i64, class: &str, amount: i32, tab: u8, slot: i32| ItemMove {
+        item_id,
+        item_class: Some(class.to_owned()),
+        amount,
+        target_tab: tab,
+        target_slot: slot,
+    };
+    let info = |packets: &[OutgoingPacket]| {
+        let last = packets.last().expect("packets");
+        assert_eq!(last.category, SKind::GuildInventoryInfo.category());
+        match swire::decode(SKind::GuildInventoryInfo, &last.body, DEFAULT_MAX_BODY).unwrap() {
+            Some(swire::Message::GuildInventoryInfo(i)) => i,
+            _ => panic!("no GuildInventoryInfoMessage"),
+        }
+    };
+    let ids = |base: i64| (0..4).map(|n| base + n).collect::<Vec<i64>>();
+    // Listening, so the own copy of the broadcast comes back.
+    storage::session(&p, &assets, config, &hub, sn, 1, rank::MASTER, true)
+        .await
+        .unwrap();
+    // Without slots nothing moves.
+    let out = storage::add_item(
+        &p,
+        &assets,
+        config,
+        &hub,
+        &party,
+        sn,
+        member(),
+        &mv(0, "synthetic_gold", 100, 255, -1),
+        ids(9000),
+    )
+    .await
+    .unwrap();
+    assert_eq!(out.len(), 1);
+    assert_ne!(out[0].category, SKind::GuildInventoryInfo.category());
+    // Without a FeatureMatrix the first purchase costs no gold: 24 slots.
+    let bought = storage::purchase(
+        &p,
+        &assets,
+        config,
+        &hub,
+        &party,
+        sn,
+        Buyer {
+            owner: &owner,
+            cid: 1,
+            log: vindictus_server::infrastructure::minimum_item_logs::Context {
+                flags: vindictus_server::infrastructure::minimum_item_logs::flags(&assets).unwrap(),
+                civil_offset_seconds: 0,
+            },
+        },
+        -1,
+    )
+    .await;
+    assert_eq!(info(&bought.unwrap()).storage_count, 24);
+
+    // Gold in and out.
+    let out = storage::add_item(
+        &p,
+        &assets,
+        config,
+        &hub,
+        &party,
+        sn,
+        member(),
+        &mv(0, "synthetic_gold", 3000, 255, -1),
+        ids(9010),
+    )
+    .await
+    .unwrap();
+    assert_eq!(info(&out).slot_infos.as_ref().map(Vec::len), Some(1));
+    assert_eq!(
+        held("synthetic_gold").await,
+        vec![(None, 3000, 101, -1), (Some(1), 7000, 101, -1)]
+    );
+    storage::add_item(
+        &p,
+        &assets,
+        config,
+        &hub,
+        &party,
+        sn,
+        member(),
+        &mv(0, "synthetic_gold", 500, 255, -1),
+        ids(9020),
+    )
+    .await
+    .unwrap();
+    let out = storage::pick_item(
+        &p,
+        &assets,
+        config,
+        &hub,
+        &party,
+        sn,
+        member(),
+        &mv(0, "synthetic_gold", 1500, 255, -1),
+        ids(9030),
+    )
+    .await
+    .unwrap();
+    assert_eq!(info(&out).slot_infos.as_ref().map(Vec::len), Some(1));
+    assert_eq!(
+        held("synthetic_gold").await,
+        vec![(None, 2000, 101, -1), (Some(1), 8000, 101, -1)]
+    );
+    // Picking more than the storage holds fails without a change.
+    let out = storage::pick_item(
+        &p,
+        &assets,
+        config,
+        &hub,
+        &party,
+        sn,
+        member(),
+        &mv(0, "synthetic_gold", 2001, 255, -1),
+        ids(9040),
+    )
+    .await
+    .unwrap();
+    assert_eq!(out.len(), 1);
+    assert_eq!(
+        held("synthetic_gold").await,
+        vec![(None, 2000, 101, -1), (Some(1), 8000, 101, -1)]
+    );
+
+    // An item into a target slot, stacked by a second deposit, arranged, then picked.
+    let ore: i64 =
+        sqlx::query_scalar("SELECT id FROM game_items WHERE owner_id=1 AND item_class_utf16=$1")
+            .bind(utf16("synthetic_ore"))
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    storage::add_item(
+        &p,
+        &assets,
+        config,
+        &hub,
+        &party,
+        sn,
+        member(),
+        &mv(ore, "synthetic_ore", 20, 0, 5),
+        ids(9050),
+    )
+    .await
+    .unwrap();
+    storage::add_item(
+        &p,
+        &assets,
+        config,
+        &hub,
+        &party,
+        sn,
+        member(),
+        &mv(ore, "synthetic_ore", 10, 0, -1),
+        ids(9060),
+    )
+    .await
+    .unwrap();
+    let rows = held("synthetic_ore").await;
+    assert_eq!(rows[0], (None, 30, 0, 5));
+    assert_eq!(rows[1].1, 20);
+    let stored: i64 = sqlx::query_scalar("SELECT id FROM game_guild_storage_items g JOIN game_items i USING(id) WHERE i.item_class_utf16=$1")
+        .bind(utf16("synthetic_ore"))
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    let out = storage::arrange_item(
+        &p,
+        &assets,
+        config,
+        &hub,
+        &party,
+        sn,
+        1,
+        rank::MASTER,
+        stored,
+        7,
+    )
+    .await
+    .unwrap();
+    let moved = info(&out);
+    let slot = moved
+        .slot_infos
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .find(|s| s.id == stored)
+        .unwrap();
+    assert_eq!(slot.slot, 7);
+    // Outside the purchased slots the arrangement fails.
+    let out = storage::arrange_item(
+        &p,
+        &assets,
+        config,
+        &hub,
+        &party,
+        sn,
+        1,
+        rank::MASTER,
+        stored,
+        30,
+    )
+    .await
+    .unwrap();
+    assert_eq!(out.len(), 1);
+    // A member of a lower rank than the tab's limit is refused.
+    let low = Member {
+        owner: &owner,
+        cid: 1,
+        rank: 4,
+    };
+    let out = storage::pick_item(
+        &p,
+        &assets,
+        config,
+        &hub,
+        &party,
+        sn,
+        low,
+        &mv(stored, "synthetic_ore", 5, 255, -1),
+        ids(9070),
+    )
+    .await
+    .unwrap();
+    assert_eq!(out.len(), 1);
+    storage::pick_item(
+        &p,
+        &assets,
+        config,
+        &hub,
+        &party,
+        sn,
+        member(),
+        &mv(stored, "synthetic_ore", 30, 255, -1),
+        ids(9080),
+    )
+    .await
+    .unwrap();
+    let rows = held("synthetic_ore").await;
+    assert_eq!(rows.iter().map(|r| r.1).sum::<i32>(), 50);
+    assert!(rows.iter().all(|r| r.0 == Some(1)));
+    let links: i64 = sqlx::query_scalar("SELECT count(*) FROM game_guild_storage_items")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(links, 1, "only the gold stays");
     cleanup_game_pool(admin, p, schema).await;
 }

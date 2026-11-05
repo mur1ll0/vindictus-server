@@ -369,6 +369,132 @@ async fn project(
     Ok(inventory)
 }
 
+/// AccountStorage location (gold of a guild storage too).
+pub(super) const ACCOUNT_COLLECTION: i16 = 101;
+/// The guild storage's single bag (the guild ItemOwner's StorageType 1, Storage 0).
+pub(super) const GUILD_COLLECTION: i16 = 0;
+
+/// A guild storage item: an ownerless game_items row linked by game_guild_storage_items.
+#[derive(sqlx::FromRow, Clone, Debug)]
+pub(super) struct GuildItem {
+    pub id: i64,
+    pub item_class_utf16: Vec<u8>,
+    pub count: i32,
+    pub collection: i16,
+    pub slot: i32,
+    pub expire_ticks: Option<i64>,
+    pub tradable: bool,
+    pub checksum: Option<i32>,
+}
+
+/// The items of a guild storage (owner NULL), locked FOR UPDATE when `lock`.
+pub(super) async fn guild_items(
+    tx: &mut Transaction<'_, Postgres>,
+    guild_sn: i32,
+    lock: bool,
+) -> Result<Vec<GuildItem>, MinimumError> {
+    let query = if lock {
+        "SELECT i.id,i.item_class_utf16,i.count,i.collection,i.slot,i.expire_ticks,i.tradable,i.checksum FROM game_items i JOIN game_guild_storage_items g ON g.id=i.id WHERE g.guild_id=$1 AND i.owner_id IS NULL ORDER BY i.id LIMIT 1025 FOR UPDATE OF i"
+    } else {
+        "SELECT i.id,i.item_class_utf16,i.count,i.collection,i.slot,i.expire_ticks,i.tradable,i.checksum FROM game_items i JOIN game_guild_storage_items g ON g.id=i.id WHERE g.guild_id=$1 AND i.owner_id IS NULL ORDER BY i.id LIMIT 1025"
+    };
+    let rows: Vec<GuildItem> = sqlx::query_as(query)
+        .bind(guild_sn)
+        .fetch_all(&mut **tx)
+        .await?;
+    if rows.len() > 1024 {
+        return Err(MinimumError::Conflict);
+    }
+    Ok(rows)
+}
+
+/// GuildStorageManager.SlotInfo: the guild ItemOwner's ToSlotInfo (bag items at collection 0,
+/// gold at the AccountLocation), without an owner context for the equipment stats.
+pub(super) async fn guild_slots(
+    tx: &mut Transaction<'_, Postgres>,
+    assets: &Assets,
+    rows: &[GuildItem],
+) -> Result<Vec<Option<Slot>>, MinimumError> {
+    let ids: Vec<_> = rows.iter().map(|r| r.id).collect();
+    let mut attributes = load_attributes(tx, &ids).await?;
+    let equipment: Vec<Equipment> = sqlx::query_as("SELECT id,part,color1,color2,color3,reduced_durability,max_durability_bonus FROM game_equippables WHERE id=ANY($1)").bind(&ids).fetch_all(&mut **tx).await?;
+    let mut equipment: BTreeMap<_, _> = equipment.into_iter().map(|e| (e.id, e)).collect();
+    let stats = &assets.stats_index;
+    let now = super::lab_clock::utc_now()
+        .map_err(|_| MinimumError::Conflict)?
+        .ticks();
+    let mut slots = Vec::with_capacity(rows.len());
+    for row in rows {
+        let class = stats
+            .class(Some(&row.item_class_utf16))
+            .ok_or(MinimumError::Conflict)?;
+        let gold = assets.inventory.is_gold(&row.item_class_utf16);
+        let located = if gold {
+            row.collection == ACCOUNT_COLLECTION && row.slot == -1
+        } else {
+            row.collection == GUILD_COLLECTION && row.slot >= 0 && class.storage == 1
+        };
+        if row.count <= 0 || !located {
+            return Err(MinimumError::Conflict);
+        }
+        let equippable = class.equippable;
+        let attributes = attributes.remove(&row.id).unwrap_or_default();
+        let mut status = (Vec::new(), Vec::new());
+        let (colors, durability, maximum, bonus) = match (equippable, equipment.remove(&row.id)) {
+            (false, None) => (vec![-1; 3], 0, 0, 0),
+            (true, Some(e)) if e.part.is_none() => {
+                let base = stats
+                    .get(Some(&row.item_class_utf16))
+                    .ok_or(MinimumError::Conflict)?;
+                let item = super::minimum_item_stat::equipment_with(
+                    assets,
+                    &row.item_class_utf16,
+                    &attributes,
+                    None,
+                )?;
+                let d = EquipmentDurability::load(
+                    base,
+                    &item.stat,
+                    e.reduced_durability,
+                    e.max_durability_bonus,
+                );
+                status = (item.prefix_status, item.suffix_status);
+                (
+                    vec![e.color1, e.color2, e.color3],
+                    d.current(),
+                    d.maximum(),
+                    d.bonus(),
+                )
+            }
+            _ => return Err(MinimumError::Conflict),
+        };
+        slots.push(Some(Slot {
+            id: row.id,
+            class: Some(text(&row.item_class_utf16)?),
+            count: if equippable { 1 } else { row.count },
+            tab: i32::from(row.collection),
+            slot: row.slot,
+            expireable: row.expire_ticks.is_some(),
+            expire_diff: row.expire_ticks.map_or(-1, |t| t.wrapping_sub(now)),
+            expire_ticks: row.expire_ticks.unwrap_or(-1),
+            colors: Some(colors),
+            durability,
+            maximum,
+            bonus,
+            tradable: row.tradable,
+            expander: Some(String::new()),
+            attributes: Some(attributes.as_slice().iter().map(wire_attribute).collect()),
+            prefix: Dict(Some(status.0)),
+            suffix: Dict(Some(status.1)),
+            min_price: 0,
+            max_price: 0,
+            avg_price: 0,
+            min_up_diff: if equippable { -1 } else { 0 },
+        }));
+    }
+    Ok(slots)
+}
+
 /// DBLoader.GetExpandedSlots (ExpandSlotInfo.Slot in row order).
 pub(super) async fn expanded_slots(
     tx: &mut Transaction<'_, Postgres>,
