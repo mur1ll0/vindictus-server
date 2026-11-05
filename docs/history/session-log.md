@@ -3731,3 +3731,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário (só codecs).
 - Commits: ver "feat: PvP match wire codecs (B5 PV2a)".
 - Pendente / próxima ação: PV2b (exportar PvpInfo/PvpPresetInfo e PvpConfig com Feature), depois PV2c (canais/fila da Arena e partida no relay).
+
+## 2026-11-05 — PV2b conteúdo do PvP (PvpInfo) (B5)
+- Feito: `domain::pvp` (PvpConfig.Load: linhas de PvpInfo com Feature, GameRule → ArenaConfig/DeathMatchConfig/GodMatchConfig com os padrões e a ordem de declaração; ClientConfig PvpMode, GameRule e as propriedades de cliente com o texto cru; MatchingSystem partial/full/arena/statbase[:s]; CTF/Survivor/FruitMatch fora, P2P desligados no EU). Exportador com a seção `pvp` (244 linhas) e as chaves PVPPartyCountLimit, ArenaSpecatorLevelLimitMin, PVP_Bonus, Event_PVP_Double_Bonus, PvpBanPenalty, ArenaDoubleEvent, SlayerStamp, CharacterRank, Pvp_Launch e os gates; `npc_scripts::Profile.pvp`. PvpPresetInfo só tem p01/p06, nenhum modo do EU: não exportado. npc-scripts.json reexportado.
+- Verificação: `cargo test --lib -- domain::pvp` 1 passed; `cargo test --test private_pvp_contents -- --ignored` 1 passed (p05 Arena 32/1/nível 40/3 canais, p03 Full 8 guilda, p04 Full 6). Logs `.cache/verification/pv2b-*.log`.
+- Cliente: não necessário.
+- Commits: ver "feat: PvP mode contents from PvpInfo (B5 PV2b)".
+- Pendente / próxima ação: PV2c (canais e fila da Arena, PvpPlay no relay com anfitrião jogador, GameHosted/HostInfo).

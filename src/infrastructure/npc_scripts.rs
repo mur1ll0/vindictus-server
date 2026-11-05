@@ -116,6 +116,9 @@ struct Export {
     /// CouponShopVersionInfo and CouponShopItemInfo.
     #[serde(default)]
     coupons: crate::domain::coupon_shop::CouponTables,
+    /// PvpInfo rows (PvpMode, Key, Value, Feature).
+    #[serde(default)]
+    pvp: Vec<crate::domain::pvp::InfoRow>,
 }
 
 fn fail() -> MinimumError {
@@ -177,6 +180,8 @@ pub struct Profile {
     pub coupons: crate::domain::coupon_shop::CouponShops,
     /// AllUserGoal (PlayerContents/MicroPlayContents AllUserGoalTracker).
     pub goals: crate::domain::all_user_goal::Goals,
+    /// PvpConfig.ConfigDict (B5 PV2).
+    pub pvp: crate::domain::pvp::PvpContents,
 }
 impl Profile {
     pub fn read(reader: impl Read) -> Result<Self, MinimumError> {
@@ -322,7 +327,14 @@ impl Profile {
         let events = crate::domain::periodic_event::Events::load(tables).map_err(|_| fail())?;
         let coupons =
             crate::domain::coupon_shop::CouponShops::load(export.coupons).ok_or_else(fail)?;
+        let pvp = crate::domain::pvp::PvpContents::load(&export.pvp, &mut |feature| {
+            policy
+                .is_enabled(feature)
+                .map_err(|_| crate::domain::pvp::PvpContentsError::Feature)
+        })
+        .map_err(|_| fail())?;
         Ok(Self {
+            pvp,
             mission,
             events,
             coupons,

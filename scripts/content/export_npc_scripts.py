@@ -438,6 +438,12 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
                              nullable_text(r['Feature'])]
                             for r in db.execute('Select * From [CouponShopItemInfo]')]
     if any(len(v) > 10000 for v in coupons.values()): raise ValueError('Coupon table bound')
+    # PvpConfig.Load (B5 PV2): PvpInfo rows; the Feature is evaluated by the server.
+    with contextlib.closing(content_additions.connect(database)) as db:
+        db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
+        pvp = [[nullable_text(r['PvpMode']), nullable_text(r['Key']), nullable_text(r['Value']), nullable_text(r['Feature'])]
+               for r in db.execute('Select * From [PvpInfo]')]
+    if len(pvp) > 10000 or any(r[0] is None or r[1] is None for r in pvp): raise ValueError('PvpInfo bound')
     # AllUserGoal.Initialize: AllUserGoalInfo rows of this server (FeatureMatrix.IsMatchServerCode
     # with the ServerCode of ServiceCore.dll.config); the Feature is evaluated by the server.
     # StartTime/EndTime (DateTime compared with UtcNow) as Unix seconds.
@@ -487,6 +493,10 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
                'ChristmasCounterEvent_AP_Rate', 'SubCharacter_totd', 'RandomItemBundle', 'ExtremeMode', 'Event_Worldcup2010', 'CharacterRank',
                'Event_Jumpingbuff', 'DormantAccount_ver2', 'FriendshipSystem', 'AllUserGoalEvent'}
     for d in mission['monster_drops']: wanted |= feature_atoms(d[8] or '')
+    # PvP (B5 PV2): PvpInfo features and the PvpService/Frontend values.
+    for r in pvp: wanted |= feature_atoms(r[3] or '')
+    wanted |= {'PVPPartyCountLimit', 'ArenaSpecatorLevelLimitMin', 'PVP_Bonus', 'Event_PVP_Double_Bonus', 'PvpBanPenalty',
+               'ArenaDoubleEvent', 'SlayerStamp', 'CharacterRank', 'Pvp_Launch', 'Arena', 'DeathMatch', 'GodMatch'}
     for d in mission['quest_difficulties']: wanted |= feature_atoms(d[4] or '')
     for d in mission['difficulty_rewards']: wanted |= feature_atoms(d[5] or '')
     for g in mission['goal_infos']: wanted |= feature_atoms(g[13] or '')
@@ -529,7 +539,7 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
             'manifest': {'database_sha256': catalog['manifest']['database_sha256'], 'config_sha256': catalog['manifest']['config_sha256'],
                          'scripts_sha256': hasher.hexdigest(), 'defaults': len(defaults), 'storylines': len(storylines),
                          'coerced_integers': coerced, 'shops': len(shops), 'coerced_shop_integers': coerced_shop},
-            'features': features, 'defaults': defaults, 'storylines': storylines, 'shops': shops, 'repair': repair, 'quests': quests, 'progression': progression, 'mission': mission, 'events': events, 'coupons': coupons}
+            'features': features, 'defaults': defaults, 'storylines': storylines, 'shops': shops, 'repair': repair, 'quests': quests, 'progression': progression, 'mission': mission, 'events': events, 'coupons': coupons, 'pvp': pvp}
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--output', required=True); args = parser.parse_args()
