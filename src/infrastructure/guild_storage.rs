@@ -8,7 +8,10 @@
 //! PickGuildStorageItem (G6c: TransferToSystem and TransferFromSystem between the member and
 //! the guild in one transaction, gold included) and ArrangeGuildStorageItem (G6d). A guild
 //! item is an ownerless game_items row linked by game_guild_storage_items (bag collection 0,
-//! gold at the AccountLocation). The storage logs and ledger are G6f: the logs stay empty.
+//! gold at the AccountLocation). The storage logs (G6f): GuildStorageBriefLog and
+//! GuildStorageItemLog written by ReportAddItem, ReportPickItem and ReportExtendSlot, today's
+//! logs broadcast after each change and the older ones (six months, the day 14 days ago
+//! removed) sent with the session. The HeroesLog ledger (AddGuildStorageLedger) is not kept.
 use super::character_lobby::UserKey;
 use super::guild::GuildHub;
 use super::minimum_assets::Assets;
@@ -22,7 +25,9 @@ use crate::domain::guild::user_type;
 use crate::domain::map_partition::OutgoingPacket;
 use crate::protocol::DEFAULT_MAX_BODY;
 use crate::protocol::guild::rank;
-use crate::protocol::guild_storage::{self as wire, InventoryInfo, ItemMove, Logs, Message};
+use crate::protocol::guild_storage::{
+    self as wire, BriefLog, InventoryInfo, ItemLog, ItemMove, Logs, Message,
+};
 use crate::protocol::inventory::Slot;
 use sqlx::{PgPool, Postgres, Transaction};
 
@@ -232,13 +237,314 @@ pub fn info_packet(storage: &Storage, enabled: bool) -> Result<OutgoingPacket, M
     }))
 }
 
-/// LogMessage(isTodayLog): the brief and item logs (empty until G6f).
-pub fn logs_packet(today: bool) -> Result<OutgoingPacket, MinimumError> {
-    packet(&Message::GuildStorageLogs(Logs {
+fn now_seconds() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
+}
+
+/// Datestamp (yyyyMMdd) and Timestamp (seconds of the day) of a UTC instant.
+pub fn stamps(seconds: i64) -> (i32, i32) {
+    let (y, m, d) = crate::domain::rank::civil_from_days(seconds.div_euclid(86_400));
+    (
+        i32::try_from(y * 10_000 + m * 100 + d).unwrap_or(i32::MAX),
+        i32::try_from(seconds.rem_euclid(86_400)).unwrap_or(0),
+    )
+}
+
+/// GetGuildStorageBriefLogs' StartDay: DATEADD(MONTH, -6) as yyyyMMdd (the day is kept;
+/// only the order of the stamps matters).
+pub fn six_months_back(seconds: i64) -> i32 {
+    let (y, m, d) = crate::domain::rank::civil_from_days(seconds.div_euclid(86_400));
+    let (y, m) = if m > 6 { (y, m - 6) } else { (y - 1, m + 6) };
+    i32::try_from(y * 10_000 + m * 100 + d).unwrap_or(i32::MAX)
+}
+
+/// GuildStorageOperationType.
+pub mod operation {
+    pub const GOLD: i16 = 1;
+    pub const ITEM: i16 = 2;
+    pub const SLOT: i16 = 3;
+}
+
+/// Rows a log message carries at most (the latest ones); the source sends them all.
+const MAX_LOG_ROWS: i64 = 2000;
+
+/// QueryStorageLog: today's logs, or (RemoveOldGuildStorageLog first) the older ones of the
+/// last six months, in Datestamp and Timestamp order.
+pub async fn query_logs(
+    pool: &PgPool,
+    guild_sn: i32,
+    today: bool,
+    now: i64,
+) -> Result<Logs, MinimumError> {
+    let (day, _) = stamps(now);
+    let start = if today {
+        day
+    } else {
+        let (old, _) = stamps(now - 14 * 86_400);
+        for table in ["game_guild_storage_brief_log", "game_guild_storage_item_log"] {
+            sqlx::query(&format!(
+                "DELETE FROM {table} WHERE guild_id=$1 AND date_stamp=$2"
+            ))
+            .bind(guild_sn)
+            .bind(old)
+            .execute(pool)
+            .await?;
+        }
+        six_months_back(now)
+    };
+    let end = if today { day + 1 } else { day };
+    let brief: Vec<(String, i16, i32, i32, i32, i32)> = sqlx::query_as(
+        "SELECT character_name,operation_type,add_count,pick_count,date_stamp,time_stamp FROM \
+         (SELECT * FROM game_guild_storage_brief_log WHERE guild_id=$1 AND date_stamp>=$2 \
+         AND date_stamp<$3 ORDER BY date_stamp DESC,time_stamp DESC,id DESC LIMIT $4) l \
+         ORDER BY date_stamp,time_stamp,id",
+    )
+    .bind(guild_sn)
+    .bind(start)
+    .bind(end)
+    .bind(MAX_LOG_ROWS)
+    .fetch_all(pool)
+    .await?;
+    type ItemRow = (String, i16, String, i32, i32, i32, i32, i32, i32);
+    let items: Vec<ItemRow> = sqlx::query_as(
+        "SELECT character_name,operation_type,item_class,count,date_stamp,time_stamp,color1,color2,color3 FROM \
+         (SELECT * FROM game_guild_storage_item_log WHERE guild_id=$1 AND date_stamp>=$2 \
+         AND date_stamp<$3 ORDER BY date_stamp DESC,time_stamp DESC,id DESC LIMIT $4) l \
+         ORDER BY date_stamp,time_stamp,id",
+    )
+    .bind(guild_sn)
+    .bind(start)
+    .bind(end)
+    .bind(MAX_LOG_ROWS)
+    .fetch_all(pool)
+    .await?;
+    Ok(Logs {
         is_today_log: today,
-        brief_logs: Some(Vec::new()),
-        item_logs: Some(Vec::new()),
-    }))
+        brief_logs: Some(
+            brief
+                .into_iter()
+                .map(|(name, op, add, pick, d, t)| {
+                    Some(BriefLog {
+                        character_name: Some(name),
+                        operation_type: i32::from(op),
+                        add_count: add,
+                        pick_count: pick,
+                        datestamp: d,
+                        timestamp: t,
+                    })
+                })
+                .collect(),
+        ),
+        item_logs: Some(
+            items
+                .into_iter()
+                .map(|(name, op, class, count, d, t, c1, c2, c3)| {
+                    Some(ItemLog {
+                        character_name: Some(name),
+                        is_add_item: op == 1,
+                        item_class: Some(class),
+                        count,
+                        datestamp: d,
+                        timestamp: t,
+                        color1: c1,
+                        color2: c2,
+                        color3: c3,
+                    })
+                })
+                .collect(),
+        ),
+    })
+}
+
+/// LogMessage(isTodayLog) from the stored logs.
+pub async fn logs_packet(
+    pool: &PgPool,
+    guild_sn: i32,
+    today: bool,
+) -> Result<OutgoingPacket, MinimumError> {
+    packet(&Message::GuildStorageLogs(
+        query_logs(pool, guild_sn, today, now_seconds()).await?,
+    ))
+}
+
+/// The member's gold brief log of today (AddCount, PickCount), for IsPickLimited.
+async fn today_gold(
+    pool: &PgPool,
+    guild_sn: i32,
+    name: &str,
+) -> Result<Option<(i32, i32)>, MinimumError> {
+    let (day, _) = stamps(now_seconds());
+    Ok(sqlx::query_as(
+        "SELECT add_count,pick_count FROM game_guild_storage_brief_log WHERE guild_id=$1 AND character_name=$2 AND operation_type=$3 AND date_stamp=$4 ORDER BY time_stamp,id LIMIT 1",
+    )
+    .bind(guild_sn)
+    .bind(name)
+    .bind(operation::GOLD)
+    .bind(day)
+    .fetch_optional(pool)
+    .await?)
+}
+
+/// AddGuildStorageBriefLog: adds to the row of the character, type and day, or inserts it.
+async fn add_brief_log(
+    pool: &PgPool,
+    guild_sn: i32,
+    name: &str,
+    op: i16,
+    add: i32,
+    pick: i32,
+    now: i64,
+) -> Result<(), MinimumError> {
+    let (day, time) = stamps(now);
+    let updated = sqlx::query(
+        "UPDATE game_guild_storage_brief_log SET add_count=add_count+$5,pick_count=pick_count+$6,time_stamp=$7 \
+         WHERE id=(SELECT id FROM game_guild_storage_brief_log WHERE guild_id=$1 AND character_name=$2 \
+         AND operation_type=$3 AND date_stamp=$4 ORDER BY id LIMIT 1)",
+    )
+    .bind(guild_sn)
+    .bind(name)
+    .bind(op)
+    .bind(day)
+    .bind(add)
+    .bind(pick)
+    .bind(time)
+    .execute(pool)
+    .await?;
+    if updated.rows_affected() == 0 {
+        sqlx::query(
+            "INSERT INTO game_guild_storage_brief_log(guild_id,character_name,operation_type,add_count,pick_count,date_stamp,time_stamp) VALUES($1,$2,$3,$4,$5,$6,$7)",
+        )
+        .bind(guild_sn)
+        .bind(name)
+        .bind(op)
+        .bind(add)
+        .bind(pick)
+        .bind(day)
+        .bind(time)
+        .execute(pool)
+        .await?;
+    }
+    Ok(())
+}
+
+/// AddGuildStorageItemLog: the row, then the oldest of the character's day at eleven rows.
+#[allow(clippy::too_many_arguments)]
+async fn add_item_log(
+    pool: &PgPool,
+    guild_sn: i32,
+    name: &str,
+    is_add: bool,
+    class: &str,
+    count: i32,
+    colors: [i32; 3],
+    now: i64,
+) -> Result<(), MinimumError> {
+    let (day, time) = stamps(now);
+    let class: String = class.chars().take(128).collect();
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        "INSERT INTO game_guild_storage_item_log(guild_id,character_name,operation_type,item_class,count,date_stamp,time_stamp,color1,color2,color3) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+    )
+    .bind(guild_sn)
+    .bind(name)
+    .bind(i16::from(is_add))
+    .bind(&class)
+    .bind(count)
+    .bind(day)
+    .bind(time)
+    .bind(colors[0])
+    .bind(colors[1])
+    .bind(colors[2])
+    .execute(&mut *tx)
+    .await?;
+    let (rows, oldest): (i64, Option<i64>) = sqlx::query_as(
+        "SELECT count(id),min(id) FROM game_guild_storage_item_log WHERE guild_id=$1 AND character_name=$2 AND date_stamp=$3",
+    )
+    .bind(guild_sn)
+    .bind(name)
+    .bind(day)
+    .fetch_one(&mut *tx)
+    .await?;
+    if rows == 11 {
+        sqlx::query("DELETE FROM game_guild_storage_item_log WHERE id=$1")
+            .bind(oldest)
+            .execute(&mut *tx)
+            .await?;
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
+/// What a finished operation reports to the logs.
+enum Report<'a> {
+    /// ReportAddItem / ReportPickItem: gold counts the amount in the brief log; an item counts
+    /// one operation and writes the item log with ItemClassEx, amount and colors.
+    Move {
+        add: bool,
+        gold: bool,
+        class: &'a str,
+        amount: i32,
+        colors: [i32; 3],
+    },
+    /// ReportExtendSlot.
+    ExtendSlot,
+}
+
+async fn write_report(
+    pool: &PgPool,
+    guild_sn: i32,
+    name: &str,
+    report: Report<'_>,
+) -> Result<(), MinimumError> {
+    let now = now_seconds();
+    let name: String = name.chars().take(32).collect();
+    match report {
+        Report::Move {
+            add,
+            gold: true,
+            amount,
+            ..
+        } => {
+            let (a, p) = if add { (amount, 0) } else { (0, amount) };
+            add_brief_log(pool, guild_sn, &name, operation::GOLD, a, p, now).await
+        }
+        Report::Move {
+            add,
+            gold: false,
+            class,
+            amount,
+            colors,
+        } => {
+            let (a, p) = if add { (1, 0) } else { (0, 1) };
+            add_brief_log(pool, guild_sn, &name, operation::ITEM, a, p, now).await?;
+            add_item_log(pool, guild_sn, &name, add, class, amount, colors, now).await
+        }
+        Report::ExtendSlot => add_brief_log(pool, guild_sn, &name, operation::SLOT, 1, 0, now).await,
+    }
+}
+
+/// The source's Report* catch and log their failures; the operation stands.
+async fn report(pool: &PgPool, guild_sn: i32, name: Option<&str>, report: Report<'_>) {
+    let Some(name) = name else {
+        return;
+    };
+    if write_report(pool, guild_sn, name, report).await.is_err() {
+        tracing::warn!("guild storage log write failed; values omitted");
+    }
+}
+
+/// BroadCastStorageLog(isTodayLog: true) after QueryStorageLog; returns the own copy.
+async fn broadcast_logs(
+    pool: &PgPool,
+    hub: &GuildHub,
+    party: &PartyHub,
+    guild_sn: i32,
+    cid: i64,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let logs = logs_packet(pool, guild_sn, true).await?;
+    broadcast_info(pool, hub, party, guild_sn, cid, &logs).await
 }
 
 /// OnlineGuildMember.SendOperationFailedDialog: Dialog "GameUI_Heroes_" + code.
@@ -274,8 +580,8 @@ pub async fn session(
     let enabled = config.is_enabled(regular_members(pool, guild_sn).await?);
     Ok(vec![
         info_packet(&storage, enabled)?,
-        logs_packet(true)?,
-        logs_packet(false)?,
+        logs_packet(pool, guild_sn, true).await?,
+        logs_packet(pool, guild_sn, false).await?,
     ])
 }
 
@@ -489,6 +795,9 @@ async fn purchase_locked(
     };
     let info = info_packet(&storage, enabled)?;
     own.extend(broadcast_info(pool, hub, party, guild_sn, buyer.cid, &info).await?);
+    let name = hub.online_name(guild_sn, buyer.cid);
+    report(pool, guild_sn, name.as_deref(), Report::ExtendSlot).await;
+    own.extend(broadcast_logs(pool, hub, party, guild_sn, buyer.cid).await?);
     Ok(own)
 }
 
@@ -552,8 +861,9 @@ pub fn add_limited(
     (limit != 0 && rank > limit).then_some("GuildStorageFail_RankLimited")
 }
 
-/// GuildStorageManager.IsPickLimited: the failure dialog, if any. The daily gold limit
-/// counts today's brief logs, which are G6f: without them only `amount` is compared.
+/// GuildStorageManager.IsPickLimited: the failure dialog, if any. The daily gold limit uses
+/// the member's gold brief log of today (`today_gold`: AddCount, PickCount) when there is
+/// one: picks plus `amount` minus deposits; else `amount` alone.
 pub fn pick_limited(
     rank: i32,
     gold: bool,
@@ -561,6 +871,7 @@ pub fn pick_limited(
     amount: i32,
     storage: &Storage,
     limits: GoldLimits,
+    today_gold: Option<(i32, i32)>,
 ) -> Option<&'static str> {
     if rank > rank::MEMBER {
         return Some("GuildStorageFail_RankLimited");
@@ -569,8 +880,14 @@ pub fn pick_limited(
         if i64::from(storage.gold_holding) - i64::from(amount) < i64::from(storage.gold_limit) {
             return Some("GuildStorageFail_GoldPickLimitBySetting");
         }
-        return (limits.daily != 0 && amount > limits.daily)
-            .then_some("GuildStorageFail_GoldPickDailyLimit");
+        if limits.daily == 0 {
+            return None;
+        }
+        let taken = match today_gold {
+            Some((add, pick)) => i64::from(pick) + i64::from(amount) - i64::from(add),
+            None => i64::from(amount),
+        };
+        return (taken > i64::from(limits.daily)).then_some("GuildStorageFail_GoldPickDailyLimit");
     }
     let limit = tab_rank_limit(storage.access_limit_tag, slot / SLOTS_PER_TAB);
     (limit != 0 && rank > limit).then_some("GuildStorageFail_RankLimited")
@@ -803,7 +1120,18 @@ pub async fn add_item(
     if let Some(early) = begin(config, hub, guild_sn, member.cid)? {
         return Ok(early);
     }
-    let result = add_locked(pool, assets, config, guild_sn, &member, request, ids).await;
+    let name = hub.online_name(guild_sn, member.cid);
+    let result = add_locked(
+        pool,
+        assets,
+        config,
+        guild_sn,
+        &member,
+        name.as_deref(),
+        request,
+        ids,
+    )
+    .await;
     hub.end_storage_processing(guild_sn);
     let mut own = result?;
     if own
@@ -811,6 +1139,7 @@ pub async fn add_item(
         .is_some_and(|p| p.category == inventory_category())
     {
         own.extend(after_change(pool, assets, config, hub, party, guild_sn, member.cid).await?);
+        own.extend(broadcast_logs(pool, hub, party, guild_sn, member.cid).await?);
     }
     Ok(own)
 }
@@ -819,12 +1148,14 @@ fn inventory_category() -> i32 {
     crate::protocol::inventory::Kind::UpdateInventoryInfo.category()
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn add_locked(
     pool: &PgPool,
     assets: &Assets,
     config: StorageConfig,
     guild_sn: i32,
     member: &Member<'_>,
+    name: Option<&str>,
     request: &ItemMove,
     ids: Vec<i64>,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
@@ -915,6 +1246,16 @@ async fn add_locked(
         .slots(&mut tx, member.owner, assets, member.cid)
         .await?;
     tx.commit().await?;
+    if let Some(t) = transferred.first() {
+        let moved = Report::Move {
+            add: true,
+            gold,
+            class: &t.class_ex,
+            amount: request.amount,
+            colors: t.colors,
+        };
+        report(pool, guild_sn, name, moved).await;
+    }
     Ok(vec![minimum_mail::inventory_update(slots)?])
 }
 
@@ -938,7 +1279,8 @@ pub async fn pick_item(
     if let Some(early) = begin(config, hub, guild_sn, member.cid)? {
         return Ok(early);
     }
-    let result = pick_locked(pool, assets, guild_sn, &member, request, ids).await;
+    let name = hub.online_name(guild_sn, member.cid);
+    let result = pick_locked(pool, assets, guild_sn, &member, name.as_deref(), request, ids).await;
     hub.end_storage_processing(guild_sn);
     let mut own = result?;
     if own
@@ -946,6 +1288,7 @@ pub async fn pick_item(
         .is_some_and(|p| p.category == inventory_category())
     {
         own.extend(after_change(pool, assets, config, hub, party, guild_sn, member.cid).await?);
+        own.extend(broadcast_logs(pool, hub, party, guild_sn, member.cid).await?);
     }
     Ok(own)
 }
@@ -955,6 +1298,7 @@ async fn pick_locked(
     assets: &Assets,
     guild_sn: i32,
     member: &Member<'_>,
+    name: Option<&str>,
     request: &ItemMove,
     ids: Vec<i64>,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
@@ -963,6 +1307,10 @@ async fn pick_locked(
         return dialog("GuildStorageFail_NoSlot");
     }
     let limits = GoldLimits::from_assets(assets)?;
+    let today = match name {
+        Some(name) => today_gold(pool, guild_sn, name).await?,
+        None => None,
+    };
     let mut tx =
         super::fiona_character_state::owned_first_fiona(pool, member.owner, member.cid).await?;
     let rows = inventory::guild_items(&mut tx, guild_sn, true).await?;
@@ -978,6 +1326,7 @@ async fn pick_locked(
             request.amount,
             &storage,
             limits,
+            today,
         ) {
             return dialog(code);
         }
@@ -986,7 +1335,9 @@ async fn pick_locked(
         let gold = assets
             .inventory
             .is_gold(&utf16(request.item_class.as_deref().unwrap_or_default()));
-        if let Some(code) = pick_limited(member.rank, gold, 0, request.amount, &storage, limits) {
+        if let Some(code) =
+            pick_limited(member.rank, gold, 0, request.amount, &storage, limits, today)
+        {
             return dialog(code);
         }
         let Some(row) = rows
@@ -1046,6 +1397,20 @@ async fn pick_locked(
         set_guild_count(&mut tx, assets, row, row.count - request.amount).await?;
     }
     tx.commit().await?;
+    let gold = assets.inventory.is_gold(&row.item_class_utf16);
+    let class = String::from_utf16_lossy(&units(&row.item_class_utf16));
+    let class_ex = crate::domain::item_attribute::build_class_ex(&class, &attributes)
+        .unwrap_or(class);
+    let moved = Report::Move {
+        add: false,
+        gold,
+        class: &class_ex,
+        amount: request.amount,
+        colors: equipment
+            .as_ref()
+            .map_or([-1; 3], |e| [e.color1, e.color2, e.color3]),
+    };
+    report(pool, guild_sn, name, moved).await;
     Ok(vec![minimum_mail::inventory_update(applied.slots)?])
 }
 
@@ -1099,8 +1464,8 @@ async fn arrange_locked(
     if assets.inventory.is_gold(&row.item_class_utf16) {
         return dialog("GuildStorageFail_InvalidItem").map(Some);
     }
-    if let Some(code) = pick_limited(member_rank, false, row.slot, 1, &storage, limits)
-        .or_else(|| pick_limited(member_rank, false, slot, 1, &storage, limits))
+    if let Some(code) = pick_limited(member_rank, false, row.slot, 1, &storage, limits, None)
+        .or_else(|| pick_limited(member_rank, false, slot, 1, &storage, limits, None))
     {
         return dialog(code).map(Some);
     }
@@ -1192,19 +1557,42 @@ mod tests {
         assert_eq!(add_limited(1, false, 1, 0, &s, limits), None);
         assert_eq!(add_limited(2, false, 1, 1, &s, limits), None);
         assert_eq!(
-            pick_limited(3, false, 72, 1, &s, limits),
+            pick_limited(3, false, 72, 1, &s, limits, None),
             Some("GuildStorageFail_RankLimited")
         );
         let s = storage(5_000_000, 1_000_000, 0);
         assert_eq!(
-            pick_limited(3, true, 0, 4_000_001, &s, limits),
+            pick_limited(3, true, 0, 4_000_001, &s, limits, None),
             Some("GuildStorageFail_GoldPickLimitBySetting")
         );
         assert_eq!(
-            pick_limited(3, true, 0, 2_500_001, &s, limits),
+            pick_limited(3, true, 0, 2_500_001, &s, limits, None),
             Some("GuildStorageFail_GoldPickDailyLimit")
         );
-        assert_eq!(pick_limited(3, true, 0, 2_500_000, &s, limits), None);
+        assert_eq!(pick_limited(3, true, 0, 2_500_000, &s, limits, None), None);
+    }
+
+    #[test]
+    fn the_daily_gold_limit_counts_today_and_stamps_are_utc_days() {
+        let limits = GoldLimits {
+            holding: 0,
+            daily: 2_500_000,
+        };
+        let s = storage(9_000_000, 0, 0);
+        // 2,000,000 picked and 500,000 deposited today: 1,000,000 more is the limit.
+        let today = Some((500_000, 2_000_000));
+        assert_eq!(pick_limited(3, true, 0, 1_000_000, &s, limits, today), None);
+        assert_eq!(
+            pick_limited(3, true, 0, 1_000_001, &s, limits, today),
+            Some("GuildStorageFail_GoldPickDailyLimit")
+        );
+        let none = GoldLimits { daily: 0, ..limits };
+        assert_eq!(pick_limited(3, true, 0, 9_000_000, &s, none, today), None);
+        // 2026-11-05 18:30:15 UTC.
+        assert_eq!(stamps(1_793_903_415), (20_261_105, 66_615));
+        assert_eq!(six_months_back(1_793_903_415), 20_260_505);
+        // 2026-03-31: six months back crosses the year.
+        assert_eq!(six_months_back(1_774_915_200), 20_250_931);
     }
 
     #[test]

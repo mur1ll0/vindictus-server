@@ -1181,8 +1181,11 @@ async fn guild_storage_deposits_picks_and_arranges_items_and_gold() {
         target_slot: slot,
     };
     let info = |packets: &[OutgoingPacket]| {
-        let last = packets.last().expect("packets");
-        assert_eq!(last.category, SKind::GuildInventoryInfo.category());
+        let last = packets
+            .iter()
+            .rev()
+            .find(|p| p.category == SKind::GuildInventoryInfo.category())
+            .expect("GuildInventoryInfo");
         match swire::decode(SKind::GuildInventoryInfo, &last.body, DEFAULT_MAX_BODY).unwrap() {
             Some(swire::Message::GuildInventoryInfo(i)) => i,
             _ => panic!("no GuildInventoryInfoMessage"),
@@ -1421,5 +1424,28 @@ async fn guild_storage_deposits_picks_and_arranges_items_and_gold() {
         .await
         .unwrap();
     assert_eq!(links, 1, "only the gold stays");
+    // The logs of today: gold 3500 in and 1500 out, two ore deposits and one pick, a slot.
+    let logs = storage::query_logs(&p, sn, true, std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64)
+        .await
+        .unwrap();
+    let brief: Vec<(i32, i32, i32)> = logs
+        .brief_logs
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .map(|b| {
+            assert_eq!(b.character_name.as_deref(), Some("Fiona"));
+            (b.operation_type, b.add_count, b.pick_count)
+        })
+        .collect();
+    assert_eq!(brief, vec![(3, 1, 0), (1, 3500, 1500), (2, 2, 1)]);
+    let items: Vec<(bool, i32)> = logs
+        .item_logs
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .map(|l| (l.is_add_item, l.count))
+        .collect();
+    assert_eq!(items, vec![(true, 20), (true, 10), (false, 30)]);
     cleanup_game_pool(admin, p, schema).await;
 }

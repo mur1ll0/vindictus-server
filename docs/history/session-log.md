@@ -3710,3 +3710,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` G6c/G6d.
 - Commits: ver "feat: guild storage deposits, picks and arranging (B5 G6c, G6d)".
 - Pendente / próxima ação: teste G6c/G6d no cliente; depois G6f (logs do armazém).
+
+## 2026-11-05 — G6f histórico do armazém da guilda (B5)
+- Feito: migração `0067_guild_storage_logs` (game_guild_storage_brief_log, game_guild_storage_item_log). `guild_storage`: `query_logs` (GetGuildStorage*Logs/Today, RemoveOldGuildStorageLog do dia de 14 dias atrás, 6 meses, até 2000 linhas mais recentes), `add_brief_log`/`add_item_log` (AddGuildStorageBriefLog soma por personagem/tipo/dia; AddGuildStorageItemLog remove a mais antiga na 11ª), ReportAddItem/ReportPickItem/ReportExtendSlot após depósito, retirada e compra, difusão do log de hoje aos ouvintes, logs reais na sessão; `pick_limited` com o log de ouro de hoje (retiradas + quantia − depósitos). Datas UTC nas duas pontas (a fonte gravava SYSDATETIME); ledger HeroesLog não mantido.
+- Verificação: `cargo test --lib -- guild_storage content_overlay` 9 passed; PostgreSQL `guild_storage` 2 passed (logs conferidos no teste de depósito) no test-postgres (removido); clippy sem achados novos. Logs `.cache/verification/g6f-*.log`. Docker no fechamento do grupo.
+- Cliente: `docs/client-tests/B5-social.md` G6f.
+- Commits: ver "feat: guild storage logs (B5 G6f)".
+- Pendente / próxima ação: SO3 (chat em grupo; investigar I-S3).

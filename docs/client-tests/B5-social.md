@@ -133,4 +133,11 @@ Pré-condição: G6e (a guilda já comprou slots). A é o mestre, B um membro, a
 - [ ] A arrasta um item de um slot para outro do armazém → o item muda de slot (se o destino estiver ocupado, os dois trocam).
 - [ ] Item quebrado (durabilidade abaixo do máximo), não negociável ou de cash → aviso e nada muda.
 - [ ] Relogar e reabrir o armazém → itens e ouro continuam.
-- Os registros de uso do armazém (abas de histórico) ainda ficam vazios (G6f).
+
+### G6f — Armazém da guilda: histórico
+Pré-condição: G6c/G6d feitos no mesmo dia (UTC). A e B com o armazém aberto.
+- [ ] Aba "Storage Usage Records" → uma linha por personagem e tipo do dia (ouro, itens, slots) com os totais depositados e retirados; B vê a linha de A logo depois do depósito, sem reabrir.
+- [ ] Aba "Gold Transaction History"/itens → cada depósito e retirada de item com nome, quantidade e cores (até 10 por personagem por dia).
+- [ ] Comprar slot → linha de slot no histórico.
+- [ ] Retirar ouro: o limite diário de 2.500.000 soma as retiradas do dia menos os depósitos do dia (com mais depósitos, dá para retirar mais).
+- [ ] No dia seguinte (UTC), reabrir o armazém → as linhas de ontem aparecem no histórico antigo.

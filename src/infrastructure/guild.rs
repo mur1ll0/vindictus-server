@@ -306,7 +306,7 @@ impl GuildHub {
             .unwrap_or_default()
     }
     /// The online name of a member (OnlineGuildMember.Sender).
-    fn online_name(&self, guild_sn: i32, cid: i64) -> Option<String> {
+    pub(super) fn online_name(&self, guild_sn: i32, cid: i64) -> Option<String> {
         self.lock()
             .get(&guild_sn)?
             .online
