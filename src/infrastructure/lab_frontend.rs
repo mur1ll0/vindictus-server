@@ -2526,6 +2526,59 @@ impl Connection {
         }
         Ok(packets)
     }
+    /// FreeMatchReportMessage: a MicroPlayHost message (a member's frontend does not forward
+    /// it) → FreeMatchReport; nothing is sent back.
+    async fn pvp_message(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        category: i32,
+        body: &[u8],
+        message: Option<crate::protocol::pvp::Message>,
+    ) -> Result<(), RuntimeError> {
+        let (Some(crate::protocol::pvp::Message::FreeMatchReport(report)), Some(cid)) =
+            (message, self.selected.as_ref().map(|s| s.cid))
+        else {
+            self.log_unhandled(category, body);
+            return Ok(());
+        };
+        // BattleServiceProxy: only the MicroPlay host forwards it; no play is a LogicalFail.
+        let Some((party_id, slot)) = self
+            .mission
+            .as_ref()
+            .filter(|m| m.host)
+            .map(|m| (m.party_id, m.member.slot))
+        else {
+            tracing::info!("free match report outside a hosted play ignored; values omitted");
+            return Ok(());
+        };
+        let mut players: Vec<(i32, i64)> = runtime
+            .party
+            .players(party_id)
+            .into_iter()
+            .map(|(s, p)| (s, p.cid))
+            .collect();
+        if players.is_empty() {
+            players.push((slot, cid));
+        }
+        let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+        let assets = &minimum.assets.current();
+        match super::pvp::resolve(&players, report.winner_tag, report.loser_tag) {
+            Some((winner, loser)) => {
+                for (target, win) in [(winner, true), (loser, false)] {
+                    if !matches!(
+                        super::pvp::increase(pool, assets, target, win).await,
+                        Ok(true)
+                    ) {
+                        tracing::warn!("free match count not increased; values omitted");
+                    }
+                }
+            }
+            None => tracing::warn!("free match report with an invalid player tag; values omitted"),
+        }
+        tracing::info!(category, "free match report processed; values omitted");
+        Ok(())
+    }
     /// SelectTitleMessage (InGame): PlayerConn SelectTitle, then the frontend's echo of the
     /// message when it completes (nothing when it fails).
     async fn title_message(
@@ -5263,6 +5316,19 @@ impl Connection {
                     .ok_or(RuntimeError::Message)?;
                 return self
                     .mail(runtime, pool, stream, sender, category, body, message)
+                    .await;
+            }
+        }
+        {
+            use crate::protocol::pvp::{self as wire, Kind};
+            for kind in Kind::INGRESS {
+                if !matches(category, body, kind.category(), kind.type_id()) {
+                    continue;
+                }
+                let message = wire::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
+                    .map_err(|_| RuntimeError::Message)?;
+                return self
+                    .pvp_message(runtime, pool, category, body, message)
                     .await;
             }
         }

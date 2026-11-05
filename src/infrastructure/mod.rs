@@ -168,6 +168,7 @@ pub mod minimum_use;
 pub mod minimum_whisper;
 pub mod guild;
 pub mod party_hub;
+pub mod pvp;
 pub mod rank;
 pub mod rank_title;
 pub mod relay;

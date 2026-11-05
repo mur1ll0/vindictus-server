@@ -95,3 +95,9 @@ Pré-condição: os títulos de rank do EU (`RankTitle`, 12 linhas) são só dos
 - [ ] (Com a linha de ranking gravada) A entra no jogo → o título de rank aparece na lista como adquirido e pode ser selecionado.
 - [ ] (Depois de apagar a linha e reiniciar o servidor) A entra → o título some da lista; se estava selecionado, volta a nenhum título com aviso.
 - [ ] Anotar se outro jogador vê o título selecionado de A ao encontrá-lo na cidade (o resumo do personagem leva o título).
+
+### PV1 — Duelo livre
+Pré-condição: A e B no mesmo grupo, numa partida (MicroPlay) com A como anfitrião, onde o cliente permita o duelo livre entre jogadores.
+- [ ] A e B duelam até um vencer → nada muda na tela na hora (o servidor não responde ao relatório).
+- [ ] Depois da partida, A e B abrem as informações do personagem (ou a lista de personagens) → o vencedor tem uma vitória a mais e o perdedor uma derrota a mais em duelo livre.
+- [ ] Anotar se o cliente não oferece o duelo em nenhuma partida (o PvP do EU depende do servidor dedicado, D-S2).

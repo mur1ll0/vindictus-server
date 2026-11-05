@@ -942,3 +942,29 @@ async fn rank_titles_are_given_selected_and_reset() {
     assert_eq!(now, 0);
     cleanup_game_pool(admin, p, schema).await;
 }
+
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
+async fn free_match_counts_increase_up_to_the_int_maximum() {
+    use vindictus_server::infrastructure::pvp;
+    let (admin, p, schema) = isolated_game_pool().await;
+    character(&p, 1, 10, "Alice", 25).await;
+    character(&p, 2, 20, "Bob", 30).await;
+    assert!(pvp::increase_count(&p, 1, true).await.unwrap());
+    assert!(pvp::increase_count(&p, 2, false).await.unwrap());
+    assert!(pvp::increase_count(&p, 2, false).await.unwrap());
+    sqlx::query("UPDATE game_character_info SET free_match_win_count=2147483647 WHERE id=2")
+        .execute(&p)
+        .await
+        .unwrap();
+    assert!(pvp::increase_count(&p, 2, true).await.unwrap());
+    assert!(!pvp::increase_count(&p, 9, true).await.unwrap());
+    let counts: Vec<(i64, i32, i32)> = sqlx::query_as(
+        "SELECT id,free_match_win_count,free_match_lose_count FROM game_character_info ORDER BY id",
+    )
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert_eq!(counts, [(1, 1, 0), (2, 2_147_483_647, 2)]);
+    cleanup_game_pool(admin, p, schema).await;
+}

@@ -3647,3 +3647,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` RK3.
 - Commits: ver "feat: rank titles and title selection (B5 RK3)".
 - Pendente / próxima ação: PV1 (duelo livre, FreeMatchReport 276), depois G6.
+
+## 2026-11-05 — PV1 duelo livre (B5)
+- Feito: `protocol::pvp` com FreeMatchReportMessage 276 (oráculo `PvpWireOracle.cs`, 18 casos x86=x64). `infrastructure::pvp`: `resolve` (FreeMatchReportProcessor: tags → jogadores da MicroPlay) e `increase`/`increase_count` (IncreaseFreeMatchWinCount/LoseCount com `FreeMatch_Detail`, teto int.MaxValue). `lab_frontend::pvp_message`: só o anfitrião da partida repassa (BattleServiceProxy/MicroPlayHost), jogadores de `party.players` (solo: o próprio slot), sem resposta; os contadores chegam ao CharacterSummary pela linha do personagem. Retomado após queda de energia (PDB do teste corrompido apagado e refeito).
+- Verificação: `cargo test --test pvp_wire` 2 passed; PostgreSQL `free_match` e `rank_titles` 2 passed no test-postgres (removido); clippy só com os 10 achados antigos. Logs `.cache/verification/rk3/pv1-*.log`.
+- Cliente: `docs/client-tests/B5-social.md` PV1.
+- Commits: ver "feat: free duel results (B5 PV1)".
+- Pendente / próxima ação: G6 (armazém da guilda); PV2–PV4 aguardam D-S2.

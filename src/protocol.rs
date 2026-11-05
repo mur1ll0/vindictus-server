@@ -207,3 +207,5 @@ pub mod guild;
 pub mod rank;
 
 pub mod title;
+
+pub mod pvp;
