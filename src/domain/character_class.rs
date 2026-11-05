@@ -37,7 +37,7 @@ mod tests {
     fn layout_follows_the_na_tables() {
         assert_eq!(name(DELIA), Some("Delia"));
         assert_eq!(usize::from(PET), NAMES.len());
-        assert!(PET < LIMIT);
+        const { assert!(PET < LIMIT) };
         assert!(is_class(9) && is_class(DELIA) && is_class(27));
         assert!(!is_class(PET) && !is_class(LIMIT));
     }

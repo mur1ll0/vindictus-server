@@ -387,7 +387,7 @@ async fn first_fiona_state_writers_require_bootstrap_owner_revision_origin_and_r
     sqlx::query("INSERT INTO game_lab_account_origins(uid,name_key,profile_fingerprint) SELECT id,name_key,$1 FROM game_users WHERE id=31").bind(vec![0u8;32]).execute(&p).await.unwrap();
     // A leveled character stays owned since EXP and level up (B2.0); any class of the
     // CustomizeCharacter switch (0-9) is owned since every class can be created.
-    for change in ["class=10", "use_preset=true", "is_premium=true", "status=2"] {
+    for change in ["class=28", "use_preset=true", "is_premium=true", "status=2"] {
         sqlx::query(&format!(
             "UPDATE game_character_info SET {change} WHERE id=1"
         ))

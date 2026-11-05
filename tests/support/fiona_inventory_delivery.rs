@@ -566,7 +566,7 @@ async fn fiona_customization_requires_preserved_identity_before_costume_write() 
 async fn fiona_customization_rechecks_revision_and_first_fiona_after_inventory_commit() {
     for mutation in [
         "UPDATE game_users SET service_id=service_id WHERE id=31",
-        "UPDATE game_character_info SET class=10 WHERE id=1",
+        "UPDATE game_character_info SET class=28 WHERE id=1",
     ] {
         let (a, p, s) = isolated_game_pool().await;
         appearance_setup(&p, true).await;

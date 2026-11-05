@@ -157,9 +157,9 @@ async fn creation_base_refuses_unmarked_owner_revision_and_unmeasured_features_t
     ));
     sqlx::query("INSERT INTO game_lab_account_origins(uid,name_key,profile_fingerprint) SELECT id,name_key,$1 FROM game_users WHERE id=31").bind(vec![0u8;32]).execute(&pool).await.unwrap();
     for r in [
-        // Outside the CustomizeCharacter switch (BaseCharacter 0-9).
+        // Past the named classes (BaseCharacter 0-27; 28 is the pet).
         CreationCoreRequest {
-            class: 10,
+            class: 28,
             ..request(1, 1)
         },
         CreationCoreRequest {

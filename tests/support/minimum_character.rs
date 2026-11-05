@@ -548,10 +548,6 @@ async fn minimum_selection_rejects_partial_stats_skills_titles_and_stale_owner()
             "UPDATE game_character_info SET dirty=false",
         ),
         (
-            "UPDATE game_character_info SET str=str+1",
-            "UPDATE game_character_info SET str=str-1",
-        ),
-        (
             "UPDATE game_skills SET rank=rank+1",
             "UPDATE game_skills SET rank=rank-1",
         ),
@@ -571,7 +567,8 @@ async fn minimum_selection_rejects_partial_stats_skills_titles_and_stale_owner()
                 Arithmetic::FrameworkX64
             )
             .await
-            .is_err()
+            .is_err(),
+            "{change}"
         );
         assert!(
             !sqlx::query_scalar::<_, bool>(
@@ -615,6 +612,16 @@ async fn minimum_selection_rejects_partial_stats_skills_titles_and_stale_owner()
         .execute(&p)
         .await
         .unwrap();
+    // StatManager.CalculateBaseStat on load rewrites a changed stored stat instead of refusing.
+    let str_before: i32 =
+        sqlx::query_scalar("SELECT str::integer FROM game_character_info WHERE id=1")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    sqlx::query("UPDATE game_character_info SET str=str+1")
+        .execute(&p)
+        .await
+        .unwrap();
     let selected = selection::select(
         &p,
         &initial_inventory::key(),
@@ -626,6 +633,12 @@ async fn minimum_selection_rejects_partial_stats_skills_titles_and_stale_owner()
     .await
     .unwrap();
     assert_eq!(selected.cid, 1);
+    let str_after: i32 =
+        sqlx::query_scalar("SELECT str::integer FROM game_character_info WHERE id=1")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(str_after, str_before);
     assert_eq!(
         selected
             .packets

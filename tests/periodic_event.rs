@@ -46,6 +46,7 @@ fn events() -> Events {
             (s("Arbeit_other"), 1_263_859_200, 24, s("A"), s("Off")),
             (s("Arbeit_missing"), 1_263_859_200, 48, s("Z"), None),
         ],
+        goals: Vec::new(),
     })
     .unwrap()
 }

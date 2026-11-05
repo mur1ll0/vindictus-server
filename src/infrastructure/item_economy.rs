@@ -184,6 +184,7 @@ pub struct EventSwitch {
 pub struct EventDetail {
     /// ShopInfo: ShopID, ItemClass, Count, PriceItemClass, PriceCount.
     #[serde(default)]
+    #[allow(clippy::type_complexity)]
     pub shops: Vec<(
         Option<String>,
         Option<String>,
@@ -194,6 +195,7 @@ pub struct EventDetail {
     /// CouponShopItemInfo (its Feature or its version's): ShopVersion, RewardItemClass,
     /// RewardItemCount, the version's PriceItemClass, PriceItemCount.
     #[serde(default)]
+    #[allow(clippy::type_complexity)]
     pub coupons: Vec<(
         Option<i64>,
         Option<String>,
@@ -204,6 +206,7 @@ pub struct EventDetail {
     /// EventDropItemInfo: the monster (Class Variation, None for every boss), ItemClass,
     /// Probability, Condition.
     #[serde(default)]
+    #[allow(clippy::type_complexity)]
     pub drops: Vec<(Option<String>, Option<String>, Option<i64>, Option<String>)>,
     /// QuestInfo IDs.
     #[serde(default)]
@@ -227,6 +230,7 @@ pub struct EventDetail {
     pub titles: Vec<Option<i64>>,
     /// PeriodicEventInfo: RewardType, RewardArg, Amount, Possibility.
     #[serde(default)]
+    #[allow(clippy::type_complexity)]
     pub periodic: Vec<(Option<String>, Option<String>, Option<i64>, Option<i64>)>,
     /// AllUserGoalInfo: GoalName, Goal, GoalCount, RewardItemClass, RewardNum, StartTime,
     /// EndTime.

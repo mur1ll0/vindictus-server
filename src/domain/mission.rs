@@ -770,6 +770,7 @@ struct EventDropTable {
     condition: Option<String>,
     enabled: bool,
     /// ItemClass, Probability and the (StartTime, Period minutes) window.
+    #[allow(clippy::type_complexity)]
     rows: Vec<(String, i32, Option<(i64, i32)>)>,
 }
 

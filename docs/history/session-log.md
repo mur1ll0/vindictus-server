@@ -3717,3 +3717,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` G6f.
 - Commits: ver "feat: guild storage logs (B5 G6f)".
 - Pendente / próxima ação: SO3 (chat em grupo; investigar I-S3).
+
+## 2026-11-05 — I-S3 e pré-gate do B5 (suíte PostgreSQL, clippy, periodic_event)
+- Feito: I-S3 resolvida (sem mensagem nem processador de GroupTalk no servidor 1.69; o cliente usa sessões de chat do Messenger, `HeroesNMChatSession`; SO3 passa ao D-S1; busca de texto limitada no `client.dll`). Testes de upgrade de esquema (account_effects, login_policy, login_rewards, characters, user_captcha) passam a desfazer também as migrações 51–67 e o índice `game_items_item_class` da 49; guardas de classe usam 28 (o pet, fora de 0–27) em vez de 10 (Delia, válida desde a Miri); a seleção mínima confere que CalculateBaseStat regrava um atributo alterado em vez de recusar; `tests/periodic_event.rs` com `goals`; clippy: `is_multiple_of`/`as_chunks`, assert constante, `too_many_arguments` e `type_complexity` permitidos onde já era o padrão.
+- Verificação: PostgreSQL em lotes num banco recriado por lote: minimum 76, character 55, user 27, fiona 71, resto 103, todos passando (antes: 10 falhas; o lote fiona não rodava); `cargo clippy --all-targets` sem avisos; `cargo test --test periodic_event` 2 passed. Logs `.cache/verification/guild/pregate-pg-*.log`, `.cache/verification/pregate-*.log`.
+- Cliente: não necessário.
+- Commits: ver "test: bring the PostgreSQL suite and clippy back to green before the B5 gate".
+- Pendente / próxima ação: parado para o operador — D-S2 (PvP: PV2–PV4) e D-S1 (amigos e chat em grupo: SO3/SO4); sessão de cliente B5 social (G6b–G6f, carruagem).

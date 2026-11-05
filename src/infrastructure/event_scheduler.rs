@@ -129,6 +129,7 @@ fn event(r: &Registration, offset: i64) -> Event {
 /// RegisterEvent: a template fills Feature and both scripts, the given fields override it; a
 /// running event cannot change; StartTime and EndTime must not be in the past; an existing
 /// name is modified.
+#[allow(clippy::type_complexity)]
 pub async fn register(
     pool: &PgPool,
     state: &std::sync::Mutex<State>,

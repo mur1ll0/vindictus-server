@@ -22,13 +22,15 @@ fn utf16(s: &str) -> Vec<u8> {
     s.encode_utf16().flat_map(u16::to_le_bytes).collect()
 }
 fn text(bytes: &[u8]) -> Result<String, MinimumError> {
-    if bytes.len() % 2 != 0 {
+    if !bytes.len().is_multiple_of(2) {
         return Err(fail());
     }
     String::from_utf16(
         &bytes
-            .chunks_exact(2)
-            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|c| u16::from_le_bytes(*c))
             .collect::<Vec<_>>(),
     )
     .map_err(|_| fail())

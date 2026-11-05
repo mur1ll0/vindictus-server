@@ -2172,6 +2172,7 @@ impl Connection {
         }
         Ok(())
     }
+    #[allow(clippy::too_many_arguments)]
     async fn pet(
         &mut self,
         runtime: &Runtime,
