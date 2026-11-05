@@ -3661,3 +3661,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário (só codecs; o roteiro entra com G6b).
 - Commits: ver "feat: guild storage wire codecs (B5 G6a)".
 - Pendente / próxima ação: G6b (dono de itens da guilda, abas, sessão e configuração).
+
+## 2026-11-05 — G6b armazém da guilda: sessão e configuração (B5)
+- Feito: migração `0066_guild_storage` (game_guild_storage_items, game_guild_storage_status, game_guild_storage_setting). `infrastructure::guild_storage`: `load` (QuildGuildStorageStatus + GetGuildStorageSetting; sem linha, InitGuildStorageSetting 898779/0 e esta carga fica 0/0 como o manager), `regular_members`, `StorageConfig` (GuildStorage, GuildStorageRequiredMember), `session` (HandleGuildStorageSessionProcessor: ouvinte no `GuildHub`, GuildInventoryInfoMessage e GuildStorageLogsMessage hoje/antigos vazios para Rank <= Member), `update_setting` (UpdateGuildStorageSettingsProcessor: GuildStorageFail_Processing/Stopped/RankLimited, SetGuildStorageSetting do mestre e difusão aos ouvintes pelo `PartyHub`). `GuildHub` com `storage_listening` (limpo no connect/disconnect). `lab_frontend::guild_storage_message` despacha só pelo GUID (`ingress_kind`); depositar/retirar/arrumar/comprar só registrados (G6c–G6e). Armazém sem itens até G6c (carga recusa itens ligados).
+- Verificação: PostgreSQL `guild_` 5 passed (novo `guild_storage_session_settings_and_listeners`) no test-postgres (removido); clippy só com os 10 achados antigos. Logs `.cache/verification/g6b-*.log`.
+- Cliente: `docs/client-tests/B5-social.md` G6b (confirma a I-S2).
+- Commits: ver "feat: guild storage session and settings (B5 G6b)".
+- Pendente / próxima ação: parado para o cliente (regra 2): confirmar o roteiro G6b (o armazém abre com as mensagens no envelope GUID); depois G6c.

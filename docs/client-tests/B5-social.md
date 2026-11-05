@@ -101,3 +101,11 @@ Pré-condição: A e B no mesmo grupo, numa partida (MicroPlay) com A como anfit
 - [ ] A e B duelam até um vencer → nada muda na tela na hora (o servidor não responde ao relatório).
 - [ ] Depois da partida, A e B abrem as informações do personagem (ou a lista de personagens) → o vencedor tem uma vitória a mais e o perdedor uma derrota a mais em duelo livre.
 - [ ] Anotar se o cliente não oferece o duelo em nenhuma partida (o PvP do EU depende do servidor dedicado, D-S2).
+
+### G6b — Armazém da guilda: abrir e configurar (confirma a I-S2)
+Pré-condição: guilda com pelo menos `GuildStorageRequiredMember` membros regulares (20 no EU; peça ao Claude para baixar o valor no painel se não houver contas suficientes). A é o mestre, B um membro.
+- [ ] B abre o armazém da guilda → a janela abre vazia, com 0 slots (a compra de abas é o G6e), e as abas de registro vazias. **Este é o teste da I-S2**: se nada abrir, anote; o log do servidor mostra a categoria recebida como "unhandled".
+- [ ] B tenta mudar a configuração (limite de ouro/acesso por aba) → aviso de posto insuficiente.
+- [ ] A muda a configuração com B com o armazém aberto → a janela de B mostra a configuração nova.
+- [ ] Com menos membros que o mínimo → A tenta configurar e recebe o aviso de armazém parado.
+- [ ] Depositar, retirar, arrumar ou comprar abas ainda não funciona (G6c–G6e): anote se o cliente trava.

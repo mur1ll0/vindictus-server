@@ -167,6 +167,7 @@ pub mod minimum_story;
 pub mod minimum_use;
 pub mod minimum_whisper;
 pub mod guild;
+pub mod guild_storage;
 pub mod party_hub;
 pub mod pvp;
 pub mod rank;

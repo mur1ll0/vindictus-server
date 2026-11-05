@@ -25,7 +25,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 5. B5 correio implementado em 03/11 (ciclo completo e GiveItem ForceMail): sessão de cliente pelo roteiro `docs/client-tests/B5-correio.md` (duas personagens; Docker reconstruído).
 6. B5 mercado implementado em 03/11: sessão de cliente pelo roteiro `docs/client-tests/B5-marketplace.md` (duas contas; Docker reconstruído). Depois, o próximo sistema restante do B5.
 7. B5 eventos: drops de chefe, BoostEvent, histórias por período, lojas de cupom, metas coletivas, agenda, descrição no painel e collabs SAO/Fairy Tail completos para EU feitos em 03/11; sessão de cliente pelo roteiro `docs/client-tests/B5-eventos.md` (EV1–EV12).
-8. B5 social/PvP (`docs/social-systems.md`): SO1, SO2, G1–G5, RK1–RK3 (ranking por período D-S3, títulos de rank, SelectTitle) feitos em 04/11, PV1 (duelo livre) e G6a (codecs do armazém da guilda) em 05/11; o operador pediu para seguir sem a sessão de cliente (roteiro `docs/client-tests/B5-social.md` pendente). Próximo: G6b (dono de itens da guilda, abas, sessão e configuração), depois G6c–G6f; PV2–PV4 aguardam D-S2. Faltam I-S2 (parcial) e I-S3–I-S5.
+8. B5 social/PvP (`docs/social-systems.md`): SO1, SO2, G1–G5, RK1–RK3 (ranking por período D-S3, títulos de rank, SelectTitle) feitos em 04/11, PV1 (duelo livre) e G6a–G6b (codecs, abrir e configurar o armazém da guilda) em 05/11. **Parado para o cliente:** G6c–G6f (depositar/retirar, arrumar, abas por cash, logs) dependem de confirmar no cliente que o armazém abre com as mensagens de categoria 0 no envelope GUID (I-S2, roteiro G6b em `docs/client-tests/B5-social.md`). Próximo após a confirmação: G6c; PV2–PV4 aguardam D-S2. Faltam I-S2 (parcial) e I-S3–I-S5.
    - Antes do gate do B5: 10 testes PostgreSQL já falhavam antes desta trilha (guardas de dono/perfil com a classe 10 e upgrades de esquema parados na migração 51 do launcher) e 10 achados de clippy anteriores; a suíte PostgreSQL só roda em lotes (o tmpfs enche).
 
 ## Aguardando o operador
@@ -40,7 +40,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 | `docs/client-tests/B5-correio.md` | CO1–CO11 pendentes; duas personagens (A nível ≥ 10). |
 | `docs/client-tests/B5-marketplace.md` | MK1–MK11 pendentes; duas contas (o ouro é da conta). |
 | `docs/client-tests/B5-eventos.md` | EV1–EV12 pendentes (chaves do painel, drops de chefe, BoostEvent, histórias por período, loja de cupom, descrição, meta coletiva, agenda, collabs SAO/Fairy Tail). |
-| `docs/client-tests/B5-social.md` | SO1, SO2 e G1–G5 pendentes (sussurro, bloqueio, guilda, chat, GP/nível, bônus; duas ou três contas). |
+| `docs/client-tests/B5-social.md` | SO1, SO2, G1–G5, RK1–RK3, PV1 e G6b pendentes (sussurro, bloqueio, guilda, chat, GP/nível, bônus, ranking, títulos, duelo, armazém; duas ou três contas). G6b primeiro: confirma a I-S2 e destrava o G6c. |
 | `docs/client-tests/C2-delia.md` | Aceito (D0–D23); D6 passou para o C3. |
 | `docs/client-tests/C4-miri.md` | Aceito em 02/11 (combate, MG1–MG4, MI44, MI45); sem relato isolado MI1–MI3 e MI30–MI36. |
 | `docs/client-tests/L-launcher.md` | LA0, LA2, LA4 e LA5 aceitos; LA3 coberto pelo LA4/LA5; LA1 dispensável. |

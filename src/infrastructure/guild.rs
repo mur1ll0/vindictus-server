@@ -98,6 +98,8 @@ struct Entity {
     info_changed: bool,
     /// GuildChatRoom game members: CID → sender name.
     room: BTreeMap<i64, String>,
+    /// OnlineGuildMember.IsGuildStorageListening of each online member (B5 G6b).
+    storage_listening: BTreeSet<i64>,
 }
 /// What one Sync starts from (the flags are cleared when it is taken).
 struct Pending {
@@ -157,6 +159,8 @@ impl GuildHub {
             e.online.retain(|_, c| *c != cid);
         }
         let e = entities.entry(guild_sn).or_default();
+        // A new OnlineGuildMember does not listen to the storage.
+        e.storage_listening.remove(&cid);
         e.online.insert(name.to_owned(), cid);
         e.not_synched.insert(name.to_owned());
         e.changed.insert(name.to_owned());
@@ -174,6 +178,7 @@ impl GuildHub {
         let close = entities.get_mut(&sn).is_some_and(|e| {
             e.online.remove(&name);
             e.room.remove(&cid);
+            e.storage_listening.remove(&cid);
             e.changed.insert(name);
             e.online.is_empty() && e.room.is_empty()
         });
@@ -242,6 +247,30 @@ impl GuildHub {
         self.lock()
             .get(&guild_sn)
             .map(|e| e.room.keys().copied().collect())
+            .unwrap_or_default()
+    }
+    /// HandleGuildStorageSession: the online member's IsGuildStorageListening; false when
+    /// `cid` is not online in the guild.
+    pub(super) fn set_storage_listening(&self, guild_sn: i32, cid: i64, on: bool) -> bool {
+        let mut entities = self.lock();
+        let Some(e) = entities.get_mut(&guild_sn) else {
+            return false;
+        };
+        if !e.online.values().any(|c| *c == cid) {
+            return false;
+        }
+        if on {
+            e.storage_listening.insert(cid);
+        } else {
+            e.storage_listening.remove(&cid);
+        }
+        true
+    }
+    /// BroadCastInventoryInfo's targets: the online members listening to the storage.
+    pub(super) fn storage_listeners(&self, guild_sn: i32) -> Vec<i64> {
+        self.lock()
+            .get(&guild_sn)
+            .map(|e| e.storage_listening.iter().copied().collect())
             .unwrap_or_default()
     }
     /// The online name of a member (OnlineGuildMember.Sender).

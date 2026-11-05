@@ -2787,6 +2787,89 @@ impl Connection {
         tracing::info!(category, "rank message processed; values omitted");
         Ok(())
     }
+    /// GuildServiceProxy guild storage messages (InGuild): HandleGuildStorageSession and
+    /// UpdateGuildStorageSetting (B5 G6b); deposits, picks, arranging and slot purchases are
+    /// G6c–G6e and are only logged.
+    #[allow(clippy::too_many_arguments)]
+    async fn guild_storage_message(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+        category: i32,
+        body: &[u8],
+        message: Option<crate::protocol::guild_storage::Message>,
+    ) -> Result<(), RuntimeError> {
+        use crate::protocol::guild_storage::Message;
+        let in_game = self.selected.is_some()
+            && self
+                .password
+                .as_ref()
+                .is_some_and(|p| p.selection_allowed(&self.frontend));
+        let (Some(message), Some(cid), true, super::guild::State::InGuild { guild_sn }) = (
+            message,
+            self.selected.as_ref().map(|s| s.cid),
+            in_game,
+            self.guild,
+        ) else {
+            self.log_unhandled(category, body);
+            return Ok(());
+        };
+        let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+        let assets = &minimum.assets.current();
+        let member_rank = super::guild::membership(pool, cid)
+            .await
+            .map_err(|_| RuntimeError::Operation)?
+            .filter(|(sn, _)| *sn == guild_sn)
+            .map_or(crate::protocol::guild::rank::UNKNOWN, |(_, r)| r);
+        let config = super::guild_storage::StorageConfig::from_assets(assets)
+            .map_err(|_| RuntimeError::Profile)?;
+        let outcome = match message {
+            Message::HandleGuildStorageSession(starting) => {
+                super::guild_storage::session(
+                    pool,
+                    config,
+                    &runtime.guilds,
+                    guild_sn,
+                    cid,
+                    member_rank,
+                    starting,
+                )
+                .await
+            }
+            Message::UpdateGuildStorageSetting(setting) => {
+                super::guild_storage::update_setting(
+                    pool,
+                    config,
+                    &runtime.guilds,
+                    &runtime.party,
+                    guild_sn,
+                    cid,
+                    member_rank,
+                    setting.gold_limit,
+                    setting.access_limit_tag,
+                )
+                .await
+            }
+            _ => {
+                tracing::info!(
+                    "guild storage item operation not migrated (G6c-G6e); values omitted"
+                );
+                Ok(Vec::new())
+            }
+        };
+        match outcome {
+            Ok(packets) => {
+                for packet in &packets {
+                    send(stream, sender, packet.category, &packet.body).await?;
+                }
+            }
+            Err(_) => tracing::warn!("guild storage message rejected; values omitted"),
+        }
+        tracing::info!(category, "guild storage message processed; values omitted");
+        Ok(())
+    }
     /// GuildServiceProxy messages of the entered character. QueryGuildList works in every
     /// state; the others follow the proxy state (Initial: only ReconnectGuild; OutGuild:
     /// OpenGuild, GuildStoryRequest and the failures of member operations; InGuild: the
@@ -5357,6 +5440,19 @@ impl Connection {
                     .rank_message(runtime, pool, stream, sender, category, body, message)
                     .await;
             }
+        }
+        // Guild storage messages: unregistered, so only their GUID envelope is theirs.
+        if let Some(kind) = crate::protocol::guild_storage::ingress_kind(category, body) {
+            let message = crate::protocol::guild_storage::decode_ingress(
+                kind,
+                category,
+                body,
+                DEFAULT_MAX_BODY,
+            )
+            .map_err(|_| RuntimeError::Message)?;
+            return self
+                .guild_storage_message(runtime, pool, stream, sender, category, body, message)
+                .await;
         }
         {
             use crate::protocol::guild::{self as wire, Kind};

@@ -968,3 +968,125 @@ async fn free_match_counts_increase_up_to_the_int_maximum() {
     assert_eq!(counts, [(1, 1, 0), (2, 2_147_483_647, 2)]);
     cleanup_game_pool(admin, p, schema).await;
 }
+
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
+async fn guild_storage_session_settings_and_listeners() {
+    use vindictus_server::infrastructure::guild_storage::{self as storage, StorageConfig};
+    use vindictus_server::protocol::guild_storage::{self as swire, Kind as SKind};
+    let (admin, p, schema) = isolated_game_pool().await;
+    character(&p, 1, 10, "Alice", 25).await;
+    character(&p, 2, 20, "Bob", 30).await;
+    let party = PartyHub::new(false, false);
+    let hub = GuildHub::default();
+    let sn = guilds::open(&p, 1, "Night_Owls", "nightowls", None)
+        .await
+        .unwrap()
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO game_guild_user(cid,guild_sn,intro,created_seconds,modified_seconds,group_user_type) VALUES(2,$1,NULL,0,0,125)",
+    )
+    .bind(sn)
+    .execute(&p)
+    .await
+    .unwrap();
+    let (a_tx, _a_rx) = tokio::sync::mpsc::channel(64);
+    party.register(1, "Alice", a_tx);
+    let (b_tx, mut b_rx) = tokio::sync::mpsc::channel(64);
+    party.register(2, "Bob", b_tx);
+    let (state, _) = guilds::enter(&p, &party, &hub, 1).await;
+    assert_eq!(state, State::InGuild { guild_sn: sn });
+    let (state, _) = guilds::enter(&p, &party, &hub, 2).await;
+    assert_eq!(state, State::InGuild { guild_sn: sn });
+    while b_rx.try_recv().is_ok() {}
+    assert_eq!(storage::regular_members(&p, sn).await.unwrap(), 2);
+
+    let off = StorageConfig::default();
+    assert!(
+        storage::session(&p, off, &hub, sn, 2, rank::MEMBER, true)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let config = StorageConfig {
+        feature: true,
+        required_member: 2,
+    };
+    // The first load initializes the setting and keeps 0/0; then the stored 898779.
+    let out = storage::session(&p, config, &hub, sn, 2, rank::MEMBER, true)
+        .await
+        .unwrap();
+    assert_eq!(out.len(), 3);
+    let info = |packet: &OutgoingPacket| {
+        assert_eq!(packet.category, SKind::GuildInventoryInfo.category());
+        match swire::decode(SKind::GuildInventoryInfo, &packet.body, DEFAULT_MAX_BODY).unwrap() {
+            Some(swire::Message::GuildInventoryInfo(i)) => i,
+            _ => panic!("no GuildInventoryInfoMessage"),
+        }
+    };
+    let first = info(&out[0]);
+    assert!(first.is_enabled);
+    assert_eq!(
+        (
+            first.storage_count,
+            first.gold_limit,
+            first.access_limit_tag
+        ),
+        (0, 0, 0)
+    );
+    assert_eq!(first.slot_infos.as_ref().map(Vec::len), Some(0));
+    for (packet, today) in [(&out[1], true), (&out[2], false)] {
+        assert_eq!(packet.category, 0);
+        assert_eq!(
+            &packet.body[..16],
+            SKind::GuildStorageLogs.type_id().as_bytes()
+        );
+        let Some(swire::Message::GuildStorageLogs(logs)) = swire::decode(
+            SKind::GuildStorageLogs,
+            &packet.body[16..],
+            DEFAULT_MAX_BODY,
+        )
+        .unwrap() else {
+            panic!("no GuildStorageLogsMessage")
+        };
+        assert_eq!(logs.is_today_log, today);
+    }
+    let again = storage::load(&p, sn).await.unwrap();
+    assert_eq!(again.access_limit_tag, storage::INITIAL_ACCESS_LIMIT_TAG);
+
+    // Only the master changes the setting; listening members get the new inventory info.
+    let dialog = storage::update_setting(&p, config, &hub, &party, sn, 2, rank::MEMBER, 5, 7)
+        .await
+        .unwrap();
+    assert_eq!(dialog.len(), 1);
+    assert_ne!(dialog[0].category, SKind::GuildInventoryInfo.category());
+    let own = storage::update_setting(&p, config, &hub, &party, sn, 1, rank::MASTER, 5000, 7)
+        .await
+        .unwrap();
+    assert!(own.is_empty(), "the master is not listening");
+    let got = pushed(&mut b_rx);
+    assert_eq!(got.len(), 1);
+    let changed = info(&got[0]);
+    assert_eq!((changed.gold_limit, changed.access_limit_tag), (5000, 7));
+    // Below the required members the storage is stopped.
+    let stopped = StorageConfig {
+        feature: true,
+        required_member: 3,
+    };
+    let refused = storage::update_setting(&p, stopped, &hub, &party, sn, 1, rank::MASTER, 1, 1)
+        .await
+        .unwrap();
+    assert_eq!(refused.len(), 1);
+    // Ending the session stops the broadcast.
+    assert!(
+        storage::session(&p, config, &hub, sn, 2, rank::MEMBER, false)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    storage::update_setting(&p, config, &hub, &party, sn, 1, rank::MASTER, 9, 9)
+        .await
+        .unwrap();
+    assert!(pushed(&mut b_rx).is_empty());
+    cleanup_game_pool(admin, p, schema).await;
+}
