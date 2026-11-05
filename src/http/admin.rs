@@ -253,6 +253,7 @@ impl AdminState {
         crate::application::content_admin::TuningApplied,
         content::TuningSave,
         crate::application::content_admin::FeatureView,
+        crate::application::content_admin::GuildSettingView,
         crate::application::content_admin::QuestDropView,
         crate::application::content_admin::EnhanceRatioView,
         crate::application::content_admin::EnchantRatioView,

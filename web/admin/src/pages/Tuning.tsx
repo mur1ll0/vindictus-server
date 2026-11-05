@@ -381,6 +381,21 @@ const FEATURE_LABEL: Record<string, string> = {
   ExpRate_Monster: 'EXP por monstro',
 };
 
+/** The guild values (FeatureMatrix keys the server reads) and what each one changes. */
+const GUILD_LABEL: Record<string, { title: string; hint: string }> = {
+  GuildStorage: { title: 'Armazém da guilda', hint: '1 = ligado, 0 = desligado. Desligado, o armazém não abre.' },
+  GuildStorageRequiredMember: {
+    title: 'Membros para usar o armazém',
+    hint: 'Membros regulares (mestre, oficiais e membros) que a guilda precisa ter para o armazém funcionar. Original: 20.',
+  },
+  GuildLevel: { title: 'Nível de guilda (GP)', hint: '1 = ligado, 0 = desligado. Desligado, a guilda não ganha GP nem sobe de nível.' },
+  GuildLevel_APGainRatio: { title: 'GP por AP gasto', hint: 'Porcentagem do AP gasto pelos membros que vira GP da guilda.' },
+  GuildLevel_DailyGPResetTimeAdder: {
+    title: 'Hora do reset diário de GP',
+    hint: 'Horas depois da meia-noite UTC em que o limite diário de GP recomeça (0 a 23).',
+  },
+};
+
 /** One tunable value as the page edits it: one or two numbers in the field's unit. */
 type Item = {
   key: string;
@@ -391,11 +406,13 @@ type Item = {
   max: number;
   step?: string;
   current: number[];
+  /** What the value changes, under the key. */
+  hint?: string;
   fromPending: (value: Record<string, number>) => number[];
   build: (values: number[]) => EditRequest;
 };
 
-type Tab = 'rates' | 'drops' | 'enhance' | 'enchant' | 'market' | 'events' | 'schedule';
+type Tab = 'rates' | 'guild' | 'drops' | 'enhance' | 'enchant' | 'market' | 'events' | 'schedule';
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const show = (values: number[], unit: string) => values.map((v) => `${v}${unit}`).join('–');
@@ -413,6 +430,18 @@ function items(t: Tuning): Record<Exclude<Tab, 'market' | 'events' | 'schedule'>
       current: [f.value],
       fromPending: (v) => [v.value ?? 0],
       build: ([value]) => ({ kind: 'feature', key: f.key, value: value ?? 0 }),
+    })),
+    guild: t.guild.map((g) => ({
+      key: `feature|${g.key}`,
+      title: GUILD_LABEL[g.key]?.title ?? g.key,
+      detail: g.key,
+      hint: GUILD_LABEL[g.key]?.hint,
+      unit: g.key === 'GuildLevel_APGainRatio' ? '%' : '',
+      labels: [g.switch ? 'Ligado (1) ou desligado (0)' : 'Valor'],
+      max: g.max,
+      current: [g.value],
+      fromPending: (v) => [v.value ?? 0],
+      build: ([value]) => ({ kind: 'feature', key: g.key, value: value ?? 0 }),
     })),
     drops: t.quests.map((q) => ({
       key: `quest_drop|${q.quest}`,
@@ -481,6 +510,7 @@ function Row({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{item.title}</p>
           <p className="truncate font-mono text-xs text-muted">{item.detail}</p>
+          {item.hint && <p className="mt-0.5 text-xs text-muted">{item.hint}</p>}
         </div>
         <div className="flex items-center gap-1.5">
           {values.map((v, i) => (
@@ -574,6 +604,7 @@ export function TuningPage() {
 
   const tabs = [
     { id: 'rates', label: 'Taxas', n: all?.rates.length },
+    { id: 'guild', label: 'Guilda', n: all?.guild.length },
     { id: 'drops', label: 'Drops por fase', n: all?.drops.length },
     { id: 'enhance', label: 'Enhance', n: all?.enhance.length },
     { id: 'enchant', label: 'Enchant', n: all?.enchant.length },
@@ -582,7 +613,7 @@ export function TuningPage() {
     { id: 'schedule', label: 'Agenda', n: undefined },
   ] as const;
   const shown = (tab === 'market' || tab === 'events' || tab === 'schedule' ? [] : (all?.[tab] ?? []))
-    .filter((i) => tab === 'rates' || tab === 'enhance' || !term || `${i.title} ${i.detail}`.toLowerCase().includes(term))
+    .filter((i) => tab === 'rates' || tab === 'guild' || tab === 'enhance' || !term || `${i.title} ${i.detail}`.toLowerCase().includes(term))
     .slice(0, 300);
 
   return (
@@ -640,7 +671,15 @@ export function TuningPage() {
       {tab === 'market' && <MarketAutoPanel editable={editable} />}
       {tab === 'events' && data.data && <EventsPanel events={data.data.events} packs={data.data.packs} editable={editable} onSaved={setResult} />}
       {tab === 'schedule' && <SchedulePanel editable={editable} />}
-      {tab !== 'rates' && tab !== 'enhance' && tab !== 'market' && tab !== 'events' && (
+      {tab === 'guild' && (
+        <Card>
+          <p className="text-sm text-muted">
+            Configurações de guilda que o servidor lê do FeatureMatrix. Salvar aplica no jogo na hora; quem está com o armazém aberto vê a
+            mudança ao abri-lo de novo.
+          </p>
+        </Card>
+      )}
+      {tab !== 'rates' && tab !== 'guild' && tab !== 'enhance' && tab !== 'market' && tab !== 'events' && (
         <div className="relative max-w-sm">
           <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" />
           <Input aria-label="Buscar" placeholder="Buscar (nome ou ID)" className="pl-9" value={filter} onChange={(e) => setFilter(e.target.value)} />

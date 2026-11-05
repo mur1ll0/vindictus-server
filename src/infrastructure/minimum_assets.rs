@@ -444,7 +444,10 @@ impl Assets {
             profile.shop_rows = overlay.apply_shop_rows(std::mem::take(&mut profile.shop_rows));
             // B4.5: FeatureMatrix rates and the quests' drop counts.
             for (key, value) in &overlay.features {
-                profile.policy.override_value(key, value.to_string());
+                profile.policy.override_value(
+                    key,
+                    crate::domain::content_overlay::feature_value(key, *value),
+                );
             }
             // Event switches: ShopInfo, StoryLineInfo/QuestInfo and NPC talk features.
             for (key, on) in &overlay.events {

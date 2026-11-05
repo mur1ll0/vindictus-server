@@ -1653,6 +1653,15 @@ export interface components {
             id: number;
             members: number;
         };
+        /** @description A guild FeatureMatrix value: a switch is 1 (on) or 0 (off); saved as a `feature` edit. */
+        GuildSettingView: {
+            key: string;
+            /** Format: int32 */
+            max: number;
+            switch: boolean;
+            /** Format: int32 */
+            value: number;
+        };
         HideItem: {
             hidden: boolean;
             /** Format: uuid */
@@ -2364,6 +2373,8 @@ export interface components {
             enhance: components["schemas"]["EnhanceRatioView"][];
             events: components["schemas"]["EventView"][];
             features: components["schemas"]["FeatureView"][];
+            /** @description The guild values (Ajustes de jogo → Guilda). */
+            guild: components["schemas"]["GuildSettingView"][];
             packs: components["schemas"]["EventPackView"][];
             quests: components["schemas"]["QuestDropView"][];
         };

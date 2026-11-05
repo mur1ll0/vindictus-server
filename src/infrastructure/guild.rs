@@ -113,7 +113,8 @@ struct Pending {
 #[derive(Default)]
 pub struct GuildHub {
     entities: Mutex<HashMap<i32, Entity>>,
-    config: GuildConfig,
+    /// Replaced when the panel's tuning reloads the content (Ajustes de jogo → Guilda).
+    config: std::sync::RwLock<GuildConfig>,
 }
 
 /// The FeatureMatrix values of the guild levels (GuildLevel on in EN-EU).
@@ -146,8 +147,19 @@ impl GuildHub {
     pub fn new(config: GuildConfig) -> Self {
         Self {
             entities: Mutex::default(),
-            config,
+            config: std::sync::RwLock::new(config),
         }
+    }
+    /// The guild FeatureMatrix values now in force.
+    pub fn config(&self) -> GuildConfig {
+        self.config
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+    /// Live tuning: the values of the reloaded content.
+    pub fn set_config(&self, config: GuildConfig) {
+        *self.config.write().unwrap_or_else(PoisonError::into_inner) = config;
     }
     fn lock(&self) -> MutexGuard<'_, HashMap<i32, Entity>> {
         self.entities.lock().unwrap_or_else(PoisonError::into_inner)
@@ -488,7 +500,7 @@ async fn sync(
     let mut outbox: BTreeMap<i64, Vec<OutgoingPacket>> = BTreeMap::new();
     let mut kicked = Vec::new();
     if p.info_changed || !p.not_synched.is_empty() {
-        let mut guild = info(pool, &hub.config, guild_sn).await?;
+        let mut guild = info(pool, &hub.config(), guild_sn).await?;
         if let Some(g) = guild.as_mut() {
             // MakeGuildInfoMessage: MemberCount = GetRegularMemberCount().
             g.member_count = dict.values().filter(|m| rules::is_regular(m.rank)).count() as i32;
@@ -580,7 +592,7 @@ async fn connect_member(
     guild_sn: i32,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
     let name = super::minimum_party::name_of(pool, cid).await?;
-    if info(pool, &hub.config, guild_sn).await?.is_none() {
+    if info(pool, &hub.config(), guild_sn).await?.is_none() {
         return Err(fail());
     }
     hub.connect(guild_sn, &name, cid);
@@ -944,7 +956,7 @@ pub async fn search(
     };
     let mut list = Vec::with_capacity(matched.len());
     for sn in matched {
-        if let Some(i) = info(pool, &hub.config, sn).await? {
+        if let Some(i) = info(pool, &hub.config(), sn).await? {
             list.push(Some(i));
         }
     }
@@ -1550,7 +1562,7 @@ pub async fn give_gp(
     gp: i32,
     gain_type: u8,
 ) -> Result<Option<Vec<OutgoingPacket>>, MinimumError> {
-    if !hub.config.level_enabled {
+    if !hub.config().level_enabled {
         return Ok(None);
     }
     let Some(name) = hub.online_name(guild_sn, cid) else {
@@ -1563,7 +1575,7 @@ pub async fn give_gp(
     {
         return Ok(None);
     }
-    let Some(guild) = info(pool, &hub.config, guild_sn).await? else {
+    let Some(guild) = info(pool, &hub.config(), guild_sn).await? else {
         return Ok(None);
     };
     let daily = guild
@@ -1571,7 +1583,7 @@ pub async fn give_gp(
         .0
         .as_ref()
         .and_then(|d| d.iter().find(|(t, _)| *t == gain_type).map(|(_, p)| *p));
-    let limit = rules::daily_limit(&hub.config.daily_limit, gain_type);
+    let limit = rules::daily_limit(&hub.config().daily_limit, gain_type);
     let gained = rules::give_gp(
         levels,
         guild.guild_level,
@@ -1667,7 +1679,7 @@ pub async fn give_ap_gp(
     cid: i64,
     ap: i32,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
-    if !hub.config.level_enabled || ap <= 0 {
+    if !hub.config().level_enabled || ap <= 0 {
         return Ok(Vec::new());
     }
     let Some((guild_sn, member_rank)) = membership(pool, cid).await? else {
@@ -1676,7 +1688,7 @@ pub async fn give_ap_gp(
     if !rules::is_regular(member_rank) {
         return Ok(Vec::new());
     }
-    let gp = ap.wrapping_mul(hub.config.ap_gain_ratio) / 100;
+    let gp = ap.wrapping_mul(hub.config().ap_gain_ratio) / 100;
     Ok(give_gp(
         pool,
         party,

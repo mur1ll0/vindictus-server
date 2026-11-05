@@ -61,6 +61,58 @@ pub const TUNABLE_FEATURES: [&str; 7] = [
     "ExpRate_Monster",
 ];
 pub const MAX_RATE: i32 = 10_000;
+
+/// A guild FeatureMatrix value the server reads, tuned on the panel's Guilda tab.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GuildSetting {
+    pub key: &'static str,
+    /// A switch: 1 is published as "1" (on), 0 as "" (off), as the event switches.
+    pub switch: bool,
+    pub max: i32,
+}
+
+/// The guild values the migrated server reads (B5 G2/G6b); all within the overlay's rate
+/// bound so the client copy accepts them.
+pub const GUILD_SETTINGS: [GuildSetting; 5] = [
+    GuildSetting {
+        key: "GuildStorage",
+        switch: true,
+        max: 1,
+    },
+    GuildSetting {
+        key: "GuildStorageRequiredMember",
+        switch: false,
+        max: super::guild::DEFAULT_MAX_MEMBER,
+    },
+    GuildSetting {
+        key: "GuildLevel",
+        switch: true,
+        max: 1,
+    },
+    GuildSetting {
+        key: "GuildLevel_APGainRatio",
+        switch: false,
+        max: MAX_RATE,
+    },
+    GuildSetting {
+        key: "GuildLevel_DailyGPResetTimeAdder",
+        switch: false,
+        max: 23,
+    },
+];
+
+/// The guild setting of `key`, when it is one.
+pub fn guild_setting(key: &str) -> Option<GuildSetting> {
+    GUILD_SETTINGS.iter().copied().find(|s| s.key == key)
+}
+
+/// The FeatureMatrix value an overlay feature publishes: guild switches as event values.
+pub fn feature_value(key: &str, value: i32) -> String {
+    match guild_setting(key) {
+        Some(s) if s.switch => Overlay::event_value(value != 0).to_owned(),
+        _ => value.to_string(),
+    }
+}
 pub const MAX_DROP_COUNT: i32 = 100;
 
 /// Split "<EnhanceType>#<EnhanceLevel>".
@@ -273,6 +325,18 @@ mod tests {
             restriction_count: 0,
             feature: Some("TestServer".into()),
         }
+    }
+
+    #[test]
+    fn guild_switches_publish_as_event_values_and_counts_as_numbers() {
+        assert_eq!(feature_value("GuildStorage", 1), "1");
+        assert_eq!(feature_value("GuildStorage", 0), "");
+        assert_eq!(feature_value("GuildLevel", 0), "");
+        assert_eq!(feature_value("GuildStorageRequiredMember", 2), "2");
+        assert_eq!(feature_value("ExpRate_Combat", 150), "150");
+        assert!(guild_setting("ExpRate_Combat").is_none());
+        // Every guild value fits the client copy's rate bound.
+        assert!(GUILD_SETTINGS.iter().all(|s| (1..=MAX_RATE).contains(&s.max)));
     }
 
     #[test]

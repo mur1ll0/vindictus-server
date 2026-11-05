@@ -265,6 +265,15 @@ pub struct FeatureView {
     pub value: i32,
 }
 
+/// A guild FeatureMatrix value: a switch is 1 (on) or 0 (off); saved as a `feature` edit.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct GuildSettingView {
+    pub key: String,
+    pub value: i32,
+    pub max: i32,
+    pub switch: bool,
+}
+
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct QuestDropView {
     pub quest: String,
@@ -294,6 +303,8 @@ pub struct EnchantRatioView {
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TuningView {
     pub features: Vec<FeatureView>,
+    /// The guild values (Ajustes de jogo → Guilda).
+    pub guild: Vec<GuildSettingView>,
     pub quests: Vec<QuestDropView>,
     pub enhance: Vec<EnhanceRatioView>,
     pub enchants: Vec<EnchantRatioView>,
@@ -410,6 +421,14 @@ pub fn shop(
     Ok(rows)
 }
 
+/// A tunable feature's current value: a guild switch as 1/0, else the integer.
+fn guild_value(policy: &crate::domain::feature_policy::FeaturePolicy, key: &str) -> Option<i32> {
+    match crate::domain::content_overlay::guild_setting(key) {
+        Some(s) if s.switch => policy.is_enabled(Some(key)).ok().map(i32::from),
+        _ => policy.get_integer(key).ok(),
+    }
+}
+
 pub fn tuning(
     session: &SessionAccount,
     assets: Option<&Assets>,
@@ -425,6 +444,17 @@ pub fn tuning(
             Some(FeatureView {
                 key: (*key).to_owned(),
                 value,
+            })
+        })
+        .collect();
+    let guild = crate::domain::content_overlay::GUILD_SETTINGS
+        .iter()
+        .filter_map(|s| {
+            Some(GuildSettingView {
+                key: s.key.to_owned(),
+                value: guild_value(policy?, s.key)?,
+                max: s.max,
+                switch: s.switch,
             })
         })
         .collect();
@@ -509,6 +539,7 @@ pub fn tuning(
         .collect();
     Ok(TuningView {
         features,
+        guild,
         quests,
         enhance,
         enchants,
@@ -793,11 +824,17 @@ fn validate(
             ))
         }
         EditRequest::Feature { key, value } => {
-            let known = crate::domain::content_overlay::TUNABLE_FEATURES.contains(&key.as_str())
+            let max = match crate::domain::content_overlay::guild_setting(key) {
+                Some(s) => Some(s.max),
+                None => crate::domain::content_overlay::TUNABLE_FEATURES
+                    .contains(&key.as_str())
+                    .then_some(crate::domain::content_overlay::MAX_RATE),
+            };
+            let known = max.is_some()
                 && assets
                     .npc_policy()
-                    .is_some_and(|p| p.get_integer(key).is_ok());
-            if !known || !(0..=crate::domain::content_overlay::MAX_RATE).contains(value) {
+                    .is_some_and(|p| guild_value(p, key).is_some());
+            if !known || !(0..=max.unwrap_or(0)).contains(value) {
                 return Err(AdminError::InvalidInput);
             }
             Ok((

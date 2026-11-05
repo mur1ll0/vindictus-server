@@ -3675,3 +3675,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: aguardando o operador (roteiro docs/client-tests/B5-social.md, G6b primeiro).
 - Commits: (este registro)
 - Pendente / próxima ação: sem mudança — G6c após confirmar o G6b no cliente.
+
+## 2026-11-05 — Painel: aba Ajustes de jogo → Guilda (B5 social)
+- Feito: `content_overlay::GUILD_SETTINGS` (GuildStorage, GuildStorageRequiredMember, GuildLevel, GuildLevel_APGainRatio, GuildLevel_DailyGPResetTimeAdder) editáveis como edição `feature` do ajuste ao vivo; chaves liga/desliga publicadas como "1"/"" (`feature_value`); `TuningView.guild`; `GuildHub` com configuração recarregada no início e em cada recarga do painel (antes vinha da reward-policy, que não tinha as chaves de guilda); aba Guilda em `web/admin/src/pages/Tuning.tsx`. O `export_npc_scripts.py` não exportava GuildStorage*, GuildLevel_*, RankTitleLimit nem FreeMatch_Detail (o armazém, os títulos de rank e o duelo livre ficavam desligados no Docker): chaves adicionadas e npc-scripts.json reexportado. O valor "1.13" de GuildStorage não tinha par medido: `scripts/reverse/generate-social-feature-pairs.ps1` (FeatureMatrix recuperado, x86 = x64, sem serviço original) gerou `feature_social_version_pairs.json` (1 par, habilitado) e `tests/fixtures/framework-social-features.json`.
+- Verificação: `cargo test --lib content_overlay` 5 ok, `--test admin_http` 4 ok (OpenAPI regenerado), `tsc --noEmit` ok; clippy sem achados novos (os antigos + erro de compilação já existente em tests/periodic_event.rs, `goals` em EventTables, para o gate); Docker reconstruído, todos saudáveis, game sem erros; bundle do painel em 27090 com a aba.
+- Cliente: roteiro G6b atualizado (mínimo = 2 pela aba Guilda).
+- Commits: (este)
+- Pendente / próxima ação: sem mudança — G6c após confirmar o G6b no cliente; corrigir tests/periodic_event.rs antes do gate B5.

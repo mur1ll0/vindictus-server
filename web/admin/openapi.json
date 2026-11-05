@@ -5448,6 +5448,32 @@
           }
         }
       },
+      "GuildSettingView": {
+        "type": "object",
+        "description": "A guild FeatureMatrix value: a switch is 1 (on) or 0 (off); saved as a `feature` edit.",
+        "required": [
+          "key",
+          "value",
+          "max",
+          "switch"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "max": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "switch": {
+            "type": "boolean"
+          },
+          "value": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "HideItem": {
         "type": "object",
         "required": [
@@ -7466,6 +7492,7 @@
         "description": "The tunable values the game loaded (published versions included).",
         "required": [
           "features",
+          "guild",
           "quests",
           "enhance",
           "enchants",
@@ -7496,6 +7523,13 @@
             "items": {
               "$ref": "#/components/schemas/FeatureView"
             }
+          },
+          "guild": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GuildSettingView"
+            },
+            "description": "The guild values (Ajustes de jogo → Guilda)."
           },
           "packs": {
             "type": "array",

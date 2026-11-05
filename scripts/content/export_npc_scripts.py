@@ -494,6 +494,9 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
     for d in mission['story_drops']: wanted |= feature_atoms(d[10] or '')
     for d in mission['event_drops']: wanted |= feature_atoms(d[0] or '')
     wanted |= {'BoostEvent', 'BoostEventPeriod', 'RandomItemBroadcastMode', 'RandomItem_AnnounceLevel'}
+    # B5 social: guild levels and storage (panel Guilda tab), rank titles and free duels.
+    wanted |= {'GuildLevel', 'GuildLevel_APGainRatio', 'GuildLevel_DailyGPLimit', 'GuildLevel_DailyGPResetTimeAdder', 'GuildStorage',
+               'GuildStorageRequiredMember', 'RankTitle', 'RankTitleLimit', 'FreeMatch_Detail'}
     for d in events['periodic']: wanted |= feature_atoms(d[5] or '')
     for d in events['story_periods']: wanted |= feature_atoms(d[4] or '')
     for d in coupons['versions']: wanted |= feature_atoms(d[3] or '')

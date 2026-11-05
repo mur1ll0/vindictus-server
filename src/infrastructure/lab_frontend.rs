@@ -209,6 +209,13 @@ impl Runtime {
         });
         self.relay = assets.relay.map(super::relay::Relay::new);
         let assets = assets.with_item_arithmetic(self.stat_arithmetic());
+        // The guild values with the panel's published tuning (Ajustes de jogo → Guilda).
+        if let Some(policy) = assets.npc_policy() {
+            self.guilds.set_config(
+                super::guild::GuildConfig::from_policy(policy)
+                    .map_err(|_| RuntimeError::Profile)?,
+            );
+        }
         self.minimum = Some(MinimumRuntime {
             assets: Arc::new(super::minimum_assets::LiveAssets::new(assets)),
             source: source.to_path_buf(),
@@ -241,6 +248,12 @@ impl Runtime {
         .await
         .map_err(|_| RuntimeError::Operation)?
         .map_err(|_| RuntimeError::Profile)?;
+        if let Some(policy) = assets.npc_policy() {
+            self.guilds.set_config(
+                super::guild::GuildConfig::from_policy(policy)
+                    .map_err(|_| RuntimeError::Profile)?,
+            );
+        }
         minimum.assets.replace(assets);
         Ok(())
     }
