@@ -3738,3 +3738,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário.
 - Commits: ver "feat: PvP mode contents from PvpInfo (B5 PV2b)".
 - Pendente / próxima ação: PV2c (canais e fila da Arena, PvpPlay no relay com anfitrião jogador, GameHosted/HostInfo).
+
+## 2026-11-05 — PV2c Arena: canais, entrada e anfitrião jogador (B5)
+- Feito: `infrastructure::pvp_match::PvpHub` (Runtime `pvp`, relay do frontend, entrega pelo `PartyHub`): PvpQueryChannelList (canais da Arena "{n}/{MaxSize}", vazio nos outros sistemas), PvpRegister (recusas do PvpServiceProxy.Initial e do RegisterPvpPlayerProcessor; espectador da Arena abaixo do LevelLimitMin; só Arena, solo), ArenaChannel sem DS (PvpPlay aberto no primeiro registro, MaxSize, fila WaitingEmptySpace, refill), PvpPlayer (BindPlay com `minimum_mission::member_info`, JoinP2P com ConnectionRequest categoria `PvpService.PvpService` e P2PGroup.Join, JoinComplete: GameHosted ao anfitrião, MemberInfo/HostInfo 10 s após o RegisterServer), Remove (PvpKicked, saída do relay, saída do anfitrião remove todos, Dodged na fila, fecha a partida vazia). `lab_frontend`: `pvp_register`, desvio do RegisterServer do anfitrião de PvP antes das missões, remoção na desconexão; `matches` não casa mais toda categoria 0 com um tipo não registrado (o PvP roubaria o armazém). `PvpTeamID` corrigido (Blue 2, Red 3).
+- Verificação: PostgreSQL `pvp_` 2 passed (canais, recusas, espectador, WaitingHost/WhoisComplete/ConnectionRequest, duplicado, remoção com PvpKicked) no test-postgres (removido); `cargo clippy --all-targets` sem avisos. Logs `.cache/verification/pv2c-*.log`.
+- Cliente: `docs/client-tests/B5-social.md` PV2c (experimento do D-S2).
+- Commits: ver "feat: Arena channels and player-hosted PvP plays (B5 PV2c)".
+- Pendente / próxima ação: parado para o cliente (regra 2): roteiro PV2c (o cliente hospeda o p05?); depois PV3.

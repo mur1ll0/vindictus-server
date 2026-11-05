@@ -110,6 +110,8 @@ pub struct Runtime {
     party: Arc<super::party_hub::PartyHub>,
     /// The online members of each guild (GuildEntity presence, B5 social).
     guilds: Arc<super::guild::GuildHub>,
+    /// PvpService matches hosted by a player through the relay (B5 PV2c).
+    pvp: Arc<super::pvp_match::PvpHub>,
     /// RankTitleManager.highRankList (B5 RK3).
     rank_titles: Arc<super::rank_title::HighRanks>,
     web_shop: super::lab_web_shop::Sessions,
@@ -161,6 +163,7 @@ impl Runtime {
         let guilds = Arc::new(super::guild::GuildHub::new(
             super::guild::GuildConfig::from_policy(p).map_err(|_| RuntimeError::Profile)?,
         ));
+        let pvp = Arc::new(super::pvp_match::PvpHub::new(Arc::clone(&party)));
         Ok(Self {
             profile,
             content,
@@ -170,6 +173,7 @@ impl Runtime {
             relay: None,
             party,
             guilds,
+            pvp,
             rank_titles: Arc::new(super::rank_title::HighRanks::new()),
             web_shop: super::lab_web_shop::Sessions::default(),
             maintenance: super::maintenance::Maintenance::default(),
@@ -208,6 +212,7 @@ impl Runtime {
             )
         });
         self.relay = assets.relay.map(super::relay::Relay::new);
+        self.pvp.set_relay(self.relay.clone());
         let assets = assets.with_item_arithmetic(self.stat_arithmetic());
         // The guild values with the panel's published tuning (Ajustes de jogo → Guilda).
         if let Some(policy) = assets.npc_policy() {
@@ -549,8 +554,11 @@ fn unclaimed_name_key(
 /// ServiceCore.EndPointNetwork.LogOutMessage (fieldless).
 const LOG_OUT_CATEGORY: i32 = 493;
 const LOG_OUT_TYPE_ID: uuid::Uuid = uuid::Uuid::from_u128(0x312f4152_ab0d_3ac2_99fa_fffa1e3f7e5e);
+/// The registered category, or category 0 with the type's GUID envelope; an unregistered
+/// type (category 0) matches only by its GUID.
 fn matches(category: i32, body: &[u8], typed: i32, type_id: uuid::Uuid) -> bool {
-    category == typed || (category == 0 && body.get(..16) == Some(type_id.as_bytes().as_slice()))
+    (typed != 0 && category == typed)
+        || (category == 0 && body.get(..16) == Some(type_id.as_bytes().as_slice()))
 }
 async fn send_password(
     stream: &mut TcpStream,
@@ -676,6 +684,8 @@ impl Connection {
         self.trade_proxy = false;
         self.party_notices = None;
         if let Some(selected) = self.selected.as_ref() {
+            // PvpServiceProxy.Close: UnregisterPvpPlayer.
+            runtime.pvp.remove(selected.cid);
             // The frontend connection closed: RemoveMember("FrontendDisconnected").
             runtime.party.unregister(selected.cid);
             // The PlayerConn closed: OnlineGuildMember leaves its GuildEntity.
@@ -1089,6 +1099,18 @@ impl Connection {
             .ok_or(RuntimeError::Profile)?
             .assets
             .current();
+        // PvpServiceProxy Hosting/Member: RegisterServerMessage is the PvP host's game info
+        // (RegisterHostGameInfo); a failure unregisters (UnRegistering).
+        if let (Message::RegisterServer(register), Some(cid)) =
+            (&message, self.selected.as_ref().map(|s| s.cid))
+            && let Some(ok) = runtime.pvp.register_server(cid, register.info.clone())
+        {
+            if !ok {
+                runtime.pvp.remove(cid);
+            }
+            tracing::info!(ok, "pvp host game info processed; values omitted");
+            return Ok(());
+        }
         // MicroPlayHost/ShipHost messages: a MicroPlayMember's frontend does not forward them.
         let host_only = matches!(
             message,
@@ -2550,11 +2572,44 @@ impl Connection {
         body: &[u8],
         message: Option<crate::protocol::pvp::Message>,
     ) -> Result<(), RuntimeError> {
-        let (Some(crate::protocol::pvp::Message::FreeMatchReport(report)), Some(cid)) =
-            (message, self.selected.as_ref().map(|s| s.cid))
-        else {
+        use crate::protocol::pvp::Message as Pvp;
+        let Some(cid) = self.selected.as_ref().map(|s| s.cid) else {
             self.log_unhandled(category, body);
             return Ok(());
+        };
+        let report = match message {
+            Some(Pvp::FreeMatchReport(report)) => report,
+            Some(Pvp::QueryChannelList(query)) => {
+                let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+                let assets = minimum.assets.current();
+                // PvpServiceProxy.Initial: an empty list when the query fails.
+                let mode = query.pvp_mode.clone().unwrap_or_default();
+                match runtime.pvp.channel_list(assets.npc_pvp(&mode), &query) {
+                    Ok(p) => {
+                        runtime.party.deliver(cid, vec![p]);
+                    }
+                    Err(_) => tracing::warn!("pvp channel list failed; values omitted"),
+                }
+                tracing::info!(category, "pvp channel list processed; values omitted");
+                return Ok(());
+            }
+            Some(Pvp::Register(request)) => {
+                return self.pvp_register(runtime, pool, cid, &request).await;
+            }
+            Some(Pvp::Unregister(_)) => {
+                runtime.pvp.remove(cid);
+                tracing::info!("pvp unregister processed; values omitted");
+                return Ok(());
+            }
+            Some(_) => {
+                // Confirm join, reports, penalties and the Arena waiting queue are PV3.
+                tracing::info!(category, "pvp message not migrated (PV3); values omitted");
+                return Ok(());
+            }
+            None => {
+                self.log_unhandled(category, body);
+                return Ok(());
+            }
         };
         // BattleServiceProxy: only the MicroPlay host forwards it; no play is a LogicalFail.
         let Some((party_id, slot)) = self
@@ -2591,6 +2646,88 @@ impl Connection {
             None => tracing::warn!("free match report with an invalid player tag; values omitted"),
         }
         tracing::info!(category, "free match report processed; values omitted");
+        Ok(())
+    }
+    /// PvpServiceProxy.Initial(PvpRegisterMessage): DSWaiting does not exist without a DS;
+    /// InMicroPlay in a mission; BattleServiceProxy.QueryPartyMembers (a party member is
+    /// InvalidMaster); PVPPartyCountLimit (InvalidMembercount; the IgnoreRestriction cheat
+    /// needs a GM, not migrated); then RegisterPvpPlayer for the solo player (only the Arena
+    /// is migrated, one player per registration).
+    async fn pvp_register(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        cid: i64,
+        request: &crate::protocol::pvp::Register,
+    ) -> Result<(), RuntimeError> {
+        use super::party_hub::Role;
+        let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+        let assets = minimum.assets.current();
+        let members = match runtime.party.role(cid) {
+            Role::None => 1,
+            Role::Master { party_id, .. } => runtime.party.member_count(party_id),
+            Role::Member { .. } => 0,
+        };
+        let limit = assets
+            .npc_policy()
+            .map(|p| p.get_integer("PVPPartyCountLimit"))
+            .transpose()
+            .map_err(|_| RuntimeError::Profile)?
+            .unwrap_or(0);
+        let refusal = if self.mission.is_some() {
+            Some("GameUI_Heroes_PvpJoinFail_InMicroPlay")
+        } else if members == 0 {
+            Some("GameUI_Heroes_PvpJoinFail_InvalidMaster")
+        } else if limit > 0 && members > limit as usize {
+            Some("GameUI_Heroes_PvpJoinFail_InvalidMembercount")
+        } else if members != 1 {
+            Some("GameUI_Heroes_PvpJoinFail_InvalidPartySize")
+        } else {
+            None
+        };
+        let level: i32 = sqlx::query_scalar("SELECT level FROM game_character_info WHERE id=$1")
+            .bind(cid)
+            .fetch_one(pool)
+            .await
+            .map_err(|_| RuntimeError::Operation)?;
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        let binder = super::pvp_match::Binder {
+            pool: pool.clone(),
+            assets: Arc::clone(&assets),
+            config: runtime.minimum_header()?,
+            arithmetic: runtime.stat_arithmetic(),
+        };
+        let entry = super::pvp_match::Entry {
+            cid,
+            owner: &owner,
+            level,
+        };
+        let rules = super::pvp_match::Rules::from_assets(
+            &assets,
+            request.pvp_mode.as_deref().unwrap_or_default(),
+        )
+        .map_err(|_| RuntimeError::Profile)?;
+        match runtime.pvp.register(binder, entry, refusal, rules, request) {
+            Ok(packets) => {
+                if !packets.is_empty() {
+                    runtime.party.deliver(cid, packets);
+                }
+            }
+            Err(_) => tracing::warn!("pvp register failed; values omitted"),
+        }
+        tracing::info!("pvp register processed; values omitted");
         Ok(())
     }
     /// SelectTitleMessage (InGame): PlayerConn SelectTitle, then the frontend's echo of the

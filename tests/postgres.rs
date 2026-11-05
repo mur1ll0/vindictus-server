@@ -1612,6 +1612,9 @@ mod whisper_filter;
 #[path = "support/guild.rs"]
 mod guild;
 
+#[path = "support/pvp_match.rs"]
+mod pvp_match;
+
 #[path = "support/minimum_character.rs"]
 mod minimum_character;
 

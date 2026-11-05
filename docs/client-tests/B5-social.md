@@ -141,3 +141,12 @@ Pré-condição: G6c/G6d feitos no mesmo dia (UTC). A e B com o armazém aberto.
 - [ ] Comprar slot → linha de slot no histórico.
 - [ ] Retirar ouro: o limite diário de 2.500.000 soma as retiradas do dia menos os depósitos do dia (com mais depósitos, dá para retirar mais).
 - [ ] No dia seguinte (UTC), reabrir o armazém → as linhas de ontem aparecem no histórico antigo.
+
+### PV2c — Arena: canais, entrada e anfitrião (experimento D-S2; confirma se o cliente hospeda o p05)
+Pré-condição: Docker reconstruído; contas A e B com personagens na cidade, fora de party e de missão. No EU, abaixo do nível 40 a Arena aceita o personagem como espectador (ArenaSpecatorLevelLimitMin 1), então qualquer nível entra. Ainda não há lutas na Arena (as rodadas, os comandos e as recompensas são o PV3).
+1. [ ] A abre o PvP/Arena → lista de 3 canais "0/32". Anote se o botão de PvP aparece e se a janela abre.
+2. [ ] A entra no canal 0 → mensagens de espera ("aguardando o anfitrião"/consulta do personagem) e, em seguida, **o cliente de A carrega o mapa da Arena como anfitrião**. **Este é o teste do D-S2:** anote se o mapa carrega, se fica preso numa mensagem ou se o cliente fecha (com o horário).
+3. [ ] B abre a lista → canal 0 com "1/32"; B entra no canal 0 → cerca de 10 s depois de A carregar o mapa, B entra na Arena de A (os dois se veem).
+4. [ ] Dentro da Arena: anote o que cada um vê (placar, botões de entrar na fila de luta); nenhuma luta começa ainda.
+5. [ ] B sai da Arena pela interface → B volta à cidade; A continua. Depois A sai → A volta à cidade e, se B ainda estiver dentro, B também sai (a saída do anfitrião fecha a Arena).
+Relato: o resultado de cada passo (ok/falhou), o horário e um print do que aparecer. Os logs do servidor eu leio.

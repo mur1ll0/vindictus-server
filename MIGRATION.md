@@ -25,7 +25,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 5. B5 correio implementado em 03/11 (ciclo completo e GiveItem ForceMail): sessão de cliente pelo roteiro `docs/client-tests/B5-correio.md` (duas personagens; Docker reconstruído).
 6. B5 mercado implementado em 03/11: sessão de cliente pelo roteiro `docs/client-tests/B5-marketplace.md` (duas contas; Docker reconstruído). Depois, o próximo sistema restante do B5.
 7. B5 eventos: drops de chefe, BoostEvent, histórias por período, lojas de cupom, metas coletivas, agenda, descrição no painel e collabs SAO/Fairy Tail completos para EU feitos em 03/11; sessão de cliente pelo roteiro `docs/client-tests/B5-eventos.md` (EV1–EV12).
-8. B5 social/PvP (`docs/social-systems.md`): SO1, SO2, G1–G5, RK1–RK3 (ranking por período D-S3, títulos de rank, SelectTitle) feitos em 04/11, PV1 (duelo livre), G6a–G6f (armazém da guilda completo; I-S2 confirmada para o armazém), a carruagem e a I-S3 (chat em grupo é do Messenger) em 05/11. Pré-gate em 05/11: suíte PostgreSQL inteira passando (testes de upgrade e de guarda de classe atualizados), clippy sem achados, `tests/periodic_event.rs` compilando. **Parado para o operador:** PV2–PV4 aguardam D-S2 e SO3/SO4 aguardam D-S1 (`docs/social-systems.md`, Decisões do operador). Faltam I-S4–I-S5 (só se D-S2 for o DS) e a I-S2 das mensagens de newbie/compra direta.
+8. B5 social/PvP (`docs/social-systems.md`): SO1, SO2, G1–G5, RK1–RK3 feitos em 04/11; PV1, G6a–G6f (armazém completo), carruagem, I-S3 e o pré-gate (suíte PostgreSQL e clippy verdes) em 05/11. D-S2 decidida (partida hospedada por jogador via relay): PV2a–PV2c feitos (codecs, PvpInfo, canais e entrada na Arena com anfitrião jogador). **Parado para o cliente:** roteiro PV2c em `docs/client-tests/B5-social.md` (se o cliente hospeda o mapa p05); depois PV3 (regras da Arena, Full matching do DeathMatch/GodMatch) e PV4. SO3/SO4 aguardam D-S1.
    - Antes do gate do B5: a suíte PostgreSQL só roda em lotes num banco recriado por lote (o tmpfs enche); script local `.cache/pregate-pg-batches.sh` (lotes minimum, character, user, fiona e o resto).
 
 ## Aguardando o operador
@@ -40,7 +40,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 | `docs/client-tests/B5-correio.md` | CO1–CO11 pendentes; duas personagens (A nível ≥ 10). |
 | `docs/client-tests/B5-marketplace.md` | MK1–MK11 pendentes; duas contas (o ouro é da conta). |
 | `docs/client-tests/B5-eventos.md` | EV1–EV12 pendentes (chaves do painel, drops de chefe, BoostEvent, histórias por período, loja de cupom, descrição, meta coletiva, agenda, collabs SAO/Fairy Tail). |
-| `docs/client-tests/B5-social.md` | SO1, SO2, G1–G5, RK1–RK3, PV1, G6b (resto), G6c/G6d, G6e, G6f e carruagem pendentes (sussurro, bloqueio, guilda, chat, GP/nível, bônus, ranking, títulos, duelo, armazém completo; duas ou três contas). |
+| `docs/client-tests/B5-social.md` | SO1, SO2, G1–G5, RK1–RK3, PV1, G6b–G6f, carruagem e **PV2c (primeiro: o cliente hospeda a Arena?)** pendentes; duas contas. |
 | `docs/client-tests/C2-delia.md` | Aceito (D0–D23); D6 passou para o C3. |
 | `docs/client-tests/C4-miri.md` | Aceito em 02/11 (combate, MG1–MG4, MI44, MI45); sem relato isolado MI1–MI3 e MI30–MI36. |
 | `docs/client-tests/L-launcher.md` | LA0, LA2, LA4 e LA5 aceitos; LA3 coberto pelo LA4/LA5; LA1 dispensável. |

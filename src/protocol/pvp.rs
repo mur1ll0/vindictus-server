@@ -246,9 +246,8 @@ object!(TeamInfo { team_info });
 /// PvpTeamID.
 pub mod team {
     pub const INVALID: i32 = -1;
-    pub const NONE: i32 = 0;
-    pub const RED: i32 = 1;
     pub const BLUE: i32 = 2;
+    pub const RED: i32 = 3;
 }
 
 /// PvpGameInfo: TeamInfo, PlayerInfo (IDictionary<int, string>).

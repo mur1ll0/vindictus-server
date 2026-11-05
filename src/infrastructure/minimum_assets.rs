@@ -270,6 +270,10 @@ impl Assets {
     pub fn npc_policy(&self) -> Option<&crate::domain::feature_policy::FeaturePolicy> {
         self.npc.as_ref().map(|n| &n.policy)
     }
+    /// PvpConfig.Get of a mode (B5 PV2), from the NPC export's PvpInfo.
+    pub fn npc_pvp(&self, mode: &str) -> Option<&crate::domain::pvp::PvpConfig> {
+        self.npc.as_ref().and_then(|n| n.pvp.get(mode))
+    }
     /// ItemContents pet dictionaries (economy export) with the PetActiveTimePeriodInfo rows
     /// enabled by the NPC FeatureMatrix; None without either or when the rows conflict.
     pub fn pets(&self) -> Option<&crate::domain::pet::Contents> {

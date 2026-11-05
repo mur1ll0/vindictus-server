@@ -399,7 +399,7 @@ mod equipment_fixture {
 }
 /// Gold/economy assets plus the equipment profile and a skill profile holding the
 /// stored skills and one buyable active skill.
-async fn skill_assets(p: &sqlx::PgPool, price: i32) -> Assets {
+pub(super) async fn skill_assets(p: &sqlx::PgPool, price: i32) -> Assets {
     use vindictus_server::infrastructure::{equipment_profile, skill_profile};
     let stored: Vec<(Vec<u8>, i32)> =
         sqlx::query_as("SELECT skill_utf16,rank FROM game_skills WHERE cid=1 ORDER BY row_id")
