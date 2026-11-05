@@ -86,13 +86,61 @@ pub async fn basis_update(
     now: i64,
 ) -> Result<bool, MinimumError> {
     let mut tx = pool.begin().await?;
+    let written = basis_write(
+        &mut tx, cid, event_id, score_type, ascending, score, entity_id, now,
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(written)
+}
+
+/// UpdateRankBasis now from inside another transaction, in a savepoint: a failed request
+/// leaves the caller's work untouched, as the original's separate RankService connection.
+pub async fn update_rank_basis_in(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    assets: &Assets,
+    cid: i64,
+    rank_id: &str,
+    score: i64,
+    entity_id: i64,
+) -> Result<bool, MinimumError> {
+    let Some((event_id, score_type, ascending)) = event(assets, rank_id)? else {
+        return Ok(false);
+    };
+    let mut savepoint = sqlx::Acquire::begin(&mut **tx).await?;
+    let written = basis_write(
+        &mut savepoint,
+        cid,
+        event_id,
+        score_type,
+        ascending,
+        score,
+        entity_id,
+        now_seconds(),
+    )
+    .await?;
+    savepoint.commit().await?;
+    Ok(written)
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn basis_write(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    cid: i64,
+    event_id: i32,
+    score_type: ScoreType,
+    ascending: bool,
+    score: i64,
+    entity_id: i64,
+    now: i64,
+) -> Result<bool, MinimumError> {
     let row: Option<(i64, i64, i64)> = sqlx::query_as(
         "SELECT row_id,score,last_update_seconds FROM game_rank_basis \
          WHERE cid=$1 AND event_id=$2 ORDER BY row_id DESC LIMIT 1 FOR UPDATE",
     )
     .bind(cid)
     .bind(event_id)
-    .fetch_optional(&mut *tx)
+    .fetch_optional(&mut **tx)
     .await?;
     let current = row.map(|(_, score, last_update)| Basis { score, last_update });
     let written = match rules::update(current, score, score_type, ascending, now) {
@@ -105,7 +153,7 @@ pub async fn basis_update(
             .bind(b.score)
             .bind(b.last_update)
             .bind(entity_id)
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
             true
         }
@@ -118,7 +166,7 @@ pub async fn basis_update(
             .bind(b.score)
             .bind(b.last_update)
             .bind(entity_id)
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
             true
         }
@@ -131,7 +179,7 @@ pub async fn basis_update(
             .bind(previous.score)
             .bind(previous.last_update)
             .bind(entity_id)
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
             sqlx::query(
                 "UPDATE game_rank_basis SET score=$2,last_update_seconds=$3,entity_id=$4 WHERE row_id=$1",
@@ -140,13 +188,12 @@ pub async fn basis_update(
             .bind(new.score)
             .bind(new.last_update)
             .bind(entity_id)
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
             true
         }
         Update::Keep => false,
     };
-    tx.commit().await?;
     Ok(written)
 }
 

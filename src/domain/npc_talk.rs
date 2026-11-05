@@ -177,6 +177,9 @@ pub enum Effect {
     /// ItemImpl.OpenStorage(storageID): BagStorage.OpenStorage(id, null) of a valid
     /// non-default bag.
     OpenStorage(u8),
+    /// UpdateRankBasisUtility.UpdateRankBasis_TakeCarriage: RankBasis "GamePlay_take_carriage"
+    /// +1 (EntityID 0), requested on its own connection; the chain goes on at once.
+    TakeCarriage,
 }
 
 /// StoryEntity state a query reads and changes; the caller persists it when the
@@ -1117,6 +1120,12 @@ impl<'a> Talker<'a> {
                     _ => current.wrapping_sub(amount),
                 };
                 self.set_variable(key, value)?;
+                self.resume(k)
+            }
+            "rank_basis_carriage_move" => {
+                self.pushed
+                    .outputs
+                    .push(Output::Effect(Effect::TakeCarriage));
                 self.resume(k)
             }
             "give_storage" => {

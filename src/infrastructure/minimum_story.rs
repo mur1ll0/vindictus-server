@@ -1172,6 +1172,15 @@ async fn apply_outputs(
             Output::Effect(Effect::Manufacture(change)) => {
                 packets.extend(super::minimum_manufacture::apply(tx, cid, &change).await?);
             }
+            Output::Effect(Effect::TakeCarriage) => {
+                // A RankService request apart from the story: its failure never stops the talk.
+                if super::rank::update_rank_basis_in(tx, assets, cid, "GamePlay_take_carriage", 1, 0)
+                    .await
+                    .is_err()
+                {
+                    tracing::warn!("carriage rank basis update failed; values omitted");
+                }
+            }
             Output::Effect(Effect::RepairAll) => {
                 let repaired = super::minimum_repair::repair(
                     tx,

@@ -3689,3 +3689,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: o operador já pode seguir o roteiro G6b (mínimo 2 em vigor).
 - Commits: (este)
 - Pendente / próxima ação: sem mudança — G6c após confirmar o G6b no cliente.
+
+## 2026-11-05 — Carruagem Rochester → Colhen (rank_basis_carriage_move)
+- Feito: o comando de servidor `rank_basis_carriage_move` estava listado mas sem implementação (TalkError::Unsupported), então a cadeia do Timer da carruagem parava antes de `exe_console cc_enter_colhen_from_rochest` e o cliente não viajava. Agora `npc_talk` emite `Effect::TakeCarriage` e segue a cadeia (ProcessCommandFunc.Process_rank_basis_carriage_move); `minimum_story` faz UpdateRankBasis_TakeCarriage ("GamePlay_take_carriage" +1, EntityID 0) via `rank::update_rank_basis_in` num savepoint, sem derrubar a conversa se falhar (o original usa conexão própria ao RankService).
+- Verificação: `cargo test --test npc_talk` 13 ok (cadeia da carruagem com `move_region` depois do comando); Docker reconstruído, todos saudáveis, game sem erros.
+- Cliente: entrada "Carruagem" em docs/client-tests/B5-social.md; o operador relatou a falha e reteste está pendente.
+- Commits: (este)
+- Pendente / próxima ação: sem mudança — G6c após confirmar o G6b no cliente. Visto no log: `story_sector` (entrar em dungeon de história pela conversa) segue não migrado.

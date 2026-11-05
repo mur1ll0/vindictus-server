@@ -167,6 +167,24 @@ fn scripts_with(lines: Vec<(StoryLineInfo, Option<&Element>)>) -> NpcScripts {
             el(
                 "Talk",
                 &[
+                    ("id", "FERGHUS"),
+                    ("location", "t01_bs"),
+                    ("command", "carriage"),
+                ],
+                "",
+                vec![el(
+                    "Do",
+                    &[],
+                    "",
+                    vec![
+                        leaf("rank_basis_carriage_move", ""),
+                        leaf("move_region", "colhen"),
+                    ],
+                )],
+            ),
+            el(
+                "Talk",
+                &[
                     ("id", "AIDAN"),
                     ("location", "t01_inn"),
                     ("command", "greeting"),
@@ -310,6 +328,27 @@ fn server_commands_wait_for_execute_and_unmigrated_ones_change_nothing() {
     )
     .execute_server_command();
     assert_eq!(result, Err(TalkError::Unsupported("give_quest".to_owned())));
+    // rank_basis_carriage_move first in a chain runs at TalkTo: the RankBasis request,
+    // then the chain's client commands (the move) in the same answer.
+    let ride = Talker::new(
+        &s,
+        &p,
+        &facts,
+        &mut StoryState::default(),
+        &mut pick,
+        0,
+        &mut Session::default(),
+    )
+    .talk_to(Some("t01_bs"), "FERGHUS", None, Some("carriage"))
+    .unwrap();
+    assert!(ride.outputs.contains(&Output::Effect(
+        vindictus_server::domain::npc_talk::Effect::TakeCarriage
+    )));
+    assert!(
+        ride.messages()
+            .iter()
+            .any(|m| texts(m).contains(&t("move_region", "colhen", "")))
+    );
     // Unknown commands and NPCs answer with the source error talk and default buttons.
     let pushed = Talker::new(
         &s,

@@ -109,3 +109,8 @@ Pré-condição: no painel, **Ajustes de jogo → Guilda**, "Membros para usar o
 - [ ] A muda a configuração com B com o armazém aberto → a janela de B mostra a configuração nova.
 - [ ] Com o mínimo em 3 no painel (só A e B na guilda) → A tenta configurar e recebe o aviso de armazém parado; volte para 2.
 - [ ] Depositar, retirar, arrumar ou comprar abas ainda não funciona (G6c–G6e): anote se o cliente trava.
+
+### Carruagem (rank_basis_carriage_move)
+Pré-condição: personagem em Rochester, perto da carruagem (CARRIAGE_ROCHEST).
+- [ ] Falar com a carruagem e escolher a ida para Colhen → depois da contagem, o personagem entra em Colhen (o servidor soma 1 no ranking "GamePlay_take_carriage" e segue com `cc_enter_colhen_from_rochest`).
+- [ ] Na variante paga, o ouro cai 2000 antes da viagem; sem ouro, aparece a mensagem de falta de ouro e não há viagem.
