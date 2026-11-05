@@ -25,7 +25,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 5. B5 correio implementado em 03/11 (ciclo completo e GiveItem ForceMail): sessão de cliente pelo roteiro `docs/client-tests/B5-correio.md` (duas personagens; Docker reconstruído).
 6. B5 mercado implementado em 03/11: sessão de cliente pelo roteiro `docs/client-tests/B5-marketplace.md` (duas contas; Docker reconstruído). Depois, o próximo sistema restante do B5.
 7. B5 eventos: drops de chefe, BoostEvent, histórias por período, lojas de cupom, metas coletivas, agenda, descrição no painel e collabs SAO/Fairy Tail completos para EU feitos em 03/11; sessão de cliente pelo roteiro `docs/client-tests/B5-eventos.md` (EV1–EV12).
-8. B5 social/PvP (`docs/social-systems.md`): SO1, SO2, G1–G5, RK1–RK3 (ranking por período D-S3, títulos de rank, SelectTitle) feitos em 04/11 e PV1 (duelo livre) em 05/11; o operador pediu para seguir sem a sessão de cliente (roteiro `docs/client-tests/B5-social.md` pendente). Próximo: G6 (armazém da guilda); PV2–PV4 aguardam D-S2. Faltam I-S2–I-S5.
+8. B5 social/PvP (`docs/social-systems.md`): SO1, SO2, G1–G5, RK1–RK3 (ranking por período D-S3, títulos de rank, SelectTitle) feitos em 04/11, PV1 (duelo livre) e G6a (codecs do armazém da guilda) em 05/11; o operador pediu para seguir sem a sessão de cliente (roteiro `docs/client-tests/B5-social.md` pendente). Próximo: G6b (dono de itens da guilda, abas, sessão e configuração), depois G6c–G6f; PV2–PV4 aguardam D-S2. Faltam I-S2 (parcial) e I-S3–I-S5.
    - Antes do gate do B5: 10 testes PostgreSQL já falhavam antes desta trilha (guardas de dono/perfil com a classe 10 e upgrades de esquema parados na migração 51 do launcher) e 10 achados de clippy anteriores; a suíte PostgreSQL só roda em lotes (o tmpfs enche).
 
 ## Aguardando o operador

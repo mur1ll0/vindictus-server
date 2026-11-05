@@ -3654,3 +3654,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` PV1.
 - Commits: ver "feat: free duel results (B5 PV1)".
 - Pendente / próxima ação: G6 (armazém da guilda); PV2–PV4 aguardam D-S2.
+
+## 2026-11-05 — G6a codecs do armazém da guilda (B5)
+- Feito: `protocol::guild_storage` (GuildInventoryInfoMessage 87 com SlotInfo do inventário; AddGuildStorageItem, PickGuildStorageItem, PurchaseGuildStorage, ArrangeGuildStorageItem, HandleGuildStorageSession, UpdateGuildStorageSetting e GuildStorageLogs de categoria 0, só no envelope GUID; `packet` monta o envelope; GuildStorageItemLogElement com Color1–3). Oráculo `GuildStorageWireOracle.cs` + `generate-guild-storage-wire-fixtures.ps1` (34 casos x86=x64). I-S2 parcial: busca de texto limitada no `client.dll` achou os remetentes de UI do armazém ao lado de OpenGuildMessage/QueryGuildListMessage. G6 dividido em G6a–G6f em `docs/social-systems.md`.
+- Verificação: `cargo test --test guild_storage_wire` 2 passed; clippy só com os 10 achados antigos. Logs `.cache/verification/g6a-*.log`.
+- Cliente: não necessário (só codecs; o roteiro entra com G6b).
+- Commits: ver "feat: guild storage wire codecs (B5 G6a)".
+- Pendente / próxima ação: G6b (dono de itens da guilda, abas, sessão e configuração).
