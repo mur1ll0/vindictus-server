@@ -171,7 +171,10 @@ impl Overlay {
         let tuning_ok = self
             .features
             .iter()
-            .all(|(k, v)| TUNABLE_FEATURES.contains(&k.as_str()) && (0..=MAX_RATE).contains(v))
+            .all(|(k, v)| match guild_setting(k) {
+                Some(s) => (0..=s.max).contains(v),
+                None => TUNABLE_FEATURES.contains(&k.as_str()) && (0..=MAX_RATE).contains(v),
+            })
             && self.quest_drops.iter().all(|(k, [min, max])| {
                 text(k, 128) && (0..=*max).contains(min) && *max <= MAX_DROP_COUNT
             })
@@ -401,13 +404,16 @@ mod tests {
     fn tuning_bounds_and_targets() {
         let ok: Overlay = serde_json::from_value(serde_json::json!({
             "format_version": 1, "version": 3, "shop_rows": [], "cash_prices": {}, "cash_default": null,
-            "features": {"ExpRate_Combat": 200}, "quest_drops": {"Q": [1, 2]},
+            "features": {"ExpRate_Combat": 200, "GuildStorageRequiredMember": 2, "GuildStorage": 1},
+            "quest_drops": {"Q": [1, 2]},
             "enhance_ratios": {"5#5": 0.5}, "enchant_ratios": {"simple": [10, 20]}
         }))
         .unwrap();
         assert!(ok.validate().is_ok());
         for bad in [
             serde_json::json!({"features": {"NGM_disable": 1}}),
+            serde_json::json!({"features": {"GuildStorage": 2}}),
+            serde_json::json!({"features": {"GuildLevel_DailyGPResetTimeAdder": 24}}),
             serde_json::json!({"quest_drops": {"Q": [3, 2]}}),
             serde_json::json!({"enhance_ratios": {"5": 0.5}}),
             serde_json::json!({"enchant_ratios": {"simple": [10, 101]}}),

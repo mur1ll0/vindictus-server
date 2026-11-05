@@ -3682,3 +3682,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: roteiro G6b atualizado (mínimo = 2 pela aba Guilda).
 - Commits: (este)
 - Pendente / próxima ação: sem mudança — G6c após confirmar o G6b no cliente; corrigir tests/periodic_event.rs antes do gate B5.
+
+## 2026-11-05 — Correção: salvar na aba Guilda dava "Banco de dados indisponível"
+- Feito: `Overlay::validate` só aceitava as chaves de Taxas em `features`; a edição da aba Guilda era publicada (versão 18) mas a recarga ao vivo falhava (Decode → 503 "indisponivel"), e o game não subiria no reinício seguinte. Agora valida as chaves de `GUILD_SETTINGS` pelo próprio limite (`src/domain/content_overlay.rs`, teste `tuning_bounds_and_targets` estendido).
+- Verificação: `cargo test --lib content_overlay` 5 ok; Docker reconstruído, todos saudáveis, game sem erros; versão 18 aplicada no início (GuildStorageRequiredMember = 2 no overlay do cliente).
+- Cliente: o operador já pode seguir o roteiro G6b (mínimo 2 em vigor).
+- Commits: (este)
+- Pendente / próxima ação: sem mudança — G6c após confirmar o G6b no cliente.
