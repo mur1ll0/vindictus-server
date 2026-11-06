@@ -1,0 +1,18 @@
+[package]
+name = "vindictus-nmcogame"
+version = "0.1.0"
+edition = "2024"
+description = "nmcogame.dll do laboratório (B5 MS2a): registra as chamadas do Messenger e responde o mínimo"
+publish = false
+
+# Fora do pacote da raiz: só compila para Windows 32 bits (o engine.dll do cliente 1.69 é 32 bits).
+# Compilar com `build.ps1` nesta pasta (alvo i686-win7-windows-msvc, como o launcher).
+[workspace]
+
+[lib]
+name = "nmcogame"
+crate-type = ["cdylib"]
+
+[profile.release]
+panic = "abort"
+opt-level = "s"

@@ -183,3 +183,10 @@ Pré-condição: A mestre; o cash shop do laboratório precisa ter um produto `g
 ### PV — Registro de party no PvP
 1. [ ] A (mestre de party com B) entra no GodMatch/DeathMatch com "jogadores por time" 2 no painel → os dois veem "aguardando oponente" juntos; na Arena a party é recusada (só solo).
 2. [ ] Enquanto registrados, convites, saída e expulsão de party são ignorados.
+
+### MS2a — Messenger: captura das chamadas (uma conta basta)
+Pré-condição: o `nmcogame.dll` do laboratório já está instalado na cópia do cliente (`.cache/play-client`; o original ficou em `nmcogame.dll.nexon`). Se o jogo não abrir ou fechar sozinho, rode `pwsh tools/nmcogame/install-lab.ps1 -Restore` e me avise.
+1. [ ] Abrir o jogo pelo `start-lab.bat` (ou launcher apontando para `.cache/play-client`), entrar, escolher o personagem.
+2. [ ] Abrir a janela da comunidade (amigos/grupos/bloqueados), tentar adicionar um amigo por nome, abrir o chat em grupo, tentar convidar alguém.
+3. [ ] Sair do jogo.
+Relato: se o jogo funcionou normal, se as janelas abriram (o Messenger fica desligado, é esperado), e me envie o arquivo `nmcogame-lab.log` que aparece na pasta do jogo (`.cache/play-client`), ou só me avise que ele está lá. O log não grava conteúdo das chamadas de login.

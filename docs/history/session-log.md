@@ -3815,3 +3815,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: próximo passo precisa de sessão de cliente (MS2a: DLL de registro).
 - Commits: ver "docs: messenger protocol of the 1.69 client (B5 MS1)".
 - Pendente / próxima ação: MS2a — `nmcogame.dll` de registro em Rust (32 bits) e sessão de cliente para capturar a sequência.
+
+## 2026-11-06 — MS2a nmcogame.dll de registro (B5)
+- Feito: `tools/nmcogame` (crate fora do workspace, cdylib `nmcogame`, alvo i686-win7-windows-msvc com build-std e CRT estático, `exports.def` com os ordinais 1–6; `#![deny(unsafe_code)]` com só o módulo `ffi`): NMCO_CallNMFunction grava código, cryptVer, magic/len e os primeiros 64 bytes (exceto códigos de login) em `nmcogame-lab.log`; responde bSuccess=1 em envelope v0 no buffer do engine para RegisterCallback/ResetCallback/Initialize/SetLocale/SetCodePage/GSRegisterCallback/chat room RegisterCallback; o resto falha (Messenger desligado). Set*/MemoryFree inofensivos. `install-lab.ps1` (e `-Restore`) na cópia `.cache/play-client`, original em `nmcogame.dll.nexon`; instalado.
+- Verificação: `cargo test` (tools/nmcogame) 2 passed; build 32 bits ok; tabela de exportação conferida (machine 0x14c, ordinais 1–6 com os nomes).
+- Cliente: `docs/client-tests/B5-social.md` MS2a (capturar o log).
+- Commits: ver "feat: logging nmcogame.dll for the lab client (B5 MS2a)".
+- Pendente / próxima ação: parado para o cliente — sessão MS2a com o `nmcogame-lab.log`; depois MS2 (respostas reais) e MS3 (módulo messenger).
