@@ -175,8 +175,21 @@ impl Rules {
                 .map_err(|_| fail())
                 .map(|v| v.unwrap_or(false))
         };
+        // The panel's PvP knobs: PvpTeamSize_<mode> (> 0) and PvpNotGuild_<mode>.
+        let mut config = assets.npc_pvp(mode).cloned();
+        if let (Some(c), Some(p)) = (config.as_mut(), policy) {
+            let size = p
+                .get_integer(&format!("PvpTeamSize_{mode}"))
+                .unwrap_or(0);
+            if size > 0 {
+                c.team_size = size;
+            }
+            if p.is_enabled(Some(&format!("PvpNotGuild_{mode}"))).unwrap_or(false) {
+                c.is_guild = false;
+            }
+        }
         Ok(Self {
-            config: assets.npc_pvp(mode).cloned(),
+            config,
             spectator_min: policy
                 .map(|p| p.get_integer("ArenaSpecatorLevelLimitMin"))
                 .transpose()

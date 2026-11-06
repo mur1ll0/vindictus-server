@@ -73,7 +73,7 @@ pub struct GuildSetting {
 
 /// The guild values the migrated server reads (B5 G2/G6b); all within the overlay's rate
 /// bound so the client copy accepts them.
-pub const GUILD_SETTINGS: [GuildSetting; 8] = [
+pub const GUILD_SETTINGS: [GuildSetting; 12] = [
     GuildSetting {
         key: "GuildStorage",
         switch: true,
@@ -115,6 +115,29 @@ pub const GUILD_SETTINGS: [GuildSetting; 8] = [
         key: "GuildLevel_DailyGPResetTimeAdder",
         switch: false,
         max: 23,
+    },
+    // Laboratory PvP knobs (panel Ajustes de jogo → PvP), not FeatureMatrix keys of the source:
+    // the players per team of the EN-EU team modes (0 keeps PvpInfo's TeamSize) and the
+    // guild-only switch of p03, so two clients can play them.
+    GuildSetting {
+        key: "PvpTeamSize_p03",
+        switch: false,
+        max: 8,
+    },
+    GuildSetting {
+        key: "PvpTeamSize_p03_free",
+        switch: false,
+        max: 8,
+    },
+    GuildSetting {
+        key: "PvpTeamSize_p04",
+        switch: false,
+        max: 8,
+    },
+    GuildSetting {
+        key: "PvpNotGuild_p03",
+        switch: true,
+        max: 1,
     },
 ];
 

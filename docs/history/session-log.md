@@ -3766,3 +3766,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-eventos.md` EV12 (atualizado) e EV13; `docs/client-tests/B5-marketplace.md` MK12.
 - Commits: (este)
 - Pendente / próxima ação: sessão de cliente EV12, EV13 e MK12; texturas das roupas Fairy Tail (sessão própria).
+
+## 2026-11-06 — Ajustes de PvP no painel (B5)
+- Feito: aba Ajustes de jogo → PvP (laboratório): `PvpTeamSize_p03`, `PvpTeamSize_p03_free`, `PvpTeamSize_p04` (0 mantém o TeamSize da PvpInfo) e `PvpNotGuild_p03` na lista de ajustes do overlay (`content_overlay::GUILD_SETTINGS`); `pvp_match::Rules::from_assets` aplica no registro. `Tuning.tsx` separa a aba PvP da de Guilda.
+- Verificação: `cargo test --lib -- content_overlay domain::pvp` 10 passed; `tsc --noEmit` do painel ok; clippy sem avisos.
+- Cliente: `docs/client-tests/B5-social.md` PV3b (pré-condição).
+- Commits: ver "feat: PvP team size knobs in the panel (B5)".
+- Pendente / próxima ação: chat de PvP; Docker e sessão de cliente (PV3a/PV3b).

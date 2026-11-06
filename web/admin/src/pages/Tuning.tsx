@@ -400,6 +400,13 @@ const GUILD_LABEL: Record<string, { title: string; hint: string }> = {
     title: 'Preço em ouro da primeira compra',
     hint: 'Ouro cobrado do comprador na primeira compra (24 slots) quando "só por cash" está desligado. Original: 30.000.000.',
   },
+  PvpTeamSize_p03: { title: 'DeathMatch (guilda): jogadores por time', hint: 'Original: 8 (p03). 0 mantém o original.' },
+  PvpTeamSize_p03_free: { title: 'DeathMatch livre: jogadores por time', hint: 'Original: 6 (p03_free). 0 mantém o original.' },
+  PvpTeamSize_p04: { title: 'GodMatch: jogadores por time', hint: 'Original: 6 (p04). 0 mantém o original.' },
+  PvpNotGuild_p03: {
+    title: 'DeathMatch p03 sem exigir guilda',
+    hint: '1 = qualquer jogador entra no p03 (original: só times de guilda, de guildas diferentes).',
+  },
   GuildLevel: { title: 'Nível de guilda (GP)', hint: '1 = ligado, 0 = desligado. Desligado, a guilda não ganha GP nem sobe de nível.' },
   GuildLevel_APGainRatio: { title: 'GP por AP gasto', hint: 'Porcentagem do AP gasto pelos membros que vira GP da guilda.' },
   GuildLevel_DailyGPResetTimeAdder: {
@@ -424,7 +431,7 @@ type Item = {
   build: (values: number[]) => EditRequest;
 };
 
-type Tab = 'rates' | 'guild' | 'drops' | 'enhance' | 'enchant' | 'market' | 'events' | 'schedule';
+type Tab = 'rates' | 'guild' | 'pvp' | 'drops' | 'enhance' | 'enchant' | 'market' | 'events' | 'schedule';
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const show = (values: number[], unit: string) => values.map((v) => `${v}${unit}`).join('–');
@@ -443,7 +450,19 @@ function items(t: Tuning): Record<Exclude<Tab, 'market' | 'events' | 'schedule'>
       fromPending: (v) => [v.value ?? 0],
       build: ([value]) => ({ kind: 'feature', key: f.key, value: value ?? 0 }),
     })),
-    guild: t.guild.map((g) => ({
+    pvp: t.guild.filter((g) => g.key.startsWith('Pvp')).map((g) => ({
+      key: `feature|${g.key}`,
+      title: GUILD_LABEL[g.key]?.title ?? g.key,
+      detail: g.key,
+      hint: GUILD_LABEL[g.key]?.hint,
+      unit: '',
+      labels: [g.switch ? 'Ligado (1) ou desligado (0)' : 'Valor'],
+      max: g.max,
+      current: [g.value],
+      fromPending: (v) => [v.value ?? 0],
+      build: ([value]) => ({ kind: 'feature', key: g.key, value: value ?? 0 }),
+    })),
+    guild: t.guild.filter((g) => !g.key.startsWith('Pvp')).map((g) => ({
       key: `feature|${g.key}`,
       title: GUILD_LABEL[g.key]?.title ?? g.key,
       detail: g.key,
@@ -617,6 +636,7 @@ export function TuningPage() {
   const tabs = [
     { id: 'rates', label: 'Taxas', n: all?.rates.length },
     { id: 'guild', label: 'Guilda', n: all?.guild.length },
+    { id: 'pvp', label: 'PvP', n: all?.pvp.length },
     { id: 'drops', label: 'Drops por fase', n: all?.drops.length },
     { id: 'enhance', label: 'Enhance', n: all?.enhance.length },
     { id: 'enchant', label: 'Enchant', n: all?.enchant.length },
@@ -625,7 +645,7 @@ export function TuningPage() {
     { id: 'schedule', label: 'Agenda', n: undefined },
   ] as const;
   const shown = (tab === 'market' || tab === 'events' || tab === 'schedule' ? [] : (all?.[tab] ?? []))
-    .filter((i) => tab === 'rates' || tab === 'guild' || tab === 'enhance' || !term || `${i.title} ${i.detail}`.toLowerCase().includes(term))
+    .filter((i) => tab === 'rates' || tab === 'guild' || tab === 'pvp' || tab === 'enhance' || !term || `${i.title} ${i.detail}`.toLowerCase().includes(term))
     .slice(0, 300);
 
   return (
@@ -691,7 +711,15 @@ export function TuningPage() {
           </p>
         </Card>
       )}
-      {tab !== 'rates' && tab !== 'guild' && tab !== 'enhance' && tab !== 'market' && tab !== 'events' && (
+      {tab === 'pvp' && (
+        <Card>
+          <p className="text-sm text-muted">
+            Ajustes de laboratório para testar o PvP com poucos jogadores. Os times de DeathMatch e GodMatch do EU são de 6 a 8 jogadores;
+            com 0 vale o tamanho original. Vale para os próximos registros.
+          </p>
+        </Card>
+      )}
+      {tab !== 'rates' && tab !== 'guild' && tab !== 'pvp' && tab !== 'enhance' && tab !== 'market' && tab !== 'events' && (
         <div className="relative max-w-sm">
           <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" />
           <Input aria-label="Buscar" placeholder="Buscar (nome ou ID)" className="pl-9" value={filter} onChange={(e) => setFilter(e.target.value)} />
