@@ -61,34 +61,72 @@ class Texts(unittest.TestCase):
         self.assertEqual(collabs.missing_in(entries, mine), {'HEROES_NPC_B': 'B', 'HEROES_NPC_C': 'C'})
 
 
+COSTUME = b"""
+"upper_body"
+{
+    "448" { "category" "tall" "label" "450" }
+    "449" { "category" "giant" "label" "450" }
+    "450" { "category" "male" "label" "450" }
+    "500005" { "category" "female" "label" "500005" }
+}
+"""
+MALE = 1 | 1 << 3 | 1 << 4 | 1 << 6 | 1 << 9
+FEMALE = 1 << 1 | 1 << 2 | 1 << 5 | 1 << 7 | 1 << 8 | 1 << 10 | 1 << 11
+
+
 class Outfits(unittest.TestCase):
     def db(self):
         db = sqlite3.connect(':memory:')
         db.execute('CREATE TABLE ItemClassInfo (ItemClass TEXT, Category TEXT, ClassRestriction INT)')
+        db.execute('CREATE TABLE EquipItemInfo (ItemClass TEXT, CostumeType INT)')
         db.executemany('INSERT INTO ItemClassInfo VALUES (?,?,?)', [
             ('avatar_kirito_upper_jajp', 'AVATAR_TUNIC', 601), ('avatar_kirito_upper_jajp', 'AVATAR_TUNIC', 601),
             ('female_fairytail_lucy_upper', 'TUNIC', 1446), ('pattern_sao_kirito', 'PATTERN', 2047),
-            ('yui_sad_head_jajp', 'AVATAR_HELM', 1446), ('plain_tunic', 'TUNIC', 1),
-            ('done_sao_upper', 'TUNIC', collabs.ALL_CLASSES)])
+            ('necklace_cash_fairytail_ignil', 'NECKLACE', 2047), ('plain_tunic', 'TUNIC', 1),
+            ('done_sao_upper', 'TUNIC', collabs.PORTED)])
+        db.executemany('INSERT INTO EquipItemInfo VALUES (?,?)', [
+            ('avatar_kirito_upper_jajp', 450), ('female_fairytail_lucy_upper', 500005), ('done_sao_upper', 450)])
         return db
 
-    def test_wearable_items(self):
-        self.assertEqual(collabs.wearable_items(self.db()),
-                         ['avatar_kirito_upper_jajp', 'female_fairytail_lucy_upper', 'yui_sad_head_jajp'])
+    def test_body_categories_of_the_label(self):
+        bodies = collabs.costume_bodies(COSTUME)
+        self.assertEqual(bodies[('upper_body', '449')], {'male', 'giant', 'tall'})
+        self.assertEqual(bodies[('upper_body', '500005')], {'female'})
+
+    def test_masks_admit_the_bodies_with_a_model(self):
+        # Kirito's 601 already is every male/giant/tall class: no female model, no change.
+        self.assertEqual(601, MALE)
+        self.assertEqual(collabs.unlock_masks(self.db(), COSTUME), {
+            'female_fairytail_lucy_upper': 1446 | FEMALE,  # adds the Miri
+            'necklace_cash_fairytail_ignil': collabs.PORTED})
+        self.assertEqual(collabs.PORTED, 4095)
+        # Without the costume file only the accessories open up.
+        self.assertEqual(collabs.unlock_masks(self.db(), None), {'necklace_cash_fairytail_ignil': collabs.PORTED})
 
     def test_unlock_overrides_keep_the_panel_value(self):
         import content_additions
         overrides = {'female_fairytail_lucy_upper': {'set': {'ItemClassInfo': {'ClassRestriction': 2}}, 'text': {'name': 'L'}},
                      'plain_tunic': {'set': {'ItemClassInfo': {'Price': 5}}}}
-        out = content_additions.with_collab_unlocks(self.db(), overrides)
-        self.assertEqual(out['avatar_kirito_upper_jajp'], {'set': {'ItemClassInfo': {'ClassRestriction': collabs.ALL_CLASSES}}})
+        out = content_additions.with_collab_unlocks(self.db(), overrides, COSTUME)
+        self.assertEqual(out['necklace_cash_fairytail_ignil'], {'set': {'ItemClassInfo': {'ClassRestriction': collabs.PORTED}}})
+        self.assertNotIn('avatar_kirito_upper_jajp', out)
         self.assertEqual(out['female_fairytail_lucy_upper']['set']['ItemClassInfo'], {'ClassRestriction': 2})
         self.assertEqual(out['female_fairytail_lucy_upper']['text'], {'name': 'L'})
         self.assertEqual(out['plain_tunic'], overrides['plain_tunic'])
-        self.assertNotIn('avatar_kirito_upper_jajp', overrides)
+        self.assertNotIn('necklace_cash_fairytail_ignil', overrides)
 
-    def test_all_named_classes(self):
-        self.assertEqual(collabs.ALL_CLASSES, 0x0FFFFFFF)
+
+class Stories(unittest.TestCase):
+    def test_collab_gifts_lose_the_2014_expiry_only(self):
+        import export_npc_scripts as npc
+        gift = ['give_item', [['id', 'g'], ['arg1', 'coupon_bingo_pink_fairytail_2014[EXPIRE:2014/7/30/14/59/59]'],
+                              ['arg2', '1']], '', [], '']
+        talk = ['talk', [['arg1', 'x[EXPIRE:2014/1/1/0/0/0]']], '', [], '']
+        tree = npc.without_collab_expiry(['Do', [], '', [gift, talk], ''])
+        self.assertEqual(tree[3][0][1][1], ['arg1', 'coupon_bingo_pink_fairytail_2014'])
+        self.assertEqual(tree[3][1], talk)
+        later = ['give_item', [['arg1', 'a[EXPIRE:2099/1/1/0/0/0]']], '', [], '']
+        self.assertEqual(npc.without_collab_expiry(later), later)
 
 
 class Events(unittest.TestCase):

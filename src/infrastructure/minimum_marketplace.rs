@@ -1776,34 +1776,101 @@ pub async fn auto_tick(pool: &PgPool, assets: &Assets) -> Result<usize, MinimumE
         return Ok(0);
     }
     let features = &contents.features;
-    let mut pool_of = candidates(assets);
+    let all = candidates(assets);
     let wanted = usize::try_from(state.settings.items).map_err(|_| fail())?;
-    // Partial Fisher–Yates with the OS generator.
-    let picks = wanted.min(pool_of.len());
-    for i in 0..picks {
-        let span = u64::try_from(pool_of.len() - i).map_err(|_| fail())?;
-        let j = i + usize::try_from(OsRng.next_u64() % span).map_err(|_| fail())?;
-        pool_of.swap(i, j);
+    let roll = |n: usize| usize::try_from(OsRng.next_u64() % (n.max(1) as u64)).unwrap_or(0);
+    // Enchant scrolls get a random enchant below; the other classes are drawn by tab.
+    let scroll = all.iter().find(|c| c.class == market::auto::SCROLL_CLASS);
+    let enchants: Vec<&crate::domain::enchant::EnchantInfo> = assets
+        .enhance_contents()
+        .map(|c| {
+            c.enchants()
+                .filter(|e| e.class != "test" && c.enchant_id(&e.class).is_some())
+                .collect()
+        })
+        .unwrap_or_default();
+    let scrolls = market::auto::scroll_quota(wanted, scroll.is_some() && !enchants.is_empty());
+    let pool: Vec<&Candidate> = all
+        .iter()
+        .filter(|c| !c.class.starts_with(market::ENCHANT_SCROLL))
+        .collect();
+    let groups: Vec<(String, String)> = pool
+        .iter()
+        .map(|c| (c.category.to_uppercase(), c.sub.to_uppercase()))
+        .collect();
+    let mut picked: Vec<(&Candidate, Option<&crate::domain::enchant::EnchantInfo>)> =
+        market::auto::balanced_draw(&groups, wanted - scrolls, roll)
+            .into_iter()
+            .map(|i| (pool[i], None))
+            .collect();
+    if let Some(scroll) = scroll {
+        for _ in 0..scrolls {
+            picked.push((scroll, Some(enchants[roll(enchants.len())])));
+        }
     }
+    // Classes without any price take the median of their sub-category, else of their main
+    // category, else of every candidate (laboratory extension: event and avatar classes have
+    // no ItemClassInfo price).
+    let base = |c: &Candidate| {
+        if c.class_price > 0 {
+            c.class_price
+        } else {
+            shop_gold_price(assets, &c.class)
+        }
+    };
+    let bases: Vec<(String, String, i32)> = pool
+        .iter()
+        .map(|c| (c.category.to_uppercase(), c.sub.to_uppercase(), base(c)))
+        .collect();
+    let fallback = |c: &Candidate| {
+        let (main, sub) = (c.category.to_uppercase(), c.sub.to_uppercase());
+        market::auto::median(
+            bases
+                .iter()
+                .filter(|b| b.0 == main && b.1 == sub)
+                .map(|b| b.2),
+        )
+        .or_else(|| market::auto::median(bases.iter().filter(|b| b.0 == main).map(|b| b.2)))
+        .or_else(|| market::auto::median(bases.iter().map(|b| b.2)))
+    };
     let close = at
         .checked_add(i64::from(state.settings.days) * market::DAY_TICKS)
         .filter(|c| *c <= MAX_TICKS)
         .ok_or_else(fail)?;
     let mut listed = 0;
-    for c in &pool_of[..picks] {
+    for (c, enchant) in picked {
+        let attribute_ex = match enchant {
+            Some(e) => build_attributes(
+                &item_attribute::Attributes::new(vec![item_attribute::Attribute {
+                    name: if e.is_prefix { "PREFIX" } else { "SUFFIX" }.to_owned(),
+                    value: e.class.clone(),
+                    arg: 0,
+                    arg2: 0,
+                }])
+                .map_err(|_| fail())?,
+            )?,
+            None => String::new(),
+        };
         let limit = features.use_price_limit.then(|| {
             features.price_limit(
                 contents.max_limit_value(&c.class),
                 shop_gold_price(assets, &c.class),
             )
         });
-        let average = prices.get(&c.class).map(|r| r.price);
+        let average = lookup_key(&c.class, Some(&attribute_ex))
+            .and_then(|k| prices.get(&k))
+            .or_else(|| prices.get(&c.class))
+            .map(|r| r.price);
         let Some(price) = market::auto::unit_price(
             average,
             c.class_price,
             shop_gold_price(assets, &c.class),
             limit,
-        ) else {
+        )
+        .or_else(|| {
+            let p = fallback(c)?;
+            Some(limit.map_or(p, |l| p.min(l))).filter(|p| *p > 0)
+        }) else {
             continue;
         };
         let Some(count) = market::auto::units(
@@ -1830,7 +1897,7 @@ pub async fn auto_tick(pool: &PgPool, assets: &Assets) -> Result<usize, MinimumE
                 price,
                 open: at,
                 close,
-                attribute_ex: "",
+                attribute_ex: &attribute_ex,
                 colors: [-1; 3],
                 bonus: 0,
                 trade_type: 0,

@@ -298,15 +298,18 @@ def class_remap(imports: list[pathlib.Path], items: list[dict]) -> dict:
     return remap
 
 
-def with_collab_unlocks(db: sqlite3.Connection, overrides: dict[str, dict]) -> dict[str, dict]:
-    """The overrides plus the collab outfits wearable by every class (collabs.py): ClassRestriction
-    with every named class bit, unless the panel's own override sets that column."""
+def with_collab_unlocks(db: sqlite3.Connection, overrides: dict[str, dict],
+                        costume: bytes | None = None) -> dict[str, dict]:
+    """The overrides plus the collab outfits made wearable by the ported classes whose body has
+    their model (collabs.unlock_masks over the 1.69 player_costume.txt), unless the panel's own
+    override sets ClassRestriction."""
+    if costume is None and BASE_COSTUME.is_file():
+        costume = BASE_COSTUME.read_bytes()
     out = {name: dict(o) for name, o in overrides.items()}
-    for name in collabs.wearable_items(db):
+    for name, mask in collabs.unlock_masks(db, costume).items():
         o = out.setdefault(name, {})
         tables = {t: dict(c) for t, c in o.get('set', {}).items()}
-        cells = tables.setdefault('ItemClassInfo', {})
-        cells.setdefault('ClassRestriction', collabs.ALL_CLASSES)
+        tables.setdefault('ItemClassInfo', {}).setdefault('ClassRestriction', mask)
         o['set'] = tables
     return out
 

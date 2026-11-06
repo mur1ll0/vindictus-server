@@ -1,6 +1,6 @@
 import contextlib, pathlib, sqlite3, unittest
 import test_export_fiona_inventory as inventory_tests
-from export_npc_scripts import read_package, digest
+from export_npc_scripts import read_package, digest, lab_additions
 
 COLUMNS = 'StoryLineID TEXT,StoryLineName TEXT,XmlPath TEXT,Npc TEXT,Category TEXT,Stage TEXT,RewardGold INT,RewardExp INT,RewardAp INT,RewardTitle INT,RewardItem TEXT,RewardItemCount INT,RewardSkill TEXT,RewardSkillRank INT,AutoGiveLevel INT,ClassRestriction INT,AutoProcess bit,AutoReveal bit,Season INT,Episode TEXT,Feature TEXT'
 
@@ -69,9 +69,10 @@ class NpcScriptExportTests(unittest.TestCase):
         info = p['storylines'][0]['info']
         self.assertEqual((info['RewardItemCount'], info['AutoReveal'], info['AutoProcess'], p['manifest']['coerced_integers']), (0, True, False, 1))
         shop = p['shops'][0]
-        self.assertEqual((shop['ShopID'], shop['Order'], shop['PriceCount'], shop['CharacterBind'], p['manifest']['shops']), ('A_Shop', 1, 95, False, 2))
-        # lab_content_additions.json follows the original rows.
-        added = p['shops'][-1]
+        lab_rows = len(lab_additions().get('ShopInfo', []))
+        self.assertEqual((shop['ShopID'], shop['Order'], shop['PriceCount'], shop['CharacterBind'], p['manifest']['shops']), ('A_Shop', 1, 95, False, 1 + lab_rows))
+        # lab_content_additions.json follows the original rows (Ferghus's elixir first).
+        added = p['shops'][-lab_rows]
         self.assertEqual((added['ShopID'], added['Order'], added['ItemClass'], added['PriceItemClass'], added['PriceCount']),
                          ('FERGHUS_Shop', 124, 'enhance_elixir', 'gold', 4000))
         self.assertIn('shop_flag', [f['key'] for f in p['features']])

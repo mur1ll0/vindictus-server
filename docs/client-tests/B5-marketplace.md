@@ -96,3 +96,10 @@ Pré-condição: painel com papel admin; B no jogo com ouro.
 - [ ] B compra um equipamento e um consumível do `Marketplace` → o ouro cai o preço; os itens entram (consumível vinculado; equipamento com cores do material e durabilidade cheia).
 - [ ] Desmarcar e salvar → não surgem novos itens; os já publicados somem quando vencem.
 Limites conhecidos: o ouro das compras do `Marketplace` não vai para ninguém.
+
+### MK12 — Abas e sorteio do mercado automático (extensão, 05/11)
+Pré-condição: MK11 ligado com 100 itens; cópia do cliente atualizada (`apply_lab_content_additions.py --apply`).
+- [ ] Depois de uma geração, as abas Etc, Event, Battle (GOODS), Material, armas, armaduras e Avatar têm itens do `Marketplace`; itens de evento e avatares aparecem com preço (mediana da subcategoria).
+- [ ] Material → Enchant: cerca de 10 pergaminhos `enchant_scroll_limitless`, cada um com um encantamento diferente no nome/tooltip; comprar um e encantar uma arma com ele → o encantamento do pergaminho aparece.
+- [ ] Weapons → as abas Bastard Sword (Delia) e Dragonspine (Miri) aparecem; buscar nelas lista as armas dessas classes (registradas por jogadores ou pelo `Marketplace`).
+Limites conhecidos: o preço de reserva é uma estimativa do laboratório (não existe no original).

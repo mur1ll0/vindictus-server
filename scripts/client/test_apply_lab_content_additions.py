@@ -15,6 +15,18 @@ ROW = {'ShopID': 'FERGHUS_Shop', 'Order': 124, 'ItemClass': 'enhance_elixir', 'C
        'RestrictionPeriodDay': 0, 'RestrictionCount': 0, 'Feature': None}
 
 
+class MarketplaceTabsTest(unittest.TestCase):
+    def test_lab_tabs_open_delia_and_add_miri_after_the_weapons(self):
+        original = [('WEAPON', 'PHANTOMDAGGER', 'Hagie'), ('WEAPON', 'BASTARDSWORD', 'Delia'), ('ETC', 'ETC_ETC', None)]
+        rows = a.target_categories(original, [
+            {'MainCategoryName': 'WEAPON', 'Name': 'BASTARDSWORD', 'Feature': None},
+            {'MainCategoryName': 'WEAPON', 'Name': 'DRAKER', 'Feature': None},
+            {'MainCategoryName': 'NEW', 'Name': 'X', 'Feature': None}])
+        self.assertEqual(rows, [('WEAPON', 'PHANTOMDAGGER', 'Hagie'), ('WEAPON', 'BASTARDSWORD', None),
+                                ('WEAPON', 'DRAKER', None), ('ETC', 'ETC_ETC', None), ('NEW', 'X', None)])
+        self.assertEqual(a.target_categories(rows, [{'MainCategoryName': 'WEAPON', 'Name': 'DRAKER', 'Feature': None}]), rows)
+
+
 class ApplyLabContentAdditionsTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

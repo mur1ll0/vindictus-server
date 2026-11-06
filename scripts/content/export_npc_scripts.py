@@ -2,6 +2,7 @@
 its row, as compact element trees with XElement.Load(LoadOptions.None) text semantics."""
 import argparse, contextlib, hashlib, json, pathlib, re, sqlite3, xml.etree.ElementTree as ET
 import content_additions
+import collabs
 import content_edits
 import xml.etree.ElementTree
 import content_overrides as overrides
@@ -104,6 +105,18 @@ def _allowed(branch, lab, usable):
                for n, g in _given(branch) if n[0] in CLASS_RESTRICTED_GIVES)
 
 
+# Collab rewards (collabs.py) given with the dates of their 2014 run: Makarov's daily Pink Bingo
+# Coupon is coupon_bingo_pink_fairytail_2014[EXPIRE:2014/7/30/14/59/59] and arrives expired. The
+# laboratory's collab stories give them without that EXPIRE attribute (operator decision of 05/11/2026).
+EXPIRE_ATTRIBUTE = re.compile(r'(?i)\[EXPIRE:20[01][0-9]/[^\]]*\]$')
+
+
+def without_collab_expiry(node):
+    attrs = [[k, EXPIRE_ATTRIBUTE.sub('', v) if node[0] in CLASS_RESTRICTED_GIVES and k == 'arg1' else v]
+             for k, v in node[1]]
+    return [node[0], attrs, node[2], [without_collab_expiry(c) for c in node[3]], *node[4:]]
+
+
 def with_lab_switch_branches(node, usable):
     """The script tree with the laboratory classes' Switch branches added where they can be made;
     usable(id, class index) tells whether an item or skill exists for that class."""
@@ -201,6 +214,8 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
                 path = folder / (info['StoryLineID'] + '.xml')
                 if not path.resolve().is_relative_to(base.resolve()): raise ValueError('Storyline outside XML root')
                 entry['tree'] = with_lab_switch_branches(load(path, hasher), usable)
+                if collabs.collab(info['Feature'] or ''):
+                    entry['tree'] = without_collab_expiry(entry['tree'])
             storylines.append(entry)
     def short(v):
         if type(v) is not int or not -(2**15) <= v < 2**15: raise ValueError('ShopInfo Int16')

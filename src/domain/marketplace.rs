@@ -464,6 +464,74 @@ pub mod auto {
         let n = i64::from(wanted).min(affordable);
         (n >= 1).then_some(n as i32)
     }
+    /// Share of a run listed as enchant scrolls with a random enchant (at least one).
+    pub const SCROLL_SHARE: usize = 10;
+    /// The scroll class the auto listing gives an enchant (`enchant_scroll` expires and is
+    /// never auctionable; the limitless one is).
+    pub const SCROLL_CLASS: &str = "enchant_scroll_limitless";
+    /// Enchant scrolls of a run of `wanted` listings (none without a scroll class).
+    pub fn scroll_quota(wanted: usize, has_scroll: bool) -> usize {
+        if has_scroll && wanted > 0 {
+            (wanted / SCROLL_SHARE).max(1)
+        } else {
+            0
+        }
+    }
+    /// The balanced draw: `groups[i]` is candidate i's (main, sub) trade category. Main
+    /// categories take turns in a shuffled order, each turn picks a sub-category of that main
+    /// at random and a candidate of it at random, without repetition, so every marketplace
+    /// tab gets items whatever its size. `roll(n)` is uniform in 0..n.
+    pub fn balanced_draw(
+        groups: &[(String, String)],
+        wanted: usize,
+        mut roll: impl FnMut(usize) -> usize,
+    ) -> Vec<usize> {
+        use std::collections::BTreeMap;
+        let mut tree: BTreeMap<&str, BTreeMap<&str, Vec<usize>>> = BTreeMap::new();
+        for (i, (main, sub)) in groups.iter().enumerate() {
+            tree.entry(main.as_str())
+                .or_default()
+                .entry(sub.as_str())
+                .or_default()
+                .push(i);
+        }
+        let mut mains: Vec<&str> = tree.keys().copied().collect();
+        for i in (1..mains.len()).rev() {
+            mains.swap(i, roll(i + 1));
+        }
+        let mut out = Vec::new();
+        while out.len() < wanted && !mains.is_empty() {
+            let mut next = Vec::new();
+            for main in mains {
+                if out.len() == wanted {
+                    break;
+                }
+                let Some(subs) = tree.get_mut(main) else {
+                    continue;
+                };
+                let names: Vec<&str> = subs.keys().copied().collect();
+                let sub = names[roll(names.len())];
+                if let Some(items) = subs.get_mut(sub) {
+                    let at = roll(items.len());
+                    out.push(items.swap_remove(at));
+                    if items.is_empty() {
+                        subs.remove(sub);
+                    }
+                }
+                if !subs.is_empty() {
+                    next.push(main);
+                }
+            }
+            mains = next;
+        }
+        out
+    }
+    /// The median of the positive prices (the upper one of an even count).
+    pub fn median(prices: impl IntoIterator<Item = i32>) -> Option<i32> {
+        let mut v: Vec<i32> = prices.into_iter().filter(|p| *p > 0).collect();
+        v.sort_unstable();
+        v.get(v.len() / 2).copied()
+    }
 }
 
 #[cfg(test)]
@@ -552,6 +620,33 @@ mod tests {
         assert!(!c.check(20));
         assert!(c.check(SEARCH_WINDOW_TICKS + 2));
     }
+    #[test]
+    fn auto_listing_balanced_draw_and_fallbacks() {
+        let g = |m: &str, s: &str| (m.to_owned(), s.to_owned());
+        // 8 weapons, one ETC and one EVENT item: three picks reach every main category.
+        let mut groups: Vec<(String, String)> = (0..8).map(|_| g("WEAPON", "LONGSWORD")).collect();
+        groups.push(g("ETC", "ETC_ETC"));
+        groups.push(g("EVENT", "EVENT_ETC"));
+        let mut n = 0usize;
+        let picks = auto::balanced_draw(&groups, 3, |k| {
+            n += 1;
+            n % k
+        });
+        let mains: std::collections::BTreeSet<&str> =
+            picks.iter().map(|i| groups[*i].0.as_str()).collect();
+        assert_eq!(mains.len(), 3);
+        // No repetition, and never more than the candidates.
+        let all = auto::balanced_draw(&groups, 50, |_| 0);
+        assert_eq!(all.len(), 10);
+        let unique: std::collections::BTreeSet<usize> = all.iter().copied().collect();
+        assert_eq!(unique.len(), 10);
+        assert_eq!(auto::median([0, 30, 10, -1, 20]), Some(20));
+        assert_eq!(auto::median([0, -5]), None);
+        assert_eq!(auto::scroll_quota(100, true), 10);
+        assert_eq!(auto::scroll_quota(5, true), 1);
+        assert_eq!(auto::scroll_quota(100, false), 0);
+    }
+
     #[test]
     fn auto_listing_settings_prices_and_units() {
         let d = auto::Settings::default();

@@ -64,6 +64,31 @@ def target_rows(original: list[dict], additions: list[dict], edits: dict) -> lis
              else r['CharacterBind']} for r in rows]
 
 
+CATEGORY_COLUMNS = ('MainCategoryName', 'Name', 'Feature')
+
+
+def category_rows(db: sqlite3.Connection) -> list[tuple]:
+    if not {r[1] for r in db.execute('PRAGMA table_info(SubCategoryInfo)')} >= set(CATEGORY_COLUMNS):
+        return []
+    return list(db.execute('SELECT MainCategoryName, Name, Feature FROM SubCategoryInfo ORDER BY rowid'))
+
+
+def target_categories(original: list[tuple], additions: list[dict]) -> list[tuple]:
+    """SubCategoryInfo (marketplace tabs) with the laboratory rows: a row of the same main
+    category and name takes the addition's Feature, a new one goes after the last row of its
+    main category (or at the end)."""
+    rows = list(original)
+    for r in additions:
+        row = tuple(r[c] for c in CATEGORY_COLUMNS)
+        at = next((i for i, o in enumerate(rows) if o[:2] == row[:2]), None)
+        if at is not None:
+            rows[at] = row
+            continue
+        same = [i for i, o in enumerate(rows) if o[0] == row[0]]
+        rows.insert(same[-1] + 1 if same else len(rows), row)
+    return rows
+
+
 TEXT_FOLDERS = ('resource/localized_text/english', 'resource/localized_text/english_eu')
 SCRIPTS_FOLDER = 'scripts'
 INDEX = 'hfs/E608DF10F284E19AB75FD7D0D8AE9CCF87831041.hfs'
@@ -746,6 +771,7 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
     if not database.is_file():
         raise PreparationError('The client copy must contain sql/heroes.db3.')
     rows = json.loads(additions.read_text(encoding='utf-8')).get('ShopInfo', [])
+    categories = json.loads(additions.read_text(encoding='utf-8')).get('SubCategoryInfo', [])
     edits = content_edits.EMPTY if edits is None else edits
     backup = database.with_name('heroes.db3.pre-lab-additions')
     # What the last run wrote for the item editor (added classes and overridden base classes).
@@ -758,9 +784,17 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
         else:
             original = current
         target = target_rows(original, rows, edits)
+        if backup.exists():
+            with closing(sqlite3.connect(backup.resolve().as_uri() + '?mode=ro', uri=True)) as original_db:
+                original_categories = category_rows(original_db)
+        else:
+            original_categories = category_rows(db)
+        current_categories = category_rows(db)
+        target_category_rows = target_categories(original_categories, categories) if current_categories else []
         plan = {'mode': 'apply' if apply_changes else 'dry-run', 'database': str(database),
                 'shop_rows_missing': len(missing_rows(db, rows)), 'shop_rows': len(rows),
-                'edits_version': edits.get('version', 0), 'changed': current != target}
+                'edits_version': edits.get('version', 0), 'changed': current != target,
+                'category_rows_changed': current_categories != target_category_rows if current_categories else False}
         items = content_additions.load(edits=edits) if items is None else items
         # Collab outfits wearable by every class (collabs.py), as on the server: chosen from the copy
         # before any lab change (an applied unlock must stay an override, or the next run restores it).
@@ -798,6 +832,14 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
             written.write_text(json.dumps({'added': sorted(i['ItemClass'] for i in items),
                                            'overridden': sorted(overrides),
                                            'imported': [p.stem for p in imports]}), encoding='utf-8')
+        if apply_changes and current_categories and current_categories != target_category_rows:
+            if not backup.exists():
+                with closing(sqlite3.connect(backup)) as copy:
+                    db.backup(copy)
+            with db:
+                db.execute('DELETE FROM SubCategoryInfo')
+                db.executemany('INSERT INTO SubCategoryInfo(MainCategoryName, Name, Feature) VALUES(?,?,?)',
+                               target_category_rows)
         if apply_changes and current != target:
             if not backup.exists():
                 with closing(sqlite3.connect(backup)) as copy:

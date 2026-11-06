@@ -24,7 +24,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 4. B5 multijogador implementado (MP1–MP7): sessão de cliente do operador pelo roteiro `docs/client-tests/B5-multijogador.md` (duas contas, dois clientes; Docker já reconstruído). Depois, os sistemas restantes do B5.
 5. B5 correio implementado em 03/11 (ciclo completo e GiveItem ForceMail): sessão de cliente pelo roteiro `docs/client-tests/B5-correio.md` (duas personagens; Docker reconstruído).
 6. B5 mercado implementado em 03/11: sessão de cliente pelo roteiro `docs/client-tests/B5-marketplace.md` (duas contas; Docker reconstruído). Depois, o próximo sistema restante do B5.
-7. B5 eventos: drops de chefe, BoostEvent, histórias por período, lojas de cupom, metas coletivas, agenda, descrição no painel e collabs SAO/Fairy Tail completos para EU feitos em 03/11; sessão de cliente pelo roteiro `docs/client-tests/B5-eventos.md` (EV1–EV12).
+7. B5 eventos: drops de chefe, BoostEvent, histórias por período, lojas de cupom, metas coletivas, agenda, descrição no painel e collabs SAO/Fairy Tail feitos em 03/11; em 05/11 roupas dos collabs por corpo, troca no Kirito/Makarov e mercado automático equilibrado com pergaminhos e abas Delia/Miri; sessão de cliente pelos roteiros `docs/client-tests/B5-eventos.md` (EV1–EV13) e `B5-marketplace.md` (MK12). Texturas das roupas Fairy Tail: sessão própria.
 8. B5 social/PvP (`docs/social-systems.md`): SO1, SO2, G1–G5, RK1–RK3 feitos em 04/11; PV1, G6a–G6f (armazém completo), carruagem, I-S3 e o pré-gate (suíte PostgreSQL e clippy verdes) em 05/11. D-S2 decidida (partida hospedada por jogador via relay): PV2a–PV2c feitos (codecs, PvpInfo, canais e entrada na Arena com anfitrião jogador). **Parado para o cliente:** roteiro PV2c em `docs/client-tests/B5-social.md` (se o cliente hospeda o mapa p05); depois PV3 (regras da Arena, Full matching do DeathMatch/GodMatch) e PV4. SO3/SO4 aguardam D-S1.
    - Antes do gate do B5: a suíte PostgreSQL só roda em lotes num banco recriado por lote (o tmpfs enche); script local `.cache/pregate-pg-batches.sh` (lotes minimum, character, user, fiona e o resto).
 
@@ -39,7 +39,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 | `docs/client-tests/B5-multijogador.md` | MP1–MP7 pendentes (sessão única); requer duas contas e dois clientes (três para MP6). |
 | `docs/client-tests/B5-correio.md` | CO1–CO11 pendentes; duas personagens (A nível ≥ 10). |
 | `docs/client-tests/B5-marketplace.md` | MK1–MK11 pendentes; duas contas (o ouro é da conta). |
-| `docs/client-tests/B5-eventos.md` | EV1–EV12 pendentes (chaves do painel, drops de chefe, BoostEvent, histórias por período, loja de cupom, descrição, meta coletiva, agenda, collabs SAO/Fairy Tail). |
+| `docs/client-tests/B5-eventos.md` | EV1–EV13 pendentes (chaves do painel, drops de chefe, BoostEvent, histórias por período, loja de cupom, descrição, meta coletiva, agenda, collabs SAO/Fairy Tail e troca das roupas). |
 | `docs/client-tests/B5-social.md` | SO1, SO2, G1–G5, RK1–RK3, PV1, G6b–G6f, carruagem e **PV2c (primeiro: o cliente hospeda a Arena?)** pendentes; duas contas. |
 | `docs/client-tests/C2-delia.md` | Aceito (D0–D23); D6 passou para o C3. |
 | `docs/client-tests/C4-miri.md` | Aceito em 02/11 (combate, MG1–MG4, MI44, MI45); sem relato isolado MI1–MI3 e MI30–MI36. |
@@ -90,7 +90,7 @@ Decisões pendentes:
 - [x] Pets P1–P6 (30/10/2026; cliente pendente; detalhes em `docs/future/pet-system.md`).
 - [ ] Pets P7 (pets do NA, junto com a importação das classes) e pet de outro jogador (multijogador).
 - [ ] Títulos/achievements restantes (títulos adquiridos e por ação de combate já feitos no B2).
-- [x] Leilão/mercado (03/11/2026): registrar com taxa, buscar (categoria, nome, filtros, ordem, páginas), comprar parcial, cancelar, expirar e ouro/itens pelo correio; listagens automáticas do servidor no painel (extensão, Ajustes de jogo) (`docs/marketplace.md`); cliente pendente.
+- [x] Leilão/mercado (03/11/2026): registrar com taxa, buscar (categoria, nome, filtros, ordem, páginas), comprar parcial, cancelar, expirar e ouro/itens pelo correio; listagens automáticas do servidor no painel (extensão, Ajustes de jogo; sorteio por aba, preço de reserva e pergaminhos em 05/11), abas de armas da Delia e da Miri na cópia do cliente (`docs/marketplace.md`); cliente pendente.
 - [ ] Cash shop e cosméticos restantes (Depot já funciona).
 - [ ] Paridade e aceite final (M23/M24).
 

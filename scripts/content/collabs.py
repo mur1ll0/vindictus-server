@@ -9,8 +9,11 @@ The operator asked (03/11/2026) for both collabs complete on the EU laboratory:
   <feature> button conditions), which the SQL tables never name;
 - a pack per collab switches on, in one published version, every key the whole event needs and
   switches off the other regions' copies of the same content (one set of collective goals);
-- the collab outfits are wearable by every class, the classes not ported yet included
-  (ClassRestriction with all named BaseCharacter bits, server and client copy);
+- the collab outfits are wearable by every ported class whose body has a model for them
+  (server and client copy). All 28 bits (05/11 first cut) left the tooltip without classes and
+  the preview without a model on the other body (operator report of 05/11/2026): a piece now
+  admits the classes whose body category (male, female, giant, tall) its player_costume.txt
+  label has, and the accessories (no costume model) every ported class;
 - every text the collabs show has English (collab_texts.json): the NA client's official English
   where it has the key, else a laboratory translation; applied only where the EU text has no
   line or a Korean/Japanese/Chinese one (client copy, panel names, cash shop, item names).
@@ -32,6 +35,10 @@ from __future__ import annotations
 import json
 import pathlib
 import re
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'client'))
+import kv_merge  # noqa: E402
 
 # Collab name -> FeatureMatrix keys and item classes of the collab.
 COLLABS = {
@@ -45,8 +52,15 @@ REGIONS = {'jajp': 'JP', 'kokr': 'KR', 'cn': 'CN', 'zhcn': 'CN', 'zhtw': 'TW', '
 # Equipment categories made wearable by every class (ItemClassInfo.Category).
 WEARABLE = ('TUNIC', 'PANTS', 'GLOVES', 'BOOTS', 'HELM', 'AVATAR_TUNIC', 'AVATAR_PANTS', 'AVATAR_GLOVES',
             'AVATAR_BOOTS', 'AVATAR_HELM', 'INNERARMOR', 'NECKLACE', 'EPAULET', 'BODYPAINTING')
-# Bits of the 28 named BaseCharacter classes (src/domain/character_class.rs NAMES; the pet is 28).
-ALL_CLASSES = (1 << 28) - 1
+# Body category of player_costume.txt per ported class (BaseCharacter value): the category of the
+# 1.69 single-class tunics (Lann/Kai/Hagie male, Karok giant, Hurk tall, the others female) and the
+# Miri's NA entries (female).
+CLASS_BODIES = {0: 'male', 1: 'female', 2: 'female', 3: 'giant', 4: 'male', 5: 'female', 6: 'tall', 7: 'female',
+                8: 'female', 9: 'male', 10: 'female', 11: 'female'}
+PORTED = sum(1 << c for c in CLASS_BODIES)
+# ItemClassInfo.Category (AVATAR_ prefix removed) -> player_costume.txt section of its model.
+COSTUME_SECTIONS = {'TUNIC': 'upper_body', 'PANTS': 'lower_body', 'GLOVES': 'hand', 'BOOTS': 'foot', 'HELM': 'head',
+                    'INNERARMOR': 'inner_armor'}
 
 PACKS = [
     dict(id='sao_eu', name='SAO completo (EU)', collab='SAO',
@@ -79,16 +93,47 @@ def adapted(key: str) -> str | None:
     return None
 
 
-def wearable_items(db) -> list[str]:
-    """Collab equipment (by name and category) whose ClassRestriction leaves some class out."""
-    out = []
+def costume_bodies(costume: bytes) -> dict[tuple[str, str], set[str]]:
+    """(section, entry key) -> body categories of the entry's label group in player_costume.txt."""
+    groups: dict[tuple[str, str], set[str]] = {}
+    labels: dict[tuple[str, str], str] = {}
+    for section in kv_merge.parse(costume).children:
+        if section.key not in COSTUME_SECTIONS.values() or not section.children:
+            continue
+        for entry in section.children:
+            values = {c.key.lower(): c.value for c in entry.children or [] if c.value is not None}
+            label = values.get('label', entry.key)
+            labels[(section.key, entry.key)] = label
+            if values.get('category'):
+                groups.setdefault((section.key, label), set()).add(values['category'].lower())
+    return {k: groups.get((k[0], label), set()) for k, label in labels.items()}
+
+
+def unlock_masks(db, costume: bytes | None) -> dict[str, int]:
+    """Collab equipment -> ClassRestriction admitting every ported class whose body the piece has a
+    model for (accessories: every ported class); only items whose mask grows."""
     columns = {r[1] for r in db.execute('PRAGMA main.table_info([ItemClassInfo])')}
     if not {'ItemClass', 'Category', 'ClassRestriction'} <= columns:
-        return out
+        return {}
+    bodies = costume_bodies(costume) if costume else None
+    costume_types = {}
+    if {'ItemClass', 'CostumeType'} <= {r[1] for r in db.execute('PRAGMA main.table_info([EquipItemInfo])')}:
+        for item, kind in db.execute('SELECT ItemClass, CostumeType FROM main.[EquipItemInfo]'):
+            costume_types.setdefault(item, kind)
+    out: dict[str, int] = {}
     for item, category, mask in db.execute('SELECT ItemClass, Category, ClassRestriction FROM main.[ItemClassInfo]'):
-        if (isinstance(item, str) and ITEMS.search(item) and category in WEARABLE
-                and type(mask) is int and mask & ALL_CLASSES != ALL_CLASSES and item not in out):
-            out.append(item)
+        if not (isinstance(item, str) and ITEMS.search(item) and category in WEARABLE and type(mask) is int):
+            continue
+        section = COSTUME_SECTIONS.get(category.removeprefix('AVATAR_'))
+        if section is None:
+            allowed = PORTED
+        elif bodies is None:
+            continue
+        else:
+            kinds = bodies.get((section, str(costume_types.get(item))), set())
+            allowed = sum(1 << c for c, body in CLASS_BODIES.items() if body in kinds)
+        if mask | allowed != mask:
+            out[item] = max(out.get(item, 0), mask | allowed)
     return out
 
 
