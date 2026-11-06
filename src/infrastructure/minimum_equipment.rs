@@ -124,6 +124,7 @@ pub(super) async fn load(
                 effect: None,
                 class: String::new(),
                 equip_class: String::new(),
+                is_avatar: false,
             })
             .collect();
         return Ok(Loaded {
@@ -154,6 +155,9 @@ pub(super) async fn load(
         .catalog
         .policy
         .is_enabled(Some("StoryTabInInventory"))?;
+    // Gear.GetAvatarPart answers -1 without the Avatar feature: no avatar look then.
+    let avatar_on = assets.catalog.policy.is_enabled(Some("Avatar"))?;
+    let parts = assets.appearance.normal_parts(&assets.catalog)?;
     for row in rows {
         // StorageSetting.EquippableItemStorage: Bag, Cash (100) and Story (103 with
         // StoryTabInInventory); a Cash or Story location only needs Slot >= 0.
@@ -219,11 +223,67 @@ pub(super) async fn load(
             destroyed_def: fields[2],
             effect: item.effect,
             disabled,
+            looks: if avatar_on
+                && row.part > i16::from(equipped_gear::AVATAR_OFFSET)
+                && row.part < 100
+            {
+                avatar_looks(&m.extra_data, profile, assets, &parts)
+            } else {
+                Vec::new()
+            },
         });
         metadata.push(m);
     }
     let bonus = profile.bonus(&items, &metadata)?;
-    let projection = Projection::load(&assets.appearance.normal_parts(&assets.catalog)?, &items)
-        .map_err(|_| fail())?;
+    let projection = Projection::load(&parts, &items).map_err(|_| fail())?;
     Ok(Loaded { projection, bonus })
+}
+
+/// Gear.ToEquippedItemInfos' reading of an avatar piece's ExtraData: CostumeKey/DecorationKey names
+/// hide that costume part; an item class with EquipItemInfo shows its CostumeType on the first
+/// part of its category that has a costume part (ItemContents.GetEquippablePart order).
+fn avatar_looks(
+    extra: &str,
+    profile: &super::equipment_profile::Profile,
+    assets: &Assets,
+    parts: &[equipped_gear::Part],
+) -> Vec<equipped_gear::AvatarLook> {
+    use equipped_gear::AvatarLook;
+    let mut out = Vec::new();
+    for token in extra
+        .split(',')
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .take(64)
+    {
+        if let Some(costume) = equipped_gear::costume_key(token) {
+            out.push(AvatarLook::Hide {
+                costume,
+                decoration: false,
+            });
+            continue;
+        }
+        if let Some(costume) = equipped_gear::decoration_key(token) {
+            out.push(AvatarLook::Hide {
+                costume,
+                decoration: true,
+            });
+            continue;
+        }
+        let key: Vec<u8> = token.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        let Ok(look) = profile.metadata(&assets.catalog, &key) else {
+            continue;
+        };
+        if let Some(p) = parts
+            .iter()
+            .find(|p| p.category == look.category && p.costume.is_some())
+        {
+            out.push(AvatarLook::Show {
+                costume: p.costume.unwrap_or(-1),
+                decoration: p.decoration,
+                serial: look.serial,
+            });
+        }
+    }
+    out
 }

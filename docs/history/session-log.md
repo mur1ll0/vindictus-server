@@ -3822,3 +3822,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` MS2a (capturar o log).
 - Commits: ver "feat: logging nmcogame.dll for the lab client (B5 MS2a)".
 - Pendente / próxima ação: parado para o cliente — sessão MS2a com o `nmcogame-lab.log`; depois MS2 (respostas reais) e MS3 (módulo messenger).
+
+## 2026-11-07 — B5 cosméticos: peças de avatar equipáveis (todas as classes)
+- Feito: relato do operador (07/11): a Miri não equipava itens dos collabs na aba avatar. Log do `game`: `stats.gear` conflict → `minimum equipment change rejected` (o `equipped_gear::Projection::load` recusava parte ≥ 50 e classes `avatar_*`; avatar nunca foi migrado, vale para todas as classes). Migrado do `Gear.cs` (PlayerService): `GetAvatarPart` (normal + 50, chave `Avatar` ligada no EU: 2.01.05 ≤ CurrentVer 3.09.00) e a sobreposição do `ToEquippedItemInfos` (`ExtraData`: `CostumeKey`/`DecorationKey` escondem a parte, classe de item põe o `CostumeType` dela na parte de traje da categoria, cores do avatar, `IsAvatar`, `ArmorHP` 0 → −1; `CostumeDataExtension.ToCostume` Gloss 0). `equipped_gear::AvatarLook`, `costume_key`, `decoration_key`, `apply_avatars`; `minimum_equipment::avatar_looks`; `extra_data` das classes `AVATAR_*` no perfil de equipamento (`export_equipment_profile.py`, `equipment_profile::Metadata.extra_data`; 3.911 classes). Fora: `AvatarHideInfo`, `AvatarSlotBonus`, `AvatarInfo`. Também: a Yui tem modelo, VMT e VTF corretos e idênticos ao EU e ao Windictus; suspeita de cor do item (0x7f…) com ColorOverride, teste pendente com o operador. Texturas Fairy Tail (brancas e sem ícone) foram para a sessão ft-textures.
+- Verificação: `cargo test --test equipped_gear` 3/3 (novo `avatar_pieces_put_their_look_on_the_costume_part`), `--test equipped_appearance_load` 2/2, `--test equipment_profile` 1/1; Python `test_export_equipment_profile` OK; perfil reexportado. Logs `.cache/verification/avatar-*.log`.
+- Cliente: `docs/client-tests/B5-cosmeticos.md` AV1.
+- Commits: (este)
+- Pendente / próxima ação: sessão de cliente AV1 (Miri e uma classe masculina); esconder avatar e AvatarSlotBonus.

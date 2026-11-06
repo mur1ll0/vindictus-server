@@ -79,6 +79,7 @@ fn normal_equipped_projection_set_counts_and_item_stats_match_original_framework
                     destroyed_def: int(&i["destroyed"]),
                     effect: i["effect"].as_i64().map(|n| n as i32),
                     disabled: i["disabled"].as_bool().unwrap(),
+                    looks: vec![],
                     colors: i["colors"]
                         .as_array()
                         .unwrap()
@@ -218,9 +219,114 @@ fn ambiguous_sets_and_unresolved_equipment_are_refused() {
                 stats: Stats::default(),
                 destroyed_def: 0,
                 effect: None,
-                disabled: false
+                disabled: false,
+                looks: vec![],
             }]
         )
         .is_err()
     );
+}
+
+fn gear_item(
+    id: i64,
+    part: u8,
+    category: &str,
+    class: &str,
+    colors: [i32; 3],
+    looks: Vec<gear::AvatarLook>,
+) -> Item {
+    Item {
+        id,
+        part,
+        category: category.into(),
+        class: class.into(),
+        equip_class: "CLOTH".into(),
+        serial: 100 + i32::from(part),
+        level: 1,
+        colors,
+        weight: 0,
+        durability: 0,
+        maximum: 0,
+        armor_hp: 0,
+        stats: Stats::default(),
+        destroyed_def: 0,
+        effect: None,
+        disabled: false,
+        looks,
+    }
+}
+
+#[test]
+fn avatar_pieces_put_their_look_on_the_costume_part() {
+    // Gear.ToEquippedItemInfos: the avatar tunic (part 55) shows kirito_upper (CostumeType 450) on
+    // costume part 4 (UpperBody) with its colors; the avatar helm hides costume part 6 (Head).
+    let part = |slot, category: &str, costume| Part {
+        slot,
+        category: category.into(),
+        costume,
+        decoration: false,
+        consumable: false,
+    };
+    let parts = [
+        part(4, "HELM", Some(6)),
+        part(5, "TUNIC", Some(4)),
+        part(54, "AVATAR_HELM", None),
+        part(55, "AVATAR_TUNIC", None),
+    ];
+    let tunic = gear_item(1, 5, "TUNIC", "plain_tunic", [1, 2, 3], vec![]);
+    let avatar = gear_item(
+        2,
+        55,
+        "AVATAR_TUNIC",
+        "avatar_kirito_upper_jajp",
+        [7, 8, 9],
+        vec![gear::AvatarLook::Show {
+            costume: 4,
+            decoration: false,
+            serial: 450,
+        }],
+    );
+    let helm = gear_item(
+        3,
+        54,
+        "AVATAR_HELM",
+        "avatar_hood",
+        [4, 5, 6],
+        vec![gear::AvatarLook::Hide {
+            costume: 6,
+            decoration: false,
+        }],
+    );
+    let p = Projection::load(&parts, &[tunic.clone(), avatar.clone(), helm]).unwrap();
+    let upper = p.infos.iter().find(|i| i.costume == 4).unwrap();
+    assert_eq!(
+        (upper.serial, upper.colors, upper.is_avatar, upper.armor_hp),
+        (450, [7, 8, 9], true, -1)
+    );
+    assert_eq!(upper.costume_x64().gloss, Some(0));
+    let head = p.infos.iter().find(|i| i.costume == 6).unwrap();
+    assert_eq!(
+        (head.serial, head.colors, head.is_avatar),
+        (-1, [4, 5, 6], true)
+    );
+    // The avatar slots project no costume part of their own; both pieces are equipment.
+    assert_eq!(p.equipment.len(), 3);
+    assert!(
+        p.infos
+            .iter()
+            .filter(|i| i.costume == -1)
+            .all(|i| !i.is_avatar)
+    );
+    // A disabled (expired) avatar puts nothing on; a normal part may not carry looks.
+    let mut off = avatar.clone();
+    off.disabled = true;
+    let p = Projection::load(&parts, &[tunic.clone(), off]).unwrap();
+    let upper = p.infos.iter().find(|i| i.costume == 4).unwrap();
+    assert_eq!((upper.serial, upper.is_avatar), (105, false));
+    let mut wrong = tunic;
+    wrong.looks = avatar.looks.clone();
+    assert!(Projection::load(&parts, &[wrong]).is_err());
+    assert_eq!(gear::costume_key("upperbody"), Some(4));
+    assert_eq!(gear::decoration_key("BodyPainting"), Some(6));
+    assert_eq!(gear::costume_key("kirito_upper_jajp"), None);
 }

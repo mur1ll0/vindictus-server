@@ -26,6 +26,7 @@ fn info(v: &Value) -> Info {
         effect: v["Effect"].as_i64().map(|n| n as i32),
         class: String::new(),
         equip_class: String::new(),
+        is_avatar: v["IsAvatar"].as_bool().unwrap_or(false),
     }
 }
 fn costume(c: &Costume) -> Value {

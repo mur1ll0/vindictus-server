@@ -29,6 +29,9 @@ struct Class {
     required_skill_rank: i32,
     required_enhance: i32,
     required_enchant: i32,
+    /// ItemClassInfo.ExtraData of an avatar piece (the looks it puts on), when exported.
+    #[serde(default)]
+    extra_data: Option<PrivateText>,
 }
 
 #[derive(Deserialize)]
@@ -92,6 +95,8 @@ pub struct Metadata {
     pub equip_class: String,
     pub serial: i32,
     pub sets: Vec<Option<String>>,
+    /// ItemClassInfo.ExtraData of an avatar piece (empty for the other classes).
+    pub extra_data: String,
 }
 fn fail() -> MinimumError {
     MinimumError::Conflict
@@ -307,6 +312,12 @@ impl Profile {
             equip_class: text(&e.equip_utf16)?,
             serial: e.serial,
             sets,
+            extra_data: c
+                .extra_data
+                .as_ref()
+                .map(text)
+                .transpose()?
+                .unwrap_or_default(),
         })
     }
     /// ItemClassInfo.Category of any profile class (equippable or consumable).

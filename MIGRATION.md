@@ -91,7 +91,7 @@ Decisões pendentes:
 - [ ] Pets P7 (pets do NA, junto com a importação das classes) e pet de outro jogador (multijogador).
 - [ ] Títulos/achievements restantes (títulos adquiridos e por ação de combate já feitos no B2).
 - [x] Leilão/mercado (03/11/2026): registrar com taxa, buscar (categoria, nome, filtros, ordem, páginas), comprar parcial, cancelar, expirar e ouro/itens pelo correio; listagens automáticas do servidor no painel (extensão, Ajustes de jogo; sorteio por aba, preço de reserva e pergaminhos em 05/11), abas de armas da Delia e da Miri na cópia do cliente (`docs/marketplace.md`); cliente pendente.
-- [ ] Cash shop e cosméticos restantes (Depot já funciona).
+- [ ] Cash shop e cosméticos restantes (Depot já funciona; peças de avatar equipáveis com visual pelo ExtraData em 07/11, sem esconder avatar nem AvatarSlotBonus).
 - [ ] Paridade e aceite final (M23/M24).
 
 ## Trilhas paralelas

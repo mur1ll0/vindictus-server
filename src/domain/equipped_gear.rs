@@ -1,5 +1,8 @@
-//! Normal equipment projection. Avatar replacement/ExtraData overlays are a
-//! separate profile: callers must establish their absence before using this kernel.
+//! Equipment projection: Gear.ToEquippedItemInfos with the avatar overlay. An avatar piece sits
+//! at its normal part + 50 (GetAvatarPart, FeatureMatrix Avatar) and its ItemClassInfo.ExtraData
+//! names what it shows: a CostumeKey/DecorationKey hides that costume part, an item class puts
+//! that class's CostumeType on the costume part of its category, with the avatar's colors and
+//! IsAvatar (Gloss 0). Avatar hiding (AvatarHideInfo) and AvatarSlotBonus are not migrated.
 use super::{
     character_stats::{ItemResult, Stats, empty_gear},
     equipped_skills::{self, Equipment, EquipmentError},
@@ -34,6 +37,55 @@ pub struct Item {
     pub destroyed_def: i32,
     pub effect: Option<i32>,
     pub disabled: bool,
+    /// What an avatar piece (part 51-99) shows, from its ExtraData; empty for the others.
+    pub looks: Vec<AvatarLook>,
+}
+/// One ExtraData entry of an avatar piece, resolved by the caller.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AvatarLook {
+    /// CostumeKey or DecorationKey name: the costume part shows nothing (CostumeSN -1).
+    Hide { costume: i32, decoration: bool },
+    /// An item class: its EquipItemInfo.CostumeType on the costume part of its category.
+    Show {
+        costume: i32,
+        decoration: bool,
+        serial: i32,
+    },
+}
+/// Gear.GetAvatarPart: the avatar part of a normal part 1-49.
+pub const AVATAR_OFFSET: u8 = 50;
+/// CostumeManager.CostumeKeyDict (PlayerService CostumeKey) by name, ignoring case.
+pub fn costume_key(name: &str) -> Option<i32> {
+    const KEYS: [&str; 10] = [
+        "Base",
+        "InnerArmor",
+        "Face",
+        "Hair",
+        "UpperBody",
+        "LowerBody",
+        "Head",
+        "Foot",
+        "Hand",
+        "Motion",
+    ];
+    KEYS.iter()
+        .position(|k| k.eq_ignore_ascii_case(name))
+        .and_then(|i| i32::try_from(i).ok())
+}
+/// CostumeManager.DecorationKeyDict (PlayerService DecorationKey) by name, ignoring case.
+pub fn decoration_key(name: &str) -> Option<i32> {
+    const KEYS: [&str; 7] = [
+        "EyeBrows",
+        "MakeUp",
+        "FacePainting",
+        "Scar",
+        "Beard",
+        "Piercing",
+        "BodyPainting",
+    ];
+    KEYS.iter()
+        .position(|k| k.eq_ignore_ascii_case(name))
+        .and_then(|i| i32::try_from(i).ok())
 }
 #[derive(Clone)]
 pub struct Info {
@@ -52,6 +104,8 @@ pub struct Info {
     pub effect: Option<i32>,
     pub class: String,
     pub equip_class: String,
+    /// EquippedItemInfo.IsAvatar: an avatar piece's look is on this costume part.
+    pub is_avatar: bool,
 }
 impl Info {
     /// Original ToCostume Double expressions for the explicit Framework x64 profile.
@@ -64,7 +118,8 @@ impl Info {
             key: self.costume as u8,
             serial: Some(self.serial),
             colors: self.colors.map(Some),
-            gloss: Some(gloss),
+            // CostumeDataExtension.ToCostume: Gloss = IsAvatar ? 0 : durability gloss.
+            gloss: Some(if self.is_avatar { 0 } else { gloss }),
             effect: self.effect,
         }
     }
@@ -85,6 +140,7 @@ impl Info {
             effect: None,
             class: String::new(),
             equip_class: String::new(),
+            is_avatar: false,
         }
     }
 }
@@ -134,8 +190,9 @@ impl Projection {
         let mut by_part = BTreeMap::new();
         let mut ids = BTreeSet::new();
         for item in items {
-            if item.part >= 50
-                || item.class.contains("avatar_")
+            if item.part >= 100
+                || (item.part <= AVATAR_OFFSET && !item.looks.is_empty())
+                || item.looks.len() > 64
                 || item.class.len() > 100
                 || !item
                     .class
@@ -187,6 +244,7 @@ impl Projection {
                         effect: item.effect,
                         class: item.class.clone(),
                         equip_class: item.equip_class.clone(),
+                        is_avatar: false,
                     });
                     if let Some(c) = p.costume {
                         sent.insert(c);
@@ -204,6 +262,7 @@ impl Projection {
         if !by_part.is_empty() || infos.len() > 128 {
             return Err(GearError);
         }
+        apply_avatars(&mut infos, items);
         Ok(Self { infos, equipment })
     }
     pub fn item_stats(&self, set: &Stats, cache: &Cache) -> Result<ItemResult, EquipmentError> {
@@ -227,6 +286,43 @@ impl Projection {
             Err(EquipmentError::Category)
         })?;
         Ok(out)
+    }
+}
+
+/// Gear.ToEquippedItemInfos: the avatar pieces in normal part order, later ones winning a costume
+/// part (Dictionary assignment), overlay the infos of their costume parts.
+fn apply_avatars(infos: &mut [Info], items: &[Item]) {
+    let mut avatars: Vec<&Item> = items
+        .iter()
+        .filter(|i| i.part > AVATAR_OFFSET && !i.disabled && !i.looks.is_empty())
+        .collect();
+    avatars.sort_by_key(|i| i.part);
+    let mut shown: BTreeMap<(bool, i32), (Option<i32>, [i32; 3])> = BTreeMap::new();
+    for item in avatars {
+        for look in &item.looks {
+            let (key, serial) = match *look {
+                AvatarLook::Hide {
+                    costume,
+                    decoration,
+                } => ((decoration, costume), None),
+                AvatarLook::Show {
+                    costume,
+                    decoration,
+                    serial,
+                } => ((decoration, costume), Some(serial)),
+            };
+            shown.insert(key, (serial, item.colors));
+        }
+    }
+    for info in infos.iter_mut() {
+        if let Some((serial, colors)) = shown.get(&(info.decoration, info.costume)) {
+            info.serial = serial.unwrap_or(-1);
+            info.colors = *colors;
+            info.is_avatar = true;
+            if !info.decoration && serial.is_some() && info.armor_hp == 0 {
+                info.armor_hp = -1;
+            }
+        }
     }
 }
 

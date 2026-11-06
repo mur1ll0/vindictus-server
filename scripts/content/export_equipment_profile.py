@@ -45,6 +45,9 @@ def read_package(database, config, selected, limit=4096):
         for i, row in enumerate(db.execute('SELECT * FROM ItemClassInfo')):
             if text(row['ItemClass']) in selected:
                 classes.append(dict(source_index=i, item_utf16=text(row['ItemClass']), feature=row['Feature'], category_utf16=text(row['Category']), level=integer(row['Level']), required_level=integer(row['RequiredLevel']), level_upper_bound=integer(row['LevelUpperBound']), class_restriction=integer(row['ClassRestriction']), cafe_only=integer(row['IsCafeOnly']), required_skill_utf16=text(row['RequiredSkill']), required_skill_rank=integer(row['RequiredSkillRank']), required_enhance=integer(row['RequiredEnhanceLevel']), required_enchant=integer(row['RequiredEnchantLevel'])))
+                # Gear.ToEquippedItemInfos: an avatar piece's ExtraData names the looks it puts on.
+                if isinstance(row['Category'], str) and row['Category'].upper().startswith('AVATAR_') and row['ExtraData']:
+                    classes[-1]['extra_data'] = text(row['ExtraData'])
         for i, row in enumerate(db.execute('SELECT * FROM EquipItemInfo')):
             if text(row['ItemClass']) in selected:
                 equips.append(dict(source_index=i, item_utf16=text(row['ItemClass']), feature=row['Feature'], equip_utf16=text(row['EquipClass']), serial=integer(row['CostumeType'])))

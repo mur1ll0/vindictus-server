@@ -35,7 +35,7 @@ As fontes originais permanecem somente leitura; Fiona/schema33 e os 11 itens sã
 ## Entrega P0-02b — equipamento vestido na leitura (20/10/2026)
 
 - Perfil somente leitura `heroesContents.normal-equipment` (classe/categoria/nível, EquipClass/CostumeType, sets e efeitos) vinculado aos hashes do catálogo e às fontes; exportador Python com testes.
-- `minimum_equipment::load` carrega Gear a partir de `game_equippables.part`, recusa partes inválidas/duplicadas, Avatar, atributos, expiração, storages extras e quickslots. Projeção `ToEquippedItemInfo` (placeholders, peso inteiro, slots desativados por durabilidade), `ToEquipmentInfo` e set bonus com dedup por (SetID, ItemClass).
+- `minimum_equipment::load` carrega Gear a partir de `game_equippables.part`, recusa partes inválidas/duplicadas, atributos, expiração, storages extras e quickslots. Projeção `ToEquippedItemInfo` (placeholders, peso inteiro, slots desativados por durabilidade), `ToEquipmentInfo` e set bonus com dedup por (SetID, ItemClass).
 - Seleção/relogin: EquipmentInfo do InventoryInfo468 reflete as partes vestidas; UpdateStat usa CalculateItemStat com peso real (perfil Framework x64) e a aparência aplica `LoadItemCostumes` sobre os costumes salvos. Sem itens vestidos, o caminho aceito anteriormente fica inalterado.
 - Oracles Framework (Gear/costume/load) x86=x64 com fixtures sintéticas; testes PostgreSQL/TCP de seleção com equipamento salvo, consultas repetidas e reentrada sem escrita.
 - Gate 2026-10-20T19:56:44Z: 390 Rust, 241 PostgreSQL nativos (0 ignorados), 48 Python, zero falhas/avisos. Pré-verificação somente leitura na base real: 11 itens, 5 classes de metadata, 0 equipados, nenhum DML. Evidência: [minimum-equipped-read.json](evidence/auth/minimum-equipped-read.json).
@@ -54,7 +54,8 @@ Handler `EquipItem457` ligado no frontend após a seleção (mesma admissão de 
 Diferenças deliberadas e limites:
 - Uma única transação para item + costume + projeção. No original, falha de restrição/slot após retirar o item de outra parte deixava o estado em memória não salvo; aqui há rollback completo.
 - `ItemLog`/journal `EventType.EquipItem` e `NotifyLook` para outros jogadores no canal ainda não são gravados/difundidos (sessão solo).
-- Itens fora do perfil de equipamento, Avatar, atributos, expiração, quickslots e slots expandidos continuam recusados.
+- Itens fora do perfil de equipamento, atributos, expiração, quickslots e slots expandidos continuam recusados.
+- Avatar (07/11/2026, relato do operador: peças da aba avatar não equipavam em nenhuma classe; o `game` recusava em `stats.gear`): peças nas partes 54–58 (`Gear.GetAvatarPart`, normal + 50, com a chave `Avatar`), visual pelo `ExtraData` do item (`Gear.ToEquippedItemInfos`: nome de `CostumeKey`/`DecorationKey` esconde a parte; classe de item põe o `CostumeType` dela na parte de traje da categoria, com as cores do avatar, `IsAvatar` e `Gloss` 0; `ArmorHP` 0 vira −1). O `ExtraData` das classes `AVATAR_*` vai no `normal-equipment-profile-v4.json` (`extra_data`). Fora: esconder avatar (`AvatarHideInfo`, o pedido continua ignorado), `AvatarSlotBonus` (`AvatarSetBonusInfo`) e o `AvatarInfo` do `CostumeInfo` (fica falso).
 
 Verificação: oracle Framework `ItemSyncWireOracle` (617/358/447, 72 casos/arquitetura, x86=x64); testes de requisitos; PostgreSQL de equipar → recusas → relogin → desequipar restaurando todas as linhas; TCP desequipar → reequipar → recusa pelo socket. Aceite no cliente ainda pendente.
 
