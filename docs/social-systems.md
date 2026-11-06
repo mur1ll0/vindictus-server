@@ -40,7 +40,8 @@ Plano levantado em 03/11/2026 a partir do C# descompilado (`legacy/decompiled`: 
 | PV4 | Resultado: selos (`honor_stamp`), `PvpResultInfo` (Win, Lose, MaxSuccessiveWin), `ArenaResultInfo` 647, GP de guilda, ranking `Pvp_<modo>`, penalidade (`PvpPenalty` 648) | PV3, G4, RK1 |
 
 Etapas do Messenger (D-S1):
-- MS1 — investigação dirigida (I-M1): formato de `NMCO_CallNMFunction` (código da função + buffer serializado) e o caminho de volta dos eventos ao jogo (janela/mensagem ou callback), pelas chamadas no `engine.dll` e pelas exportações do `nmcogame.dll`; sem análise do binário inteiro.
+- MS1 — **Feito 06/11** (`docs/messenger-protocol.md`: exportações e ordinais, `NMCO_CallNMFunction(code, buf, cryptVer, ppRet, pRetLen)`, envelope v0/v1, objetos 'fo'/'eo', 179 códigos de função, eventos por PostMessage(hWnd, 0x8001, código, envelope), superfície mínima). Investigação dirigida (I-M1): formato de `NMCO_CallNMFunction` (código da função + buffer serializado) e o caminho de volta dos eventos ao jogo (janela/mensagem ou callback), pelas chamadas no `engine.dll` e pelas exportações do `nmcogame.dll`; sem análise do binário inteiro.
+- MS2a — `nmcogame.dll` de registro (Rust, 32 bits): responde o mínimo (callbacks, Initialize, login com evento 0x1001, GetMyInfo, lista de amigos vazia) e grava a sequência real de códigos num log do laboratório; uma sessão de cliente confirma quais códigos o jogo chama.
 - MS2 — `nmcogame.dll` em Rust (32 bits, como `tools/launcher`): as exportações acima, login no messenger do servidor com o ticket do jogo, conexão TCP própria.
 - MS3 — módulo `messenger` no servidor: lista de amigos com presença, pedido/aceite/recusa, remover, categorias (grupos), difusão pelo `party_hub`.
 - MS4 — chat em grupo (sessões de chat do Messenger, `HeroesNMChatSession`).

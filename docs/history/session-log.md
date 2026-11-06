@@ -3808,3 +3808,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário.
 - Commits: ver "docs: D-S1 decided, own messenger in Rust (B5)".
 - Pendente / próxima ação: MS1 — análise dirigida de `NMCO_CallNMFunction` no `engine.dll` e das exportações do `nmcogame.dll` (formato do buffer e caminho dos eventos).
+
+## 2026-11-06 — MS1 protocolo do Messenger no cliente (B5)
+- Feito: investigação dirigida (tabelas PE, RTTI/vtables, funções específicas no Ghidra headless sem auto-análise; nada executado) registrada em `docs/messenger-protocol.md`: exportações do `nmcogame.dll` (ordinais 1–6, engine importa 1–5), `NMCO_CallNMFunction` cdecl (código, buffer, cryptVer, ppRet, pRetLen) com uma chamada em `CNMCOClientObject::CallNMFunc`, envelope v0 (texto puro) e v1 (XOR encadeado), objetos 'fo'/'eo' versão 1, primitivos e strings UTF-16 com comprimento compacto, 179 códigos de função, eventos por PostMessage(hWnd, 0x8001, código, envelope liberado por NMCO_MemoryFree), superfície mínima para amigos e chat em grupo.
+- Verificação: análise estática dirigida; pendências listadas no documento (significado de campos, sequência pós-login, códigos realmente chamados).
+- Cliente: próximo passo precisa de sessão de cliente (MS2a: DLL de registro).
+- Commits: ver "docs: messenger protocol of the 1.69 client (B5 MS1)".
+- Pendente / próxima ação: MS2a — `nmcogame.dll` de registro em Rust (32 bits) e sessão de cliente para capturar a sequência.
