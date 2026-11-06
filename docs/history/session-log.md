@@ -3801,3 +3801,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-eventos.md` EV13 (em ouro).
 - Commits: (este)
 - Pendente / próxima ação: sessão de cliente EV12–EV14 e MK12.
+
+## 2026-11-06 — D-S1 decidida: Messenger próprio em Rust (B5)
+- Feito: operador decidiu D-S1 = Messenger próprio em Rust (`nmcogame.dll` substituto + módulo `messenger` no servidor). Etapas MS1–MS5 registradas em `docs/social-systems.md`; SO3/SO4 passam a MS3/MS4.
+- Verificação: não aplicável (decisão e plano).
+- Cliente: não necessário.
+- Commits: ver "docs: D-S1 decided, own messenger in Rust (B5)".
+- Pendente / próxima ação: MS1 — análise dirigida de `NMCO_CallNMFunction` no `engine.dll` e das exportações do `nmcogame.dll` (formato do buffer e caminho dos eventos).
