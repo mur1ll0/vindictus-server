@@ -306,6 +306,12 @@ impl GuildHub {
             .unwrap_or_default()
     }
     /// The online name of a member (OnlineGuildMember.Sender).
+    /// IsGuildInfoChanged of a loaded guild, for the next Sync.
+    pub(super) fn mark_info_changed(&self, guild_sn: i32) {
+        if let Some(e) = self.lock().get_mut(&guild_sn) {
+            e.info_changed = true;
+        }
+    }
     pub(super) fn online_name(&self, guild_sn: i32, cid: i64) -> Option<String> {
         self.lock()
             .get(&guild_sn)?
@@ -1820,4 +1826,152 @@ pub async fn is_member_on(conn: &mut sqlx::PgConnection, cid: i64) -> Result<boo
             .fetch_one(&mut *conn)
             .await?,
     )
+}
+
+/// FindNewbieRecommendGuildProcessor: GuildService.NewbieRecommendGuild holds the loaded
+/// guilds with NewbieRecommend and an online member; up to three draws of Next(Count - 1)
+/// (the last guild is never drawn, as the source), a drawn guild that no longer qualifies
+/// leaves the list. None when nothing qualifies (the frontend then sends nothing).
+pub async fn find_newbie_recommend(
+    pool: &PgPool,
+    hub: &GuildHub,
+) -> Result<Option<GuildInfo>, MinimumError> {
+    if !rules::NEWBIE_RECOMMEND {
+        return Ok(None);
+    }
+    let flagged: Vec<i32> = sqlx::query_scalar(
+        "SELECT g.oid_guild FROM game_guild g JOIN game_guild_info i ON i.guild_sn=g.oid_guild \
+         WHERE g.newbie_recommend AND i.closed_seconds IS NULL ORDER BY g.oid_guild",
+    )
+    .fetch_all(pool)
+    .await?;
+    let mut list: Vec<i32> = flagged
+        .into_iter()
+        .filter(|sn| !hub.online(*sn).is_empty())
+        .collect();
+    use rand_core::RngCore;
+    for _ in 0..3 {
+        if list.is_empty() {
+            return Ok(None);
+        }
+        let bound = u32::try_from(list.len() - 1).unwrap_or(0);
+        let index = if bound == 0 {
+            0
+        } else {
+            (rand_core::OsRng.next_u32() % bound) as usize
+        };
+        let sn = list[index];
+        if let Some(info) = info(pool, &hub.config(), sn).await?
+            && info.is_newbie_recommend
+        {
+            return Ok(Some(info));
+        }
+        list.remove(index);
+    }
+    Ok(None)
+}
+
+/// RequestNewbieRecommendGuildProcessor, then the frontend's JoinGuild: every online member
+/// of the guild gets NoticeNewbieRecommendMessage(requester, ShipID) through the party hub,
+/// and the requester applies to the guild (rank Wait). Nothing returns to the requester.
+#[allow(clippy::too_many_arguments)]
+pub async fn request_newbie_recommend(
+    pool: &PgPool,
+    party: &PartyHub,
+    hub: &GuildHub,
+    cid: i64,
+    name: &str,
+    ship_id: i64,
+    guild_sn: i32,
+) -> Result<(), MinimumError> {
+    let online = hub.online(guild_sn);
+    if online.is_empty() {
+        return Ok(());
+    }
+    use crate::protocol::guild_newbie as newbie;
+    let (category, body) = newbie::packet(
+        &newbie::Message::NoticeNewbieRecommend(newbie::Notice {
+            request_user_name: Some(name.to_owned()),
+            ship_id,
+        }),
+        crate::protocol::DEFAULT_MAX_BODY,
+    )
+    .map_err(|_| fail())?;
+    for member in online.values() {
+        party.deliver(
+            *member,
+            vec![OutgoingPacket {
+                category,
+                body: body.clone(),
+            }],
+        );
+    }
+    if !matches!(join(pool, party, hub, cid, guild_sn).await, Ok(Ok(_))) {
+        tracing::info!("newbie recommend join refused; values omitted");
+    }
+    Ok(())
+}
+
+/// DirectPurchaseGuildItemProcessor for the master (the frontend answers IsNotMaster to
+/// others): "guild_extension_member_N" raises MaxMemberLimit by N up to
+/// InGameGuild_MaxMemberLimit; the payment is DirectPickUpByProductNo of the cash product
+/// (the NISMS billing is the laboratory cash balance: its SalePrice is debited with the
+/// limit's update in one transaction); the guild then syncs. Returns the
+/// DirectPurchaseGuildItemResultCode, 0 when the payment fails (the source's FailMessage).
+#[allow(clippy::too_many_arguments)]
+pub async fn direct_purchase(
+    pool: &PgPool,
+    party: &PartyHub,
+    hub: &GuildHub,
+    assets: &super::minimum_assets::Assets,
+    uid: i32,
+    cid: i64,
+    guild_sn: i32,
+    product_no: i32,
+    item_class: &str,
+) -> Result<i32, MinimumError> {
+    use crate::protocol::guild_newbie::purchase_result as code;
+    let Some(guild) = info(pool, &hub.config(), guild_sn).await? else {
+        return Ok(code::GUILD_NOT_INITIALIZE);
+    };
+    if hub.online_name(guild_sn, cid).is_none() {
+        return Ok(code::IS_NOT_MASTER);
+    }
+    let Some(added) = item_class
+        .strip_prefix(rules::MEMBER_EXTENSION)
+        .and_then(|n| n.trim().parse::<i32>().ok())
+    else {
+        return Ok(code::CANNOT_PARSE_ITEM);
+    };
+    let wanted = guild.max_member_count.saturating_add(added);
+    if rules::MAX_MEMBER_LIMIT < wanted {
+        return Ok(code::OVER_MAX_MEMBER_LIMIT);
+    }
+    let Some(product) = assets.cash_shop.as_ref().and_then(|c| c.product(product_no)) else {
+        return Ok(0);
+    };
+    let mut tx = pool.begin().await?;
+    let debited: Option<i32> = sqlx::query_scalar(
+        "UPDATE game_cash_balances SET balance=balance-$2 WHERE uid=$1 AND balance>=$2 RETURNING balance",
+    )
+    .bind(uid)
+    .bind(product.element.sale_price)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if debited.is_none() {
+        return Ok(0);
+    }
+    let updated = sqlx::query("UPDATE game_guild SET max_member_limit=$2 WHERE oid_guild=$1")
+        .bind(guild_sn)
+        .bind(wanted)
+        .execute(&mut *tx)
+        .await?;
+    if updated.rows_affected() != 1 {
+        // RollbackDirectPickUp: the transaction rolls back the payment.
+        return Ok(code::DATABASE_FAIL);
+    }
+    tx.commit().await?;
+    hub.mark_info_changed(guild_sn);
+    sync(pool, party, hub, guild_sn, cid).await?;
+    Ok(code::SUCCESS)
 }

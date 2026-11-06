@@ -380,3 +380,67 @@ async fn pvp_full_matching_pairs_confirms_and_dodges() {
     assert_eq!(formats(&got)[0].1, "GameUI_Heroes_PvpJoinFail_Dodged");
     cleanup_game_pool(a, p, s).await;
 }
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn pvp_party_registration_checks_the_team_and_waits_together() {
+    use vindictus_server::infrastructure::pvp_match::TeamEntry;
+    let (a, p, s) = isolated_game_pool().await;
+    let assets = minimum_character::assets();
+    let party = Arc::new(PartyHub::new(false, false));
+    let hub = Arc::new(PvpHub::new(
+        Arc::clone(&party),
+        Arc::new(vindictus_server::infrastructure::guild::GuildHub::default()),
+    ));
+    let (tx1, mut rx1) = tokio::sync::mpsc::channel(64);
+    party.register(1, "Fiona", tx1);
+    let (tx2, mut rx2) = tokio::sync::mpsc::channel(64);
+    party.register(2, "Evie", tx2);
+    let binder = Binder {
+        pool: p.clone(),
+        assets,
+        config: QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        arithmetic: Arithmetic::FrameworkX64,
+        ids: None,
+        guild_levels: None,
+    };
+    let team = || {
+        [(1, "Fiona"), (2, "Evie")]
+            .into_iter()
+            .map(|(cid, name)| TeamEntry {
+                cid,
+                uid: 31,
+                account: "owner".to_owned(),
+                revision: 0,
+                level: 50,
+                name: name.to_owned(),
+                guild_id: 0,
+            })
+            .collect::<Vec<_>>()
+    };
+    let request = |mode: &str| wire::Register {
+        pvp_mode: Some(mode.to_owned()),
+        cheat: 0,
+        channel_id: 0,
+    };
+    // The Arena takes one player; a team of TeamSize 1 is too big.
+    let own = hub.register_team(binder.clone(), team(), rules(), &request("p05")).unwrap();
+    assert_eq!(result(&own[0]).1, "GameUI_Heroes_PvpJoinFail_InvalidPartySize");
+    let own = hub.register_team(binder.clone(), team(), full_rules(), &request("p04")).unwrap();
+    assert_eq!(result(&own[0]).1, "GameUI_Heroes_PvpJoinFail_InvalidPartySize");
+    // TeamSize 2: the party is a full team waiting for an opponent; both are told.
+    let mut two = full_rules();
+    if let Some(c) = two.config.as_mut() {
+        c.team_size = 2;
+    }
+    assert!(hub.register_team(binder, team(), two, &request("p04")).unwrap().is_empty());
+    for rx in [&mut rx1, &mut rx2] {
+        let got = until(rx, Kind::RegisterResult.category()).await;
+        assert_eq!(result(got.last().unwrap()).1, "GameUI_Heroes_PvpJoin_WaitingOpponent");
+    }
+    assert!(hub.locks_party(1) && hub.locks_party(2));
+    cleanup_game_pool(a, p, s).await;
+}

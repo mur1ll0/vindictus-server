@@ -1449,3 +1449,64 @@ async fn guild_storage_deposits_picks_and_arranges_items_and_gold() {
     assert_eq!(items, vec![(true, 20), (true, 10), (false, 30)]);
     cleanup_game_pool(admin, p, schema).await;
 }
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn guild_newbie_recommend_finds_notices_applies_and_purchase_refuses() {
+    use vindictus_server::protocol::guild_newbie::{self as newbie, purchase_result};
+    let (admin, p, schema) = isolated_game_pool().await;
+    character(&p, 1, 10, "Alice", 25).await;
+    character(&p, 2, 20, "Bob", 3).await;
+    let party = PartyHub::new(false, false);
+    let hub = GuildHub::default();
+    let sn = guilds::open(&p, 1, "Night_Owls", "nightowls", None)
+        .await
+        .unwrap()
+        .unwrap();
+    let (a_tx, mut a_rx) = tokio::sync::mpsc::channel(64);
+    party.register(1, "Alice", a_tx);
+    let (b_tx, _b_rx) = tokio::sync::mpsc::channel(64);
+    party.register(2, "Bob", b_tx);
+    // Without NewbieRecommend nothing is found.
+    let (state, _) = guilds::enter(&p, &party, &hub, 1).await;
+    assert_eq!(state, State::InGuild { guild_sn: sn });
+    assert!(guilds::find_newbie_recommend(&p, &hub).await.unwrap().is_none());
+    sqlx::query("UPDATE game_guild SET newbie_recommend=true WHERE oid_guild=$1")
+        .bind(sn)
+        .execute(&p)
+        .await
+        .unwrap();
+    let found = guilds::find_newbie_recommend(&p, &hub).await.unwrap().unwrap();
+    assert!(found.is_newbie_recommend);
+    while a_rx.try_recv().is_ok() {}
+    // Bob asks: Alice (online) gets the notice and Bob applies to the guild.
+    guilds::request_newbie_recommend(&p, &party, &hub, 2, "Bob", 0, sn)
+        .await
+        .unwrap();
+    let got = pushed(&mut a_rx);
+    let notice = got
+        .iter()
+        .find_map(|p| match newbie::decode_ingress(newbie::Kind::NoticeNewbieRecommend, p.category, &p.body, DEFAULT_MAX_BODY) {
+            Ok(Some(newbie::Message::NoticeNewbieRecommend(n))) => Some(n),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!((notice.request_user_name.as_deref(), notice.ship_id), (Some("Bob"), 0));
+    let applied: i64 = sqlx::query_scalar("SELECT count(*) FROM game_guild_user WHERE cid=2 AND guild_sn=$1")
+        .bind(sn)
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(applied, 1);
+    // DirectPurchaseGuildItem refusals before the payment.
+    let assets = super::minimum_character::assets();
+    let purchase = |class: &'static str| {
+        let (p, party, hub, assets) = (&p, &party, &hub, &assets);
+        async move { guilds::direct_purchase(p, party, hub, assets, 10, 1, sn, 7, class).await.unwrap() }
+    };
+    assert_eq!(purchase("potion").await, purchase_result::CANNOT_PARSE_ITEM);
+    assert_eq!(purchase("guild_extension_member_101").await, purchase_result::OVER_MAX_MEMBER_LIMIT);
+    // Without the cash product the payment fails (the client sees 0).
+    assert_eq!(purchase("guild_extension_member_10").await, 0);
+    cleanup_game_pool(admin, p, schema).await;
+}

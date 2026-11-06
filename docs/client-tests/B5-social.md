@@ -168,3 +168,18 @@ Pré-condição: nos dados do EU os times são de 8 (DeathMatch p03, só guilda;
 3. [ ] GodMatch: derrubar o deus do outro time → fim (se for antes de 7 min, aviso de "partida rápida demais" e o fim espera); DeathMatch: vencer 2 rodadas.
 4. [ ] Fim: selos para vencedor e perdedor; cada um confirma a saída (ou todos saem em 32 s).
 5. [ ] O anfitrião sai no meio → o outro vira anfitrião (recarrega como host).
+
+### G7 — Guilda recomendada para novatos
+Pré-condição: A mestre de uma guilda, B sem guilda (duas contas).
+1. [ ] A liga "recomendar a novatos" na janela da guilda (configuração de mestre/oficial).
+2. [ ] B (sem guilda) abre a busca de guilda recomendada → aparece a guilda de A (precisa ter alguém online nela).
+3. [ ] B pede para entrar pela recomendação → A recebe o aviso do pedido do novato; B fica como candidato na guilda (A aprova como sempre).
+
+### G8 — Compra direta de vagas na guilda
+Pré-condição: A mestre; o cash shop do laboratório precisa ter um produto `guild_extension_member_N` (cadastre pelo painel se não houver) e saldo de cash.
+1. [ ] A compra a extensão de membros → o limite da guilda sobe N (até 200); B (não mestre) recebe "não é mestre".
+2. [ ] Sem saldo ou sem o produto → falha sem mudar o limite.
+
+### PV — Registro de party no PvP
+1. [ ] A (mestre de party com B) entra no GodMatch/DeathMatch com "jogadores por time" 2 no painel → os dois veem "aguardando oponente" juntos; na Arena a party é recusada (só solo).
+2. [ ] Enquanto registrados, convites, saída e expulsão de party são ignorados.

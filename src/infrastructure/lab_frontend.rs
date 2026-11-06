@@ -1114,6 +1114,22 @@ impl Connection {
             tracing::info!(ok, "pvp host game info processed; values omitted");
             return Ok(());
         }
+        // LockPartyProxy: while registered in PvP the party stays as it is.
+        if matches!(
+            message,
+            Message::RequestJoinParty(_)
+                | Message::PartyInvite(_)
+                | Message::PartyInvitationAccept(_)
+                | Message::Kick(_)
+                | Message::LeaveParty
+        ) && self
+            .selected
+            .as_ref()
+            .is_some_and(|s| runtime.pvp.locks_party(s.cid))
+        {
+            tracing::info!("party operation during pvp ignored; values omitted");
+            return Ok(());
+        }
         // MicroPlayHost/ShipHost messages: a MicroPlayMember's frontend does not forward them.
         let host_only = matches!(
             message,
@@ -2720,6 +2736,109 @@ impl Connection {
             guild_levels,
         })
     }
+    /// GuildServiceProxy: FindNewbieRecommendGuild and RequestNewbieRecommendGuild (OutGuild),
+    /// DirectPurchaseGuildItem (InGuild; IsNotMaster for others; UseSecondPassword passes).
+    async fn guild_newbie_message(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        category: i32,
+        body: &[u8],
+        message: Option<crate::protocol::guild_newbie::Message>,
+    ) -> Result<(), RuntimeError> {
+        use crate::protocol::guild_newbie::{self as wire, Message};
+        let (Some(message), Some(cid)) = (message, self.selected.as_ref().map(|s| s.cid)) else {
+            self.log_unhandled(category, body);
+            return Ok(());
+        };
+        let reply = |m: Message| -> Option<crate::domain::map_partition::OutgoingPacket> {
+            wire::packet(&m, DEFAULT_MAX_BODY)
+                .ok()
+                .map(|(category, body)| crate::domain::map_partition::OutgoingPacket { category, body })
+        };
+        match (message, self.guild) {
+            (Message::FindNewbieRecommendGuild(_), super::guild::State::OutGuild) => {
+                let found = super::guild::find_newbie_recommend(pool, &runtime.guilds)
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?;
+                if let Some(info) = found
+                    && let Some(p) = reply(Message::FindNewbieRecommendGuildResult(wire::FindResult { info: Some(info) }))
+                {
+                    runtime.party.deliver(cid, vec![p]);
+                }
+            }
+            (Message::RequestNewbieRecommendGuild(request), super::guild::State::OutGuild) => {
+                let name: Vec<u8> = sqlx::query_scalar("SELECT name_utf16 FROM game_character_info WHERE id=$1")
+                    .bind(cid)
+                    .fetch_one(pool)
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?;
+                let name = String::from_utf16_lossy(
+                    &name.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect::<Vec<_>>(),
+                );
+                // ShipID: BattleServiceProxy.PartyID.
+                let ship_id = match runtime.party.role(cid) {
+                    super::party_hub::Role::Master { party_id, .. }
+                    | super::party_hub::Role::Member { party_id, .. } => party_id,
+                    super::party_hub::Role::None => 0,
+                };
+                super::guild::request_newbie_recommend(
+                    pool,
+                    &runtime.party,
+                    &runtime.guilds,
+                    cid,
+                    &name,
+                    ship_id,
+                    request.guild_sn,
+                )
+                .await
+                .map_err(|_| RuntimeError::Operation)?;
+            }
+            (Message::DirectPurchaseGuildItem(request), super::guild::State::InGuild { guild_sn }) => {
+                let item_class = request.item_class.clone().unwrap_or_default();
+                let master = super::guild::membership(pool, cid)
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?
+                    .is_some_and(|(sn, r)| sn == guild_sn && r == crate::protocol::guild::rank::MASTER);
+                let result = if master {
+                    let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+                    let assets = minimum.assets.current();
+                    let id = self
+                        .frontend
+                        .accepted_identity()
+                        .map_err(|_| RuntimeError::Operation)?;
+                    super::guild::direct_purchase(
+                        pool,
+                        &runtime.party,
+                        &runtime.guilds,
+                        &assets,
+                        id.nexon_sn,
+                        cid,
+                        guild_sn,
+                        request.product_no,
+                        &item_class,
+                    )
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?
+                } else {
+                    wire::purchase_result::IS_NOT_MASTER
+                };
+                if let Some(p) = reply(Message::DirectPurchaseGuildItemResult(wire::PurchaseResult {
+                    item_class: Some(item_class),
+                    result,
+                })) {
+                    runtime.party.deliver(cid, vec![p]);
+                }
+            }
+            _ => {
+                // Another state (or a server message): the proxy ignores it.
+                tracing::info!(category, "guild newbie message ignored in this state; values omitted");
+                return Ok(());
+            }
+        }
+        tracing::info!(category, "guild newbie message processed; values omitted");
+        Ok(())
+    }
     /// PvpServiceProxy.Initial(PvpRegisterMessage): DSWaiting does not exist without a DS;
     /// InMicroPlay in a mission; BattleServiceProxy.QueryPartyMembers (a party member is
     /// InvalidMaster); PVPPartyCountLimit (InvalidMembercount; the IgnoreRestriction cheat
@@ -2752,11 +2871,63 @@ impl Connection {
             Some("GameUI_Heroes_PvpJoinFail_InvalidMaster")
         } else if limit > 0 && members > limit as usize {
             Some("GameUI_Heroes_PvpJoinFail_InvalidMembercount")
-        } else if members != 1 {
-            Some("GameUI_Heroes_PvpJoinFail_InvalidPartySize")
         } else {
             None
         };
+        // QueryPartyMembers of a master: the whole party registers (RegisterPvpPlayer IDList).
+        if refusal.is_none()
+            && members > 1
+            && let super::party_hub::Role::Master { party_id, .. } = runtime.party.role(cid)
+        {
+            let mut team = Vec::new();
+            for member in runtime.party.members(party_id) {
+                let row: Option<(i32, i32, Vec<u8>, String, i64)> = sqlx::query_as(
+                    "SELECT c.uid,c.level,c.name_utf16,u.name_key,u.local_revision FROM game_character_info c JOIN game_users u ON u.id=c.uid WHERE c.id=$1",
+                )
+                .bind(member)
+                .fetch_optional(pool)
+                .await
+                .map_err(|_| RuntimeError::Operation)?;
+                let Some((uid, level, name_utf16, account, revision)) = row else {
+                    continue;
+                };
+                let guild_id = super::guild::membership(pool, member)
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?
+                    .map_or(0, |(sn, _)| sn);
+                team.push(super::pvp_match::TeamEntry {
+                    cid: member,
+                    uid,
+                    account,
+                    revision,
+                    level,
+                    name: String::from_utf16_lossy(
+                        &name_utf16
+                            .as_chunks::<2>()
+                            .0
+                            .iter()
+                            .map(|c| u16::from_le_bytes(*c))
+                            .collect::<Vec<_>>(),
+                    ),
+                    guild_id,
+                });
+            }
+            let binder = self.pvp_binder(runtime, pool, &assets)?;
+            let rules = super::pvp_match::Rules::from_assets(
+                &assets,
+                request.pvp_mode.as_deref().unwrap_or_default(),
+            )
+            .map_err(|_| RuntimeError::Profile)?;
+            match runtime.pvp.register_team(binder, team, rules, request) {
+                Ok(packets) if !packets.is_empty() => {
+                    runtime.party.deliver(cid, packets);
+                }
+                Ok(_) => {}
+                Err(_) => tracing::warn!("pvp party register failed; values omitted"),
+            }
+            tracing::info!("pvp party register processed; values omitted");
+            return Ok(());
+        }
         let (level, name_utf16): (i32, Vec<u8>) =
             sqlx::query_as("SELECT level,name_utf16 FROM game_character_info WHERE id=$1")
                 .bind(cid)
@@ -5764,6 +5935,17 @@ impl Connection {
                     .rank_message(runtime, pool, stream, sender, category, body, message)
                     .await;
             }
+        }
+        // Newbie guild recommendation and direct guild purchase: unregistered (GUID envelope).
+        if let Some(kind) = crate::protocol::guild_newbie::ingress_kind(category, body) {
+            let message = crate::protocol::guild_newbie::decode_ingress(
+                kind,
+                category,
+                body,
+                DEFAULT_MAX_BODY,
+            )
+            .map_err(|_| RuntimeError::Message)?;
+            return self.guild_newbie_message(runtime, pool, category, body, message).await;
         }
         // Guild storage messages: unregistered, so only their GUID envelope is theirs.
         if let Some(kind) = crate::protocol::guild_storage::ingress_kind(category, body) {

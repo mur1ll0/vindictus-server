@@ -3787,3 +3787,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: roteiro EV14 (prévia e peças vestidas com textura nas classes femininas) pendente do operador.
 - Commits: ver o commit "feat: lab textures for the Fairy Tail collab outfits (B5 EV14)".
 - Pendente / próxima ação: sessão de cliente do operador pelo EV14 (junto com EV12/EV13); efeito da tintura e do reflexo das peças `_metal` não verificados.
+
+## 2026-11-06 — G7/G8 e registro de party no PvP (B5)
+- Feito: `protocol::guild_newbie` (FindNewbieRecommendGuild/Result com InGameGuildInfo, RequestNewbieRecommendGuild, NoticeNewbieRecommend, DirectPurchaseGuildItem/Result; oráculo `GuildNewbieWireOracle.cs` + `generate-guild-newbie-wire-fixtures.ps1`, 17 casos). `guild::find_newbie_recommend` (NewbieRecommend + online, Next(Count-1) em até 3 sorteios), `request_newbie_recommend` (Notice aos online pelo `PartyHub` + JoinGuild), `direct_purchase` (mestre, `guild_extension_member_N` até 200, débito do produto de cash e MaxMemberLimit numa transação, Sync), `GuildHub::mark_info_changed`; constantes EU MAX_MEMBER_LIMIT 200 e NEWBIE_RECOMMEND. `PvpHub::register_team` (QueryPartyMembers do mestre: duplicados, níveis, tamanho e guilda do Full matching; Arena só solo), membros com uid/name_key/local_revision do banco, `locks_party` e a trava de party no frontend (convite, aceite, saída, expulsão, pedido de entrada ignorados).
+- Verificação: `cargo test --test guild_newbie_wire` 1 passed; PostgreSQL `guild_`/`pvp_` 10 passed e `pvp_party` 1 passed no test-postgres (removido); `cargo clippy --all-targets` sem avisos. Logs `.cache/verification/g78-*.log`, `pvparty-*.log`.
+- Cliente: `docs/client-tests/B5-social.md` G7, G8 e PvP de party.
+- Commits: ver "feat: newbie guild recommendation, guild member purchase and PvP party registration (B5)".
+- Pendente / próxima ação: sessão de cliente (PV3a/PV3b/G7/G8/PvP de party); decisão D-S1 para SO3/SO4.

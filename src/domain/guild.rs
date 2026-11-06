@@ -8,6 +8,12 @@ use crate::protocol::guild::rank;
 pub const NAME_MAX: usize = 20;
 /// FeatureMatrix InGameGuild_MaxMember.
 pub const DEFAULT_MAX_MEMBER: i32 = 100;
+/// FeatureMatrix InGameGuild_MaxMemberLimit (EN-EU): the cap of the member extensions.
+pub const MAX_MEMBER_LIMIT: i32 = 200;
+/// FeatureMatrix NewbieGuildRecommend ("2.01.04", on in EN-EU at CurrentVer 3.09.00).
+pub const NEWBIE_RECOMMEND: bool = true;
+/// DirectPurchaseGuildItem's only item: "guild_extension_member_" + the added members.
+pub const MEMBER_EXTENSION: &str = "guild_extension_member_";
 /// GuildCreate/GuildCheckGroupID @guildId nvarchar(24): longer IDs are truncated.
 pub const ID_MAX: usize = 24;
 /// GuildCreate @guildIntro nvarchar(200).

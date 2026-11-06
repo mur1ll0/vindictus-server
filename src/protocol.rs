@@ -210,4 +210,5 @@ pub mod title;
 
 pub mod pvp;
 
+pub mod guild_newbie;
 pub mod guild_storage;

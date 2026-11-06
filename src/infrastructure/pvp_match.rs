@@ -1532,13 +1532,18 @@ impl PvpHub {
 
     /// FullMatchingSystem.RegisterPlayer of a solo player (AddMakingParty).
     fn full_register(self: &Arc<Self>, mode: &str, config: &PvpConfig, cid: i64) {
+        self.full_register_team(mode, config, vec![cid]);
+    }
+
+    /// FullMatchingSystem.RegisterPlayer of a registered team (AddMakingParty).
+    fn full_register_team(self: &Arc<Self>, mode: &str, config: &PvpConfig, team: Vec<i64>) {
         let mut out = Vec::new();
         {
             let mut state = self.lock();
             let guilds: HashMap<i64, i32> = state.players.iter().map(|(c, p)| (*c, p.guild_id)).collect();
             let full = state.full.entry(mode.to_owned()).or_default();
             full.config = Some(config.clone());
-            Self::add_making(full, mode, config, vec![cid], &guilds, &mut out);
+            Self::add_making(full, mode, config, team, &guilds, &mut out);
         }
         self.deliver(out);
     }
@@ -1801,5 +1806,108 @@ impl PvpHub {
             }
         };
         self.deliver(out);
+    }
+}
+
+/// A party member registered by its master (PvPPartyMemberInfo with the member's account).
+pub struct TeamEntry {
+    pub cid: i64,
+    pub uid: i32,
+    pub account: String,
+    pub revision: i64,
+    pub level: i32,
+    pub name: String,
+    pub guild_id: i32,
+}
+
+impl PvpHub {
+    /// RegisterPvpPlayerProcessor of a party (the master's QueryPartyMembers): the members'
+    /// duplicates, levels, the Full matching's party size and guild rules (the Arena takes one
+    /// player), then one PvpPlayer per member and the team's AddMakingParty.
+    pub fn register_team(
+        self: &Arc<Self>,
+        binder: Binder,
+        members: Vec<TeamEntry>,
+        rules: Rules,
+        request: &wire::Register,
+    ) -> Result<Vec<OutgoingPacket>, MinimumError> {
+        let mode = request.pvp_mode.clone().unwrap_or_default();
+        let canceled = |format: &str, args: &[String]| -> Result<Vec<OutgoingPacket>, MinimumError> {
+            Ok(vec![register_result(&mode, register_state::CANCELED, true, false, format, args)?])
+        };
+        let Some(config) = rules.config.clone() else {
+            return canceled("GameUI_Heroes_PvpJoinFail_InvalidPvpMode", &[]);
+        };
+        *self.binder.lock().unwrap_or_else(PoisonError::into_inner) = Some(binder);
+        {
+            let mut state = self.lock();
+            let mut duplicated = false;
+            for m in &members {
+                duplicated |= state.players.remove(&m.cid).is_some();
+            }
+            if duplicated {
+                return canceled("GameUI_Heroes_PvpJoinFail_PlayerDuplicated", &[]);
+            }
+        }
+        for m in &members {
+            if config.level_min != -1 && m.level < config.level_min {
+                return canceled("GameUI_Heroes_PvpJoinFail_LevelConstraint_Min", &[config.level_min.to_string()]);
+            }
+            if config.level_max != -1 && m.level > config.level_max {
+                return canceled("GameUI_Heroes_PvpJoinFail_LevelConstraint_Max", &[config.level_max.to_string()]);
+            }
+        }
+        let size = usize::try_from(config.team_size).unwrap_or(0);
+        match config.matching {
+            Matching::Full if config.is_guild => {
+                let guild = members.first().map_or(0, |m| m.guild_id);
+                if members.len() != size {
+                    return canceled("GameUI_Heroes_PvpJoinFail_InvalidPartySize", &[config.team_size.to_string()]);
+                }
+                if guild == 0 || members.iter().any(|m| m.guild_id != guild) {
+                    return canceled("GameUI_Heroes_PvpJoinFail_InvalidGuildTeam", &[]);
+                }
+            }
+            Matching::Full => {
+                if members.len() > size {
+                    return canceled("GameUI_Heroes_PvpJoinFail_InvalidPartySize", &[config.team_size.to_string()]);
+                }
+            }
+            Matching::Arena => return canceled("GameUI_Heroes_PvpJoinFail_InvalidPartySize", &["1".to_owned()]),
+            _ => return canceled("GameUI_Heroes_PvpJoinFail_InvalidPvpMode", &[]),
+        }
+        {
+            let mut state = self.lock();
+            for m in &members {
+                state.players.insert(
+                    m.cid,
+                    Player {
+                        mode: mode.clone(),
+                        channel: request.channel_id,
+                        play: None,
+                        slot: -1,
+                        stage: Stage::Created,
+                        proxy: Proxy::Waiting,
+                        key: (rand_core::OsRng.next_u32() & 0x7fff_ffff) as i32,
+                        join: None,
+                        owner: Owner {
+                            uid: m.uid,
+                            name: m.account.clone(),
+                            revision: m.revision,
+                        },
+                        name: m.name.clone(),
+                        level: m.level,
+                        guild_id: m.guild_id,
+                    },
+                );
+            }
+        }
+        self.full_register_team(&mode, &config, members.iter().map(|m| m.cid).collect());
+        Ok(Vec::new())
+    }
+
+    /// LockPartyProxy: a character registered in PvP keeps its party as it is.
+    pub fn locks_party(&self, cid: i64) -> bool {
+        self.lock().players.contains_key(&cid)
     }
 }
