@@ -44,6 +44,8 @@ fn rules() -> Rules {
     Rules {
         config: contents().get("p05").cloned(),
         spectator_min: 1,
+        double_event: false,
+        character_rank: true,
     }
 }
 
@@ -130,6 +132,7 @@ async fn pvp_arena_channels_register_bind_and_remove() {
             care_clock: None,
         },
         arithmetic: Arithmetic::FrameworkX64,
+        ids: None,
     };
     let query = wire::QueryChannelList {
         pvp_mode: Some("p05".to_owned()),
@@ -145,6 +148,7 @@ async fn pvp_arena_channels_register_bind_and_remove() {
         cid: 1,
         owner: &owner,
         level: 1,
+        name: "Fiona",
     };
     hub.register(binder.clone(), entry(), None, rules(), &register(5))
         .map(|own| assert_eq!(result(&own[0]), (register_state::CANCELED, "GameUI_Heroes_PvpJoinFail_InvalidChannel".to_owned())))
@@ -186,6 +190,10 @@ async fn pvp_arena_channels_register_bind_and_remove() {
     assert_eq!(result(&own[0]).1, "GameUI_Heroes_PvpJoinFail_PlayerDuplicated");
     // Not a PvP host: RegisterServer belongs to a mission.
     assert_eq!(hub.register_server(1, None), None);
+    // Level 1 is below LevelLimitMin 40 for a bout (Arena_Register_Level_Fail).
+    let refused = hub.waiting_queue(1, 0);
+    assert_eq!(refused.len(), 1);
+    assert_ne!(refused[0].category, Kind::Command.category());
     hub.remove(1);
     assert!(hub.proxy(1).is_none());
     cleanup_game_pool(a, p, s).await;
@@ -225,14 +233,33 @@ async fn pvp_arena_bound_player_is_kicked_and_the_channel_empties() {
             care_clock: None,
         },
         arithmetic: Arithmetic::FrameworkX64,
+        ids: None,
     };
     let entry = Entry {
         cid: 1,
         owner: &owner,
         level: 50,
+        name: "Fiona",
     };
     hub.register(binder, entry, None, rules(), &register(1)).unwrap();
     until(&mut rx, MKind::ConnectionRequest.category()).await;
+    // The host queues for bout 0: the game's commands go to the host (itself).
+    assert!(hub.waiting_queue(1, 0).is_empty());
+    let commands: Vec<(i32, String)> = until(&mut rx, Kind::Command.category())
+        .await
+        .iter()
+        .filter(|p| p.category == Kind::Command.category())
+        .map(|p| match wire::decode(Kind::Command, &p.body, DEFAULT_MAX_BODY).unwrap() {
+            Some(wire::Message::Command(c)) => (c.command, c.arg.unwrap_or_default()),
+            _ => panic!("no PvpCommandMessage"),
+        })
+        .collect();
+    assert_eq!(
+        commands[0],
+        (6, "0,GameUI_Heroes_Pvp_Arena_Registerd_Waiting_Queue,Fiona".to_owned())
+    );
+    // An unknown bout is the processor's Unknown, as a ForceDialog.
+    assert_eq!(hub.waiting_queue(1, 9).len(), 1);
     hub.remove(1);
     let kicked = until(&mut rx, Kind::Kicked.category()).await;
     assert!(kicked.iter().any(|p| p.category == Kind::Kicked.category()));

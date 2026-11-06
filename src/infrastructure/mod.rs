@@ -171,6 +171,7 @@ pub mod guild_storage;
 pub mod party_hub;
 pub mod pvp;
 pub mod pvp_match;
+pub mod pvp_reward;
 pub mod rank;
 pub mod rank_title;
 pub mod relay;

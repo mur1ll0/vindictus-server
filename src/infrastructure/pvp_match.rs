@@ -20,6 +20,7 @@ use crate::{
         character_stats::Arithmetic,
         map_partition::OutgoingPacket,
         pvp::{Matching, PvpConfig},
+        pvp_arena::{self as arena, Arena, Effect, Timer},
     },
     protocol::{
         DEFAULT_MAX_BODY,
@@ -83,6 +84,9 @@ struct Player {
     key: i32,
     join: Option<JoinMember>,
     owner: Owner,
+    /// The character's name and level (PlayerInfo).
+    name: String,
+    level: i32,
 }
 
 /// ArenaChannel: PlayerDic in registration order, InGamePlayers, WaitingPlayers.
@@ -103,6 +107,8 @@ struct Play {
     host_info: Option<GameInfo>,
     slots: Vec<Option<i64>>,
     config: PvpConfig,
+    /// ArenaGame of an Arena play.
+    arena: Option<Arena>,
 }
 
 #[derive(Default)]
@@ -120,25 +126,63 @@ pub struct Binder {
     pub assets: Arc<Assets>,
     pub config: QueryConfig,
     pub arithmetic: Arithmetic,
+    /// MakeEntityID for the rewards.
+    pub ids: Option<crate::application::creation_lifecycle::EntityIds>,
 }
 
 /// The mode's PvpConfig and FeatureMatrix ArenaSpecatorLevelLimitMin.
 pub struct Rules {
     pub config: Option<PvpConfig>,
     pub spectator_min: i32,
+    /// FeatureMatrix ArenaDoubleEvent and CharacterRank.
+    pub double_event: bool,
+    pub character_rank: bool,
 }
 impl Rules {
     pub fn from_assets(assets: &Assets, mode: &str) -> Result<Self, MinimumError> {
+        let policy = assets.npc_policy();
+        let enabled = |key: &str| -> Result<bool, MinimumError> {
+            policy
+                .map(|p| p.is_enabled(Some(key)))
+                .transpose()
+                .map_err(|_| fail())
+                .map(|v| v.unwrap_or(false))
+        };
         Ok(Self {
             config: assets.npc_pvp(mode).cloned(),
-            spectator_min: assets
-                .npc_policy()
+            spectator_min: policy
                 .map(|p| p.get_integer("ArenaSpecatorLevelLimitMin"))
                 .transpose()
                 .map_err(|_| fail())?
                 .unwrap_or(0),
+            double_event: enabled("ArenaDoubleEvent")?,
+            character_rank: enabled("CharacterRank")?,
         })
     }
+}
+
+fn arena_rules(config: &PvpConfig, rules: &Rules) -> arena::Rules {
+    let size = |v: i32| usize::try_from(v).unwrap_or(0);
+    arena::Rules {
+        pair_of_player: size(config.pair_of_player),
+        team_size: size(config.team_size),
+        max_size: size(config.max_size),
+        game_length: config.game_length,
+        wait_between_round: config.wait_between_round,
+        round_to_win: config.round_to_win,
+        win_signet: config.win_signet,
+        lose_signet: config.lose_signet,
+        reward_cool_down: config.same_player_reward_cool_down,
+        has_event_reward: !config.event_reward_item.is_empty(),
+        double_event: rules.double_event,
+        character_rank: rules.character_rank,
+    }
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
 }
 
 /// A registering character (RegisterPvpPlayer of one PvPPartyMemberInfo).
@@ -146,6 +190,8 @@ pub struct Entry<'a> {
     pub cid: i64,
     pub owner: &'a UserKey<'a>,
     pub level: i32,
+    /// The character's name.
+    pub name: &'a str,
 }
 
 pub struct PvpHub {
@@ -192,8 +238,20 @@ fn client_config(config: &PvpConfig) -> StrDict<Option<String>> {
     ))
 }
 
-/// ArenaGame.GameInfo outside InGame: TeamInfo {-1: "0, 0"}, every slot "0,0,0,0".
+/// IPvpGame.GameInfo: the Arena's, else TeamInfo {-1: "0, 0"} and every slot "0,0,0,0".
 fn game_info(play: &Play) -> wire::PvpGameInfo {
+    if let Some(a) = &play.arena {
+        let (team, players) = a.game_info(now_ms());
+        let dict = |v: Vec<(i32, String)>| {
+            crate::protocol::inventory::Dict(Some(
+                v.into_iter().map(|(k, v)| (k, Some(v))).collect(),
+            ))
+        };
+        return wire::PvpGameInfo {
+            team_info: dict(team),
+            player_info: dict(players),
+        };
+    }
     wire::PvpGameInfo {
         team_info: crate::protocol::inventory::Dict(Some(vec![(-1, Some("0, 0".to_owned()))])),
         player_info: crate::protocol::inventory::Dict(Some(
@@ -220,7 +278,10 @@ impl PvpHub {
         *self.relay.write().unwrap_or_else(PoisonError::into_inner) = relay;
     }
     fn relay(&self) -> Option<Relay> {
-        self.relay.read().unwrap_or_else(PoisonError::into_inner).clone()
+        self.relay
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
     fn lock(&self) -> MutexGuard<'_, State> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
@@ -297,7 +358,7 @@ impl PvpHub {
             return canceled(format);
         }
         *self.binder.lock().unwrap_or_else(PoisonError::into_inner) = Some(binder.clone());
-        let Some(config) = rules.config else {
+        let Some(config) = rules.config.clone() else {
             return canceled("GameUI_Heroes_PvpJoinFail_InvalidPvpMode");
         };
         let spectator_min = rules.spectator_min;
@@ -349,6 +410,8 @@ impl PvpHub {
                         name: entry.owner.name.to_owned(),
                         revision: entry.owner.revision,
                     },
+                    name: entry.name.to_owned(),
+                    level: entry.level,
                 },
             );
         }
@@ -410,6 +473,7 @@ impl PvpHub {
                             host_info: None,
                             slots: vec![None; size],
                             config: config.clone(),
+                            arena: Some(Arena::new(arena_rules(&config, &rules), now_ms())),
                         },
                     );
                     if let Some(c) = state.channels.get_mut(&key) {
@@ -493,7 +557,9 @@ impl PvpHub {
             binder.arithmetic,
         )
         .await;
-        let canceled = |format: &str| register_result(&mode, register_state::CANCELED, true, false, format, &[]);
+        let canceled = |format: &str| {
+            register_result(&mode, register_state::CANCELED, true, false, format, &[])
+        };
         let member = match member {
             Ok(m) => m,
             Err(_) => {
@@ -512,7 +578,14 @@ impl PvpHub {
                 _ => return,
             }
         }
-        let Ok(complete) = register_result(&mode, register_state::WAIT, true, false, "GameUI_Heroes_PvpJoin_WhoisComplete", &[]) else {
+        let Ok(complete) = register_result(
+            &mode,
+            register_state::WAIT,
+            true,
+            false,
+            "GameUI_Heroes_PvpJoin_WhoisComplete",
+            &[],
+        ) else {
             return;
         };
         self.deliver(vec![(cid, complete)]);
@@ -570,7 +643,14 @@ impl PvpHub {
             self.remove(cid);
             return;
         }
-        if let Ok(p) = register_result(&mode, register_state::WAIT, true, false, "GameUI_Heroes_PvpJoin_P2PJoined", &[]) {
+        if let Ok(p) = register_result(
+            &mode,
+            register_state::WAIT,
+            true,
+            false,
+            "GameUI_Heroes_PvpJoin_P2PJoined",
+            &[],
+        ) {
             self.deliver(vec![(cid, p)]);
         }
         self.join_complete(cid);
@@ -578,23 +658,30 @@ impl PvpHub {
         loop {
             match events.recv().await {
                 Ok(RelayEvent::Closed { cid: c }) if c == cid => {
-                    let waiting_host = self
-                        .lock()
-                        .players
-                        .get(&cid)
-                        .is_some_and(|p| p.play == Some(play_id) && p.stage == Stage::WaitingHostInfo);
-                    if waiting_host
-                        && let Ok(p) = canceled("GameUI_Heroes_PvpJoinFail_JoinP2pFail")
+                    let waiting_host = self.lock().players.get(&cid).is_some_and(|p| {
+                        p.play == Some(play_id) && p.stage == Stage::WaitingHostInfo
+                    });
+                    if waiting_host && let Ok(p) = canceled("GameUI_Heroes_PvpJoinFail_JoinP2pFail")
                     {
                         self.deliver(vec![(cid, p)]);
                     }
-                    if self.lock().players.get(&cid).is_some_and(|p| p.play == Some(play_id)) {
+                    if self
+                        .lock()
+                        .players
+                        .get(&cid)
+                        .is_some_and(|p| p.play == Some(play_id))
+                    {
                         self.remove(cid);
                     }
                     return;
                 }
                 Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
-                    if !self.lock().players.get(&cid).is_some_and(|p| p.play == Some(play_id)) {
+                    if !self
+                        .lock()
+                        .players
+                        .get(&cid)
+                        .is_some_and(|p| p.play == Some(play_id))
+                    {
                         return;
                     }
                 }
@@ -659,7 +746,14 @@ impl PvpHub {
                     p.proxy = Proxy::Hosting;
                 }
             } else {
-                if let Ok(w) = register_result(&mode, register_state::WAIT, true, false, "GameUI_Heroes_PvpJoin_WaitingHost", &[]) {
+                if let Ok(w) = register_result(
+                    &mode,
+                    register_state::WAIT,
+                    true,
+                    false,
+                    "GameUI_Heroes_PvpJoin_WaitingHost",
+                    &[],
+                ) {
                     out.push((cid, w));
                 }
                 if let Some(p) = state.players.get_mut(&cid) {
@@ -706,7 +800,9 @@ impl PvpHub {
                 .lock()
                 .players
                 .iter()
-                .filter(|(c, p)| p.play == Some(play_id) && p.stage == Stage::WaitingHostInfo && **c != cid)
+                .filter(|(c, p)| {
+                    p.play == Some(play_id) && p.stage == Stage::WaitingHostInfo && **c != cid
+                })
                 .map(|(c, _)| *c)
                 .collect();
             for member in waiting {
@@ -723,11 +819,28 @@ impl PvpHub {
         let mut out = Vec::new();
         let mut binds = Vec::new();
         let mut cascade = Vec::new();
+        let mut removal_effects = None;
         {
             let mut state = self.lock();
-            let Some(p) = state.players.remove(&cid) else {
+            let Some(p) = state.players.get(&cid).map(|p| {
+                (
+                    p.mode.clone(),
+                    p.channel,
+                    p.play,
+                    p.slot,
+                    p.owner.name.clone(),
+                )
+            }) else {
                 return;
             };
+            let p = Removed {
+                mode: p.0,
+                channel: p.1,
+                play: p.2,
+                slot: p.3,
+                name: p.4,
+            };
+            state.players.remove(&cid);
             let key = (p.mode.clone(), p.channel);
             if let Some(play_id) = p.play {
                 if let Ok(k) = packet(&wire::Message::Kicked(wire::Empty {})) {
@@ -735,6 +848,10 @@ impl PvpHub {
                 }
                 let mut close = false;
                 if let Some(play) = state.plays.get_mut(&play_id) {
+                    if let (Some(a), Ok(slot)) = (play.arena.as_mut(), usize::try_from(p.slot)) {
+                        let effects = a.remove_player(slot);
+                        removal_effects = Some((play_id, effects));
+                    }
                     if let Some(s) = play.slots.iter_mut().find(|s| **s == Some(cid)) {
                         *s = None;
                     }
@@ -746,9 +863,7 @@ impl PvpHub {
                     }
                     close = play.slots.iter().all(Option::is_none);
                 }
-                if close
-                    && let Some(play) = state.plays.remove(&play_id)
-                {
+                if close && let Some(play) = state.plays.remove(&play_id) {
                     if let Some(relay) = self.relay() {
                         relay.close_group(play.group);
                     }
@@ -777,7 +892,14 @@ impl PvpHub {
                 }
             }
             if dodged
-                && let Ok(d) = register_result(&p.mode, register_state::CANCELED, true, false, "GameUI_Heroes_PvpJoinFail_Dodged", std::slice::from_ref(&p.owner.name))
+                && let Ok(d) = register_result(
+                    &p.mode,
+                    register_state::CANCELED,
+                    true,
+                    false,
+                    "GameUI_Heroes_PvpJoinFail_Dodged",
+                    std::slice::from_ref(&p.name),
+                )
             {
                 out.push((cid, d));
             }
@@ -788,12 +910,19 @@ impl PvpHub {
             }
         }
         self.deliver(out);
+        if let Some((play_id, effects)) = removal_effects {
+            self.apply(play_id, effects);
+        }
         for other in cascade {
             if other != cid {
                 self.remove(other);
             }
         }
-        let binder = self.binder.lock().unwrap_or_else(PoisonError::into_inner).clone();
+        let binder = self
+            .binder
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
         if let Some(binder) = binder {
             for next in binds {
                 tokio::spawn(Arc::clone(self).bind(binder.clone(), next));
@@ -804,6 +933,9 @@ impl PvpHub {
 
 /// ArenaTeam.AddPlayer: the first player of a hostless play is its host; the first free slot.
 fn add_to_play(state: &mut State, play_id: i64, cid: i64) -> bool {
+    let Some(name) = state.players.get(&cid).map(|p| p.name.clone()) else {
+        return false;
+    };
     let Some(play) = state.plays.get_mut(&play_id) else {
         return false;
     };
@@ -814,6 +946,9 @@ fn add_to_play(state: &mut State, play_id: i64, cid: i64) -> bool {
     if play.host.is_none() {
         play.host = Some(cid);
     }
+    if let Some(a) = play.arena.as_mut() {
+        a.add_player(slot, arena::Member { cid, name });
+    }
     let _ = (&play.mode, play.channel);
     match state.players.get_mut(&cid) {
         Some(p) => {
@@ -822,5 +957,356 @@ fn add_to_play(state: &mut State, play_id: i64, cid: i64) -> bool {
             true
         }
         None => false,
+    }
+}
+
+/// The removed player's fields remove() uses after the entry is gone.
+struct Removed {
+    mode: String,
+    channel: i32,
+    play: Option<i64>,
+    slot: i32,
+    name: String,
+}
+
+/// An effect's asynchronous part (PlayerConn and RankConn operations, the PvP DB).
+enum Job {
+    /// GiveRewardItem(class, count).
+    Reward { class: String, count: i32 },
+    /// UpdateRankBasis_Pvp.
+    RankBasis,
+    /// PvpResultLog, then a winner's PvpResultInfoGet → ArenaResultInfoMessage.
+    Result { win: bool, successive: i32 },
+}
+struct Work {
+    cid: i64,
+    owner: (i32, String, i64),
+    mode: String,
+    job: Job,
+}
+
+/// PvpPlay.SendCommand: the arg without a leading or trailing comma.
+fn trim_arg(arg: &str) -> String {
+    let arg = arg.strip_prefix(',').unwrap_or(arg);
+    arg.strip_suffix(',').unwrap_or(arg).to_owned()
+}
+
+impl PvpHub {
+    /// The game's effects: commands to the host and dialogs through the party hub, timers,
+    /// and the reward/result operations run in the background.
+    fn apply(self: &Arc<Self>, play_id: i64, effects: Vec<Effect>) {
+        if effects.is_empty() {
+            return;
+        }
+        let mut out = Vec::new();
+        let mut work = Vec::new();
+        let mut timers = Vec::new();
+        {
+            let state = self.lock();
+            let Some(play) = state.plays.get(&play_id) else {
+                return;
+            };
+            let at = |slot: usize| play.slots.get(slot).copied().flatten();
+            let owner = |cid: i64| {
+                state
+                    .players
+                    .get(&cid)
+                    .map(|p| (p.owner.uid, p.owner.name.clone(), p.owner.revision))
+            };
+            for e in effects {
+                match e {
+                    Effect::Command(command, arg) => {
+                        let arg = trim_arg(&arg);
+                        tracing::info!(command, "pvp command; values omitted");
+                        if let (Some(host), Ok(p)) = (
+                            play.host,
+                            packet(&wire::Message::Command(wire::Command {
+                                command,
+                                arg: Some(arg),
+                            })),
+                        ) {
+                            out.push((host, p));
+                        }
+                    }
+                    Effect::Dialog { slot, format } => {
+                        if let (Some(cid), Ok(p)) = (
+                            at(slot),
+                            super::minimum_shop::system_message(
+                                super::minimum_shop::DIALOG,
+                                format,
+                                &[],
+                            ),
+                        ) {
+                            out.push((cid, p));
+                        }
+                    }
+                    Effect::Schedule { delay_ms, timer } => timers.push((delay_ms, timer)),
+                    Effect::Reward { slot, count } => {
+                        if let Some(cid) = at(slot)
+                            && let Some(o) = owner(cid)
+                        {
+                            work.push(Work {
+                                cid,
+                                owner: o,
+                                mode: play.mode.clone(),
+                                job: Job::Reward {
+                                    class: play.config.reward_item.clone(),
+                                    count,
+                                },
+                            });
+                        }
+                    }
+                    Effect::EventReward { slot } => {
+                        if let Some(cid) = at(slot)
+                            && let Some(o) = owner(cid)
+                        {
+                            work.push(Work {
+                                cid,
+                                owner: o,
+                                mode: play.mode.clone(),
+                                job: Job::Reward {
+                                    class: play.config.event_reward_item.clone(),
+                                    count: 1,
+                                },
+                            });
+                        }
+                    }
+                    Effect::RankBasis { slot } => {
+                        if let Some(cid) = at(slot)
+                            && let Some(o) = owner(cid)
+                        {
+                            work.push(Work {
+                                cid,
+                                owner: o,
+                                mode: play.mode.clone(),
+                                job: Job::RankBasis,
+                            });
+                        }
+                    }
+                    // NotifyStoryEvent(PVP): story events are not migrated.
+                    Effect::Story { .. } => {}
+                    Effect::Result {
+                        slot,
+                        win,
+                        successive,
+                    } => {
+                        if let Some(cid) = at(slot)
+                            && let Some(o) = owner(cid)
+                        {
+                            work.push(Work {
+                                cid,
+                                owner: o,
+                                mode: play.mode.clone(),
+                                job: Job::Result { win, successive },
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        self.deliver(out);
+        for (delay, timer) in timers {
+            let hub = Arc::clone(self);
+            tokio::spawn(async move {
+                if delay > 0 {
+                    tokio::time::sleep(Duration::from_millis(delay)).await;
+                }
+                hub.fire(play_id, timer);
+            });
+        }
+        if !work.is_empty() {
+            let binder = self
+                .binder
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone();
+            if let Some(binder) = binder {
+                let hub = Arc::clone(self);
+                tokio::spawn(async move { hub.run_work(binder, work).await });
+            }
+        }
+    }
+
+    /// A Scheduler job of a play still open.
+    fn fire(self: &Arc<Self>, play_id: i64, timer: Timer) {
+        let effects = {
+            let mut state = self.lock();
+            match state.plays.get_mut(&play_id).and_then(|p| p.arena.as_mut()) {
+                Some(a) => a.timer(timer, now_ms()),
+                None => return,
+            }
+        };
+        self.apply(play_id, effects);
+    }
+
+    async fn run_work(self: Arc<Self>, binder: Binder, work: Vec<Work>) {
+        for w in work {
+            let owner = UserKey {
+                uid: w.owner.0,
+                name: &w.owner.1,
+                revision: w.owner.2,
+            };
+            let done = match &w.job {
+                Job::Reward { class, count } => {
+                    let wanted = usize::try_from(*count)
+                        .unwrap_or(0)
+                        .saturating_mul(2)
+                        .min(512);
+                    let ids = match &binder.ids {
+                        Some(ids) => ids.take(wanted).await.map_err(|_| ()),
+                        None => Err(()),
+                    };
+                    match ids {
+                        Ok(ids) => {
+                            match super::pvp_reward::reward_item(
+                                &binder.pool,
+                                &owner,
+                                &binder.assets,
+                                w.cid,
+                                class,
+                                *count,
+                                ids,
+                            )
+                            .await
+                            {
+                                Ok((_, packets)) => {
+                                    if !packets.is_empty() {
+                                        self.party.deliver(w.cid, packets);
+                                    }
+                                    Ok(())
+                                }
+                                Err(e) => Err(e),
+                            }
+                        }
+                        Err(_) => Err(fail()),
+                    }
+                }
+                Job::RankBasis => super::rank::update_rank_basis(
+                    &binder.pool,
+                    &binder.assets,
+                    w.cid,
+                    &format!("Pvp_{}", w.mode),
+                    1,
+                    0,
+                )
+                .await
+                .map(|_| ()),
+                Job::Result { win, successive } => {
+                    let (wins, loses) = if *win { (1, 0) } else { (0, 1) };
+                    let logged = super::pvp_reward::result_update(
+                        &binder.pool,
+                        w.cid,
+                        &w.mode,
+                        wins,
+                        loses,
+                        *successive,
+                    )
+                    .await;
+                    match (logged, *win) {
+                        (Ok(()), true) => {
+                            match super::pvp_reward::result_info(&binder.pool, w.cid, &w.mode).await
+                            {
+                                Ok(Some((win, lose, max))) => {
+                                    if let Ok(p) = packet(&wire::Message::ArenaResultInfo(
+                                        wire::ArenaResultInfo {
+                                            win,
+                                            lose,
+                                            successive_win: max,
+                                        },
+                                    )) {
+                                        self.party.deliver(w.cid, vec![p]);
+                                    }
+                                    Ok(())
+                                }
+                                Ok(None) => Ok(()),
+                                Err(e) => Err(e),
+                            }
+                        }
+                        (r, _) => r,
+                    }
+                }
+            };
+            if done.is_err() {
+                tracing::warn!("pvp reward or result failed; values omitted");
+            }
+        }
+    }
+
+    /// The play and slot of a ready player.
+    fn seat(state: &State, cid: i64) -> Option<(i64, usize)> {
+        let p = state.players.get(&cid)?;
+        Some((p.play?, usize::try_from(p.slot).ok()?))
+    }
+
+    /// PvpRegisterGameWaitingQueue (Host or Member): Arena only, LevelLimitMin, then
+    /// AddWaitingQueueGame; the failure is a ForceDialog of the frontend.
+    pub fn waiting_queue(self: &Arc<Self>, cid: i64, index: i32) -> Vec<OutgoingPacket> {
+        let refused = |format: &str, args: &[String]| {
+            super::minimum_shop::system_message(5, format, args)
+                .into_iter()
+                .collect::<Vec<_>>()
+        };
+        let (play_id, effects) = {
+            let mut state = self.lock();
+            let Some((play_id, slot)) = Self::seat(&state, cid) else {
+                return refused("GameUI_Heroes_PvpJoinFail_Unknown", &[]);
+            };
+            let level = state.players.get(&cid).map_or(0, |p| p.level);
+            let Some(play) = state.plays.get_mut(&play_id) else {
+                return refused("GameUI_Heroes_PvpJoinFail_Unknown", &[]);
+            };
+            if play.config.level_min > level {
+                let min = play.config.level_min.to_string();
+                return refused("GameUI_Heroes_Arena_Register_Level_Fail", &[min]);
+            }
+            let Some(a) = play.arena.as_mut() else {
+                return refused("GameUI_Heroes_PvpJoinFail_Unknown", &[]);
+            };
+            match usize::try_from(index)
+                .ok()
+                .and_then(|i| a.add_waiting_queue(i, slot, now_ms()))
+            {
+                Some(effects) => (play_id, effects),
+                None => return refused("GameUI_Heroes_PvpJoinFail_Unknown", &[]),
+            }
+        };
+        self.apply(play_id, effects);
+        Vec::new()
+    }
+
+    /// PvpUnregisterGameWaitingQueue.
+    pub fn leave_waiting_queue(self: &Arc<Self>, cid: i64) {
+        let found = {
+            let mut state = self.lock();
+            Self::seat(&state, cid).and_then(|(play_id, slot)| {
+                let a = state.plays.get_mut(&play_id)?.arena.as_mut()?;
+                Some((play_id, a.remove_waiting_queue(slot)))
+            })
+        };
+        if let Some((play_id, effects)) = found {
+            self.apply(play_id, effects);
+        }
+    }
+
+    /// PvpReport of the host (Hosting or Host): Game.OnReport.
+    pub fn report(self: &Arc<Self>, cid: i64, report: &wire::Report) {
+        let found = {
+            let mut state = self.lock();
+            let Some((play_id, _)) = Self::seat(&state, cid) else {
+                return;
+            };
+            match state.plays.get_mut(&play_id) {
+                Some(play) if play.host == Some(cid) => play.arena.as_mut().map(|a| {
+                    (
+                        play_id,
+                        a.report(report.event, report.subject, report.object, now_ms()),
+                    )
+                }),
+                _ => None,
+            }
+        };
+        if let Some((play_id, effects)) = found {
+            self.apply(play_id, effects);
+        }
     }
 }

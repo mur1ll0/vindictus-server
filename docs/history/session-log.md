@@ -3745,3 +3745,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` PV2c (experimento do D-S2).
 - Commits: ver "feat: Arena channels and player-hosted PvP plays (B5 PV2c)".
 - Pendente / próxima ação: parado para o cliente (regra 2): roteiro PV2c (o cliente hospeda o p05?); depois PV3.
+
+## 2026-11-06 — PV3a Arena: lutas, rodadas e recompensas (B5)
+- Feito: operador confirmou que o cliente hospeda a Arena p05 (PV2c, D-S2). `domain::pvp_arena` (ArenaGame/ArenaTeam: fila por quadro, ciclo de estados com os StateChanged, SetBattleGame, StartingPlayerInfo, AllPlayerReady 10 s, rodadas e EndRound por tempo/abate, EndGame, Reward com ArenaDoubleEvent, cooldown da dupla, RankBasis, sequência de vitórias, saída dos perdedores com "Arena_Game_Lose", relatórios Kill/Revive/Win/Draw/Hosted, OnRemovePlayer). `PvpHub`: estado da Arena por partida, efeitos (PvpCommand ao anfitrião com vírgulas aparadas, diálogos, temporizadores, trabalhos assíncronos), PvpRegister/UnregisterGameWaitingQueue (nível mínimo, Unknown como ForceDialog), PvpReport só do anfitrião. `pvp_reward`: RewardItemProcessor (DoChangeItem/DoGiveItem) com PvPReward_Success, PvpResultInfoUpdate/Get (migração `0068_pvp_result_info`), ArenaResultInfoMessage. `CreationRuntime::entity_id_source` (EntityIds clonável) para as recompensas fora de uma mensagem. NotifyStory fora (eventos de história não migrados).
+- Verificação: `cargo test --lib -- domain::pvp` 3 passed (2 simulações de Arena); PostgreSQL `pvp_` 2 passed (fila de luta entrega os comandos ao anfitrião, recusas); `cargo clippy --all-targets` sem avisos. Logs `.cache/verification/pv3a-*.log`.
+- Cliente: `docs/client-tests/B5-social.md` PV3a (dois clientes).
+- Commits: ver "feat: Arena bouts, rounds and rewards (B5 PV3a)".
+- Pendente / próxima ação: PV3b (Full matching e regras de DeathMatch/GodMatch), PV4 (penalidade, GP de guilda, chat/kick de PvP).

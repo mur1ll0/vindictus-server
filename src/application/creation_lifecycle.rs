@@ -94,6 +94,28 @@ pub struct CreationRuntime {
     workers: AsyncMutex<Workers>,
     capacity: usize,
 }
+/// A clone of the runtime's MakeEntityID authority.
+#[derive(Clone)]
+pub struct EntityIds(Arc<Inner>);
+impl EntityIds {
+    /// Service.MakeEntityID ticks; unused IDs are simply skipped, as in the source.
+    pub async fn take(&self, count: usize) -> Result<Vec<i64>, CreationRunError> {
+        if count > 4096 {
+            return Err(CreationRunError::Runtime);
+        }
+        let mut state = self.0.process.lock().await;
+        (0..count)
+            .map(|_| {
+                let now = lab_clock::utc_now().map_err(|_| CreationRunError::Runtime)?;
+                state
+                    .authority
+                    .allocate(now)
+                    .map(|a| a.entity_time.ticks())
+                    .map_err(|_| CreationRunError::Runtime)
+            })
+            .collect()
+    }
+}
 struct Owner {
     uid: i32,
     name: Zeroizing<String>,
@@ -155,20 +177,11 @@ impl CreationRuntime {
     /// Service.MakeEntityID ticks from this runtime's authority, for rows that in-game
     /// operations create (items, skills). Unused IDs are simply skipped, as in the source.
     pub async fn entity_ids(&self, count: usize) -> Result<Vec<i64>, CreationRunError> {
-        if count > 4096 {
-            return Err(CreationRunError::Runtime);
-        }
-        let mut state = self.inner.process.lock().await;
-        (0..count)
-            .map(|_| {
-                let now = lab_clock::utc_now().map_err(|_| CreationRunError::Runtime)?;
-                state
-                    .authority
-                    .allocate(now)
-                    .map(|a| a.entity_time.ticks())
-                    .map_err(|_| CreationRunError::Runtime)
-            })
-            .collect()
+        self.entity_id_source().take(count).await
+    }
+    /// The same MakeEntityID authority for work outside a frontend message (PvP rewards).
+    pub fn entity_id_source(&self) -> EntityIds {
+        EntityIds(Arc::clone(&self.inner))
     }
     /// Initial stopped=false is the original unassigned bool property, not a feature override.
     pub async fn set_stopped(&self, stopped: bool) {

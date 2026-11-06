@@ -53,6 +53,7 @@ pub mod npc_script;
 pub mod npc_talk;
 pub mod periodic_event;
 pub mod pvp;
+pub mod pvp_arena;
 pub mod queued_item;
 pub mod repair;
 pub mod shop;

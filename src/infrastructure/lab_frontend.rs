@@ -2601,9 +2601,27 @@ impl Connection {
                 tracing::info!("pvp unregister processed; values omitted");
                 return Ok(());
             }
+            Some(Pvp::RegisterGameWaitingQueue(request)) => {
+                let refused = runtime.pvp.waiting_queue(cid, request.game_index);
+                if !refused.is_empty() {
+                    runtime.party.deliver(cid, refused);
+                }
+                tracing::info!("pvp waiting queue processed; values omitted");
+                return Ok(());
+            }
+            Some(Pvp::UnregisterGameWaitingQueue(_)) => {
+                runtime.pvp.leave_waiting_queue(cid);
+                tracing::info!("pvp waiting queue left; values omitted");
+                return Ok(());
+            }
+            Some(Pvp::Report(report)) => {
+                runtime.pvp.report(cid, &report);
+                tracing::info!(event = report.event, "pvp report processed; values omitted");
+                return Ok(());
+            }
             Some(_) => {
-                // Confirm join, reports, penalties and the Arena waiting queue are PV3.
-                tracing::info!(category, "pvp message not migrated (PV3); values omitted");
+                // Confirm join and penalties belong to the Full matching (DeathMatch, GodMatch).
+                tracing::info!(category, "pvp message not migrated; values omitted");
                 return Ok(());
             }
             None => {
@@ -2685,11 +2703,20 @@ impl Connection {
         } else {
             None
         };
-        let level: i32 = sqlx::query_scalar("SELECT level FROM game_character_info WHERE id=$1")
-            .bind(cid)
-            .fetch_one(pool)
-            .await
-            .map_err(|_| RuntimeError::Operation)?;
+        let (level, name_utf16): (i32, Vec<u8>) =
+            sqlx::query_as("SELECT level,name_utf16 FROM game_character_info WHERE id=$1")
+                .bind(cid)
+                .fetch_one(pool)
+                .await
+                .map_err(|_| RuntimeError::Operation)?;
+        let name = String::from_utf16_lossy(
+            &name_utf16
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|c| u16::from_le_bytes(*c))
+                .collect::<Vec<_>>(),
+        );
         let id = self
             .frontend
             .accepted_identity()
@@ -2708,11 +2735,13 @@ impl Connection {
             assets: Arc::clone(&assets),
             config: runtime.minimum_header()?,
             arithmetic: runtime.stat_arithmetic(),
+            ids: Some(minimum.creation.entity_id_source()),
         };
         let entry = super::pvp_match::Entry {
             cid,
             owner: &owner,
             level,
+            name: &name,
         };
         let rules = super::pvp_match::Rules::from_assets(
             &assets,

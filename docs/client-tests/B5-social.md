@@ -150,3 +150,13 @@ Pré-condição: Docker reconstruído; contas A e B com personagens na cidade, f
 4. [ ] Dentro da Arena: anote o que cada um vê (placar, botões de entrar na fila de luta); nenhuma luta começa ainda.
 5. [ ] B sai da Arena pela interface → B volta à cidade; A continua. Depois A sai → A volta à cidade e, se B ainda estiver dentro, B também sai (a saída do anfitrião fecha a Arena).
 Relato: o resultado de cada passo (ok/falhou), o horário e um print do que aparecer. Os logs do servidor eu leio.
+
+### PV3a — Arena: lutas, rodadas e recompensas (dois clientes)
+Pré-condição: PV2c confirmado (A hospedou a Arena em 06/11). A e B com nível 40 ou mais (abaixo disso a fila de luta recusa com "nível mínimo"); para ganhar selos, cada um precisa ter `honor_stamp_limit` no inventário (a recompensa troca um `honor_stamp_limit` por um `honor_stamp`, como no original; sem ele a luta conta mas não dá selo).
+1. [ ] A e B entram no mesmo canal (A anfitrião). Os dois clicam em "Match Request" do mesmo quadro (1 dos 4) → mensagens de fila/escalação no quadro; ~5 s depois "aguardando início", contagem de 10 s e a luta começa (90 s).
+2. [ ] Um derrota o outro → fim da luta: o vencedor recebe "selo de honra recebido" e o resultado de Arena (vitórias/derrotas/sequência), o perdedor vê "você perdeu" e sai do quadro; 15 s depois o ciclo volta a "aguardando partida".
+3. [ ] Repetir a mesma dupla em até 10 min → a luta acontece mas sem selos (SamePlayerRewardCoolDown).
+4. [ ] Deixar o tempo acabar com os dois vivos → empate: os dois saem do quadro, sem selos.
+5. [ ] Durante uma luta, o perdedor (B) sai da Arena → A vence por W.O.
+6. [ ] "Observe" e o histórico de Arena no personagem não fazem parte deste passo; anote o que acontecer.
+Relato: o resultado de cada passo, o horário e prints da contagem, do fim da luta e das mensagens de selo.
