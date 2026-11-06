@@ -3773,3 +3773,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` PV3b (pré-condição).
 - Commits: ver "feat: PvP team size knobs in the panel (B5)".
 - Pendente / próxima ação: chat de PvP; Docker e sessão de cliente (PV3a/PV3b).
+
+## 2026-11-06 — Chat de PvP e estado do B5 (B5)
+- Feito: PartyChatMessage dentro de uma partida de PvP vai ao `PvpHub::chat` (PvpChatProcessor: chat de time para o time do remetente, na Arena para todos; o outro para todos como fake town chat). MIGRATION item 8 com o estado PV2a–PV3b.
+- Verificação: clippy sem avisos (todos os alvos).
+- Cliente: `docs/client-tests/B5-social.md` PV3a/PV3b.
+- Commits: ver "feat: PvP chat (B5)".
+- Pendente / próxima ação: parado para o cliente — roteiros PV3a e PV3b com dois clientes (Docker reconstruído).

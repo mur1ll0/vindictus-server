@@ -1765,3 +1765,41 @@ impl PvpHub {
         }
     }
 }
+
+impl PvpHub {
+    /// PvpChatProcessor: a team chat goes to the sender's team (every player in the Arena),
+    /// another chat to every player as a fake town chat.
+    pub fn chat(self: &Arc<Self>, cid: i64, message: &str, team_chat: bool) {
+        let out = {
+            let state = self.lock();
+            let Some((play_id, slot)) = Self::seat(&state, cid) else {
+                return;
+            };
+            let (Some(play), Some(sender)) = (state.plays.get(&play_id), state.players.get(&cid)) else {
+                return;
+            };
+            let targets: Vec<i64> = match (&play.team, team_chat) {
+                (Some(t), true) => {
+                    let team = t.team_of(slot);
+                    play.slots
+                        .iter()
+                        .enumerate()
+                        .filter(|(s, c)| c.is_some() && t.team_of(*s) == team)
+                        .filter_map(|(_, c)| *c)
+                        .collect()
+                }
+                _ => play.slots.iter().flatten().copied().collect(),
+            };
+            let chat = super::minimum_mission::packet(&mwire::Message::PartyChat(mwire::PartyChat {
+                sender_name: Some(sender.name.clone()),
+                message: Some(message.to_owned()),
+                is_fake_town_chat: !team_chat,
+            }));
+            match chat {
+                Ok(p) => targets.into_iter().map(|c| (c, p.clone())).collect::<Vec<_>>(),
+                Err(_) => return,
+            }
+        };
+        self.deliver(out);
+    }
+}

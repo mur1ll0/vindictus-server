@@ -1241,6 +1241,17 @@ impl Connection {
                 }
                 packets
             }
+            Message::PartyChat(chat)
+                if runtime
+                    .pvp
+                    .proxy(cid)
+                    .is_some_and(|p| p != super::pvp_match::Proxy::Waiting) =>
+            {
+                // InGame: IsInPvp → PvpChat(IsTeamChat = !isFakeTownChat).
+                runtime.pvp.chat(cid, chat.message.as_deref().unwrap_or(""), !chat.is_fake_town_chat);
+                tracing::info!("pvp chat processed; values omitted");
+                Vec::new()
+            }
             Message::PartyChat(chat) => {
                 // InGame PartyChatMessage → BattleServiceProxy.SendPartyChat (not Initial).
                 let packets = runtime
