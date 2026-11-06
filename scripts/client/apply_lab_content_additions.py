@@ -335,13 +335,15 @@ def class_asset_files(assets: Path = ASSETS) -> list[tuple[str, Path, str]]:
 
 
 COLLAB_MANIFEST = 'collab-assets.json'
+COLLAB_PREFIXES = ('materials/', 'scaleform/item_icon/')
 
 
 def collab_asset_files(assets: Path = ASSETS) -> list[tuple[str, Path, str]]:
     """(game path, file, SHA-256) of the lab's collab assets the client lacks, e.g. the Fairy Tail outfit
-    textures of scripts/client/fairytail_textures.py (collabs/<name>/collab-assets.json). They go into new
-    packs like the classes' files, without the classes' 1.69 fixes."""
-    return manifest_files(sorted((assets / 'collabs').glob('*/' + COLLAB_MANIFEST)), ('materials/',), 'collab')
+    textures and item icons of scripts/client/fairytail_textures.py (collabs/<name>/collab-assets.json): files
+    of a new folder go into new packs like the classes' files (without the classes' 1.69 fixes), files of a
+    1.69 folder into its last pack."""
+    return manifest_files(sorted((assets / 'collabs').glob('*/' + COLLAB_MANIFEST)), COLLAB_PREFIXES, 'collab')
 
 
 def class_weapon_costumes(assets: Path = ASSETS, imports: Path = content_additions.CLASS_IMPORTS) -> list[dict]:
@@ -545,14 +547,14 @@ def fixed_packs(plain: bytes, client_copy: Path, fixes: dict = ORIGINAL_FIXES) -
 INJECTED_PREFIXES = ('scripts/', 'materials/cable/')
 
 
-def injected_packs(plain: bytes, files: list[tuple[str, Path, str]],
-                   client_copy: Path) -> dict[Path, list[tuple[str, Path, str]]]:
-    """Original pack (the folder's last part in the original index) -> class files (game path, file,
-    SHA-256) added to it."""
+def injected_packs(plain: bytes, files: list[tuple[str, Path, str]], client_copy: Path,
+                   prefixes: tuple[str, ...] = INJECTED_PREFIXES) -> dict[Path, list[tuple[str, Path, str]]]:
+    """Original pack (the folder's last part in the original index) -> files (game path, file, SHA-256)
+    under `prefixes` added to it."""
     names = set(hfs.index_packs(plain))
     out: dict[Path, list[tuple[str, Path, str]]] = {}
     for path, file, sha in files:
-        if not path.startswith(INJECTED_PREFIXES):
+        if not path.startswith(prefixes):
             continue
         folder = path.rsplit('/', 1)[0]
         parts = [part for part in range(64) if hfs.pack_name(folder, part) in names]
@@ -656,6 +658,13 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     collab_files = collab_asset_files(assets)
     if {f[0] for f in collab_files} & {f[0] for f in class_files}:
         raise PreparationError('A collab asset is also a class file.')
+    # Collab files of a folder the 1.69 has (item icons) join its last pack, as the class scripts (C4 MI6:
+    # the client does not read a new part of an existing folder); new folders get new packs.
+    collab_injected = injected_packs(hfs.decode_index(original_index.read_bytes()), collab_files, client_copy, ('',))
+    for pack, files in collab_injected.items():
+        injected.setdefault(pack, []).extend(files)
+    collab_in_packs = {path for files in collab_injected.values() for path, _, _ in files}
+    collab_new = [f for f in collab_files if f[0] not in collab_in_packs]
     # Every pack with a backup comes back to it unless rebuilt below (a merge that was undone).
     restored = [client_copy / 'hfs' / p.name for p in backup_dir.glob('*.hfs') if p.name != index.name]
     originals = {path: backup_dir / path.name
@@ -761,7 +770,7 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
         raise PreparationError(f'The scripts pack has no {sorted(by_file)[0]}.')
     plain = hfs.decode_index(source[index])
     # NA classes first (gigabytes, written pack by pack), then the item editor's packs after them.
-    plan = class_pack_plan(class_files + collab_files, set(hfs.index_packs(plain)))
+    plan = class_pack_plan(class_files + collab_new, set(hfs.index_packs(plain)))
     listed, class_built = class_packs(client_copy, plan, ks, apply_changes)
     taken = set(hfs.index_packs(plain)) | {name for name, _, _ in plan}
     new_packs = {}
@@ -788,7 +797,7 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
                                    'packs_rewritten': len(replaced)},
             'class_tokens': len(class_tokens),
             'costumes': len(costumes), 'new_packs': sorted(p.name for p in new_packs), 'class_files': len(class_files),
-            'collab_files': len(collab_files),
+            'collab_files': len(collab_files), 'collab_injected': len(collab_in_packs),
             'class_packs': len(plan), 'class_injected': len(injected_paths), 'class_packs_built': class_built, 'class_merges': merge_report, 'original_fixes': fix_report,
             'hfs_files_changed': len(changed), 'stale_packs': len(stale)}
 

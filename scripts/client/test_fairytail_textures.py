@@ -114,37 +114,78 @@ class PaintTest(unittest.TestCase):
         self.assertIn('"$envmap" "env_cubemap"', metal)
 
 
+def tga(size: int = 40) -> bytes:
+    return bytes([0, 0, 2]) + bytes(9) + struct.pack('<HH', size, size) + bytes([32, 8]) + bytes(size * size * 4)
+
+
+class DecorTest(unittest.TestCase):
+    def test_flames_rise_from_the_hem_and_quilting_draws_lines(self):
+        size = 64
+        base = Image.new('RGB', (size, size), ft.ERZA_SKIRT.color)
+        height = Image.new('L', (size, size), 128)
+        z = [0.0 if i // size >= 32 else 1.0 for i in range(size * size)]   # lower half is the hem
+        ft.decorate(base, height, {'flames': Image.new('L', (size, size), 255)}, z)
+        self.assertEqual(base.getpixel((10, 60)), ft.FLAME[0])
+        self.assertEqual(base.getpixel((10, 5)), ft.ERZA_SKIRT.color)
+        quilt = Image.new('RGB', (size, size), (100, 100, 100))
+        ft.decorate(quilt, height, {'quilt': Image.new('L', (size, size), 255)}, z)
+        self.assertEqual((quilt.getpixel((0, 0)), quilt.getpixel((5, 0))), ((75, 75, 75), (100, 100, 100)))
+        with self.assertRaises(ft.TextureError):
+            ft.decorate(quilt, height, {'stars': Image.new('L', (size, size), 255)}, z)
+
+    def test_height_map_interpolates_the_corners(self):
+        island = ft.Island([((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 1.0))], [], 0.5, 0.0, 0.5)
+        z = ft.height_map([island], 8)
+        self.assertAlmostEqual(z[0], 0.0625)
+        self.assertAlmostEqual(z[6 * 8 + 0], 0.8125)
+        self.assertEqual(z[7 * 8 + 7], -1.0)
+
+
 class GenerateTest(unittest.TestCase):
-    def test_generate_writes_every_material_and_a_manifest_and_is_stable(self):
+    def test_generate_writes_every_material_the_icons_and_a_manifest_and_is_stable(self):
         uvs, positions, triangles = square(10.0)
         islands = ft.islands_of(uvs, positions, triangles, (0.0, 10.0), 4.0)
-        specs = {'pc_x_upper': ft.Spec(16, 'Heroes_Faceskin', ft.rules(({}, ft.LUCY_WHITE))),
-                 'pc_x_upper_metal': ft.Spec(16, 'Heroes_Armor', ft.rules(({}, ft.GOLD)))}
+        specs = {'pc_female_x_upper': ft.Spec(16, 'Heroes_Faceskin', ft.rules(({}, ft.LUCY_TOP))),
+                 'pc_female_x_upper_metal': ft.Spec(16, 'Heroes_Armor', ft.rules(({}, ft.GOLD)))}
+        both = {'pc_female_x_upper': islands, 'pc_female_x_upper_metal': islands}
         with tempfile.TemporaryDirectory() as temp:
-            models, out = Path(temp) / 'models', Path(temp) / 'out'
+            models, out, icons = Path(temp) / 'models', Path(temp) / 'out', Path(temp) / 'icons'
             models.mkdir()
-            (models / 'pc_x_upper.mdl').write_bytes(b'')
-            with mock.patch.object(ft, 'SPECS', specs), \
-                    mock.patch.object(ft, 'model_islands', lambda m, n: {'pc_x_upper': islands, 'pc_x_upper_metal': islands}):
-                report = ft.generate(models, out)
+            icons.mkdir()
+            (models / 'pc_female_x_upper.mdl').write_bytes(b'')
+            with mock.patch.object(ft, 'SPECS', specs), mock.patch.object(ft, 'model_islands', lambda m, n: both):
+                with self.assertRaises(ft.TextureError):
+                    ft.generate(models, out, icons=icons)                  # no icon
+                (icons / 'eq_x_upper.tga').write_bytes(tga(32))
+                with self.assertRaises(ft.TextureError):
+                    ft.generate(models, out, icons=icons)                  # not a 40x40 icon
+                (icons / 'eq_x_upper.tga').write_bytes(tga())
+                report = ft.generate(models, out, icons=icons)
                 first = {p: p.read_bytes() for p in out.rglob('*') if p.is_file()}
-                again = ft.generate(models, out)
-                with mock.patch.object(ft, 'model_islands', lambda m, n: {'pc_x_upper': islands, 'pc_x_other': islands}):
+                again = ft.generate(models, out, icons=icons)
+                with mock.patch.object(ft, 'model_islands', lambda m, n: {'pc_female_x_upper': islands, 'pc_x_other': islands}):
                     with self.assertRaises(ft.TextureError):
-                        ft.generate(models, out)
-            self.assertEqual((report['materials'], report['files']), (2, 6))
+                        ft.generate(models, out, icons=icons)
+            self.assertEqual((report['materials'], report['icons'], report['files']), (2, 1, 7))
             self.assertEqual(again['bytes'], report['bytes'])
             manifest = json.loads((out / ft.MANIFEST).read_text(encoding='utf-8'))
             paths = [r['path'] for r in manifest['files']]
-            self.assertEqual(paths, sorted(f'materials/models/armor/fairytail/{n}' for n in (
-                'pc_x_upper.vmt', 'pc_x_upper.vtf', 'pc_x_upper_normal.vtf',
-                'pc_x_upper_metal.vmt', 'pc_x_upper_metal.vtf', 'pc_x_upper_metal_normal.vtf')))
+            self.assertEqual(paths, sorted([f'materials/models/armor/fairytail/{n}' for n in (
+                'pc_female_x_upper.vmt', 'pc_female_x_upper.vtf', 'pc_female_x_upper_normal.vtf',
+                'pc_female_x_upper_metal.vmt', 'pc_female_x_upper_metal.vtf', 'pc_female_x_upper_metal_normal.vtf')]
+                + ['scaleform/item_icon/eq_x_upper.tga']))
             for record in manifest['files']:
                 self.assertEqual(hashlib.sha256((out / record['path']).read_bytes()).hexdigest(), record['sha256'])
+            self.assertEqual((out / 'scaleform/item_icon/eq_x_upper.tga').read_bytes(), tga())
             folder = out / 'materials/models/armor/fairytail'
-            self.assertEqual(ft.vtf_info((folder / 'pc_x_upper_metal.vtf').read_bytes())['format'], ft.DXT5)
-            self.assertEqual(ft.vtf_info((folder / 'pc_x_upper.vtf').read_bytes())['format'], ft.DXT1)
+            self.assertEqual(ft.vtf_info((folder / 'pc_female_x_upper_metal.vtf').read_bytes())['format'], ft.DXT5)
+            self.assertEqual(ft.vtf_info((folder / 'pc_female_x_upper.vtf').read_bytes())['format'], ft.DXT1)
             self.assertEqual(first, {p: p.read_bytes() for p in out.rglob('*') if p.is_file()})
+
+    def test_icon_names_follow_the_models(self):
+        self.assertEqual(ft.icon_name('pc_female_fterza_jpn_upper'), 'eq_fterza_jpn_upper')
+        with self.assertRaises(ft.TextureError):
+            ft.icon_name('pc_male_x_upper')
 
 
 if __name__ == '__main__':

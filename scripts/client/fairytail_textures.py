@@ -12,14 +12,18 @@ only of colour blocks and simple cloth/metal/leather patterns placed on the mode
     (low on cloth, higher on metal), as the client's armour normal maps;
   - VTF 7.2 like the client's: DXT1 base (DXT5 with alpha for the Heroes_Armor "_metal" materials),
     DXT5 normal map, full mipmap chain and a 16x16 DXT1 thumbnail; VMT in the client's style.
+The items' icons (ItemClassInfo.Icon eq_ft*), which the EU 1.69 lacks, are the official ones of the NA
+client (scaleform/item_icon, read only); the outfit colours follow them.
 The output is a lab asset outside git (.cache/private-assets/collabs/fairytail, with collab-assets.json);
 scripts/client/apply_lab_content_additions.py packs it into the client copy.
   py -3.13 scripts/client/fairytail_textures.py [--models <hfs_extracted>/models/armor/fairytail] [--out <folder>]
+                                                [--icons <NA hfsExtracted>/scaleform/item_icon]
 """
 from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import random
 import struct
 import sys
@@ -38,6 +42,8 @@ MODELS = ROOT.parent / 'Vindictus1.69EN/Vindictus EU/en-EU/hfs_extracted/models/
 OUT = ROOT / '.cache/private-assets/collabs/fairytail'
 MANIFEST = 'collab-assets.json'
 FOLDER = 'models/armor/fairytail'
+ICONS = Path('F:/Games/vindictus/hfsExtracted/scaleform/item_icon')   # NA client, read only
+ICON_FOLDER = 'scaleform/item_icon'
 DXT1, DXT5 = 13, 15
 FLAG_EIGHTBITALPHA = 0x2000
 
@@ -53,28 +59,34 @@ class Role:
     pattern: str                      # cloth, leather, metal
     trim: tuple[int, int, int] | None = None
     spec: int | None = None           # normal map alpha (phong mask); default by pattern
+    decor: str | None = None          # flames, wrap, quilt (DECOR)
 
 
 SPEC = {'cloth': 20, 'leather': 30, 'metal': 64}
 
-SILVER = Role((186, 192, 202), 'metal', (200, 162, 74))
-GOLD = Role((212, 172, 70), 'metal', (150, 112, 40))
-ERZA_SKIRT = Role((46, 76, 154), 'cloth', (28, 46, 108))
-ERZA_BELT = Role((90, 59, 38), 'leather', (200, 162, 74))
-LUCY_WHITE = Role((240, 241, 244), 'cloth', (53, 87, 176))
-LUCY_BLUE = Role((53, 87, 176), 'cloth', (32, 54, 120))
-LUCY_SKIRT = Role((45, 87, 181), 'cloth', (240, 241, 244))
-LUCY_BELT = Role((107, 74, 47), 'leather', (212, 172, 70))
-STOCKING = Role((36, 36, 52), 'cloth', (70, 70, 96))
-BOOT = Role((74, 50, 38), 'leather', (138, 106, 74))
-BOOT_SOLE = Role((42, 32, 27), 'leather')
-BOOT_CUFF = Role((138, 106, 74), 'leather', (74, 50, 38))
-PINK = Role((224, 106, 154), 'metal', (150, 60, 100))
-WENDY_WHITE = Role((243, 241, 234), 'cloth', (63, 120, 192))
-WENDY_DRESS = Role((63, 120, 192), 'cloth', (243, 241, 234))
-WENDY_YELLOW = Role((231, 194, 75), 'cloth', (170, 130, 40))
-WENDY_SHOE = Role((122, 85, 54), 'leather', (243, 241, 234))
-RED = Role((204, 74, 72), 'metal', (130, 40, 40))
+# Colours after the official item icons of the NA client (scaleform/item_icon/eq_ft*.tga), the only
+# picture of these outfits any client has; the drawing itself is the lab's.
+SILVER = Role((206, 211, 220), 'metal', (150, 156, 168))
+GOLD = Role((222, 184, 82), 'metal', (156, 118, 44))
+HEART = Role((206, 32, 52), 'metal', (130, 16, 30))
+ERZA_WRAP = Role((236, 236, 232), 'cloth', (196, 196, 200), decor='wrap')
+ERZA_SKIRT = Role((186, 36, 44), 'cloth', (120, 18, 26), decor='flames')
+ERZA_BELT = Role((232, 226, 218), 'cloth', (186, 36, 44))
+ERZA_BAND = Role((44, 44, 48), 'metal', (96, 96, 104))
+LUCY_TOP = Role((242, 242, 244), 'cloth', (228, 186, 62))
+LUCY_SLEEVE = Role((118, 168, 228), 'cloth', (52, 92, 172))
+LUCY_TRIM = Role((228, 186, 62), 'cloth', (160, 120, 30))
+LUCY_SKIRT = Role((168, 128, 140), 'cloth', (110, 78, 96))
+LUCY_BELT = Role((236, 236, 236), 'leather', (110, 78, 96))
+STOCKING = Role((64, 62, 68), 'cloth', (40, 38, 44))
+BOOT = Role((150, 100, 52), 'leather', (96, 62, 30))
+BOOT_SOLE = Role((70, 46, 26), 'leather')
+BOOT_CUFF = Role((176, 126, 70), 'leather', (96, 62, 30))
+WENDY_DRESS = Role((40, 96, 56), 'cloth', (24, 64, 36), decor='quilt')
+WENDY_COLLAR = Role((176, 214, 160), 'cloth', (228, 198, 88))
+WENDY_YELLOW = Role((228, 198, 88), 'cloth', (160, 130, 40))
+WENDY_SCRUNCHIE = Role((232, 150, 172), 'cloth', (190, 100, 128))
+WENDY_SHOE = Role((122, 26, 36), 'leather', (80, 14, 20))
 
 
 @dataclass(frozen=True)
@@ -93,15 +105,13 @@ def rules(*pairs) -> tuple:
 # Island conditions: z_above / z_below (centroid height in the model's height, 0..1), side_above (centroid
 # side distance |x| over the model's largest |x|), area_below / area_above (UV area, fraction of the texture).
 SPECS: dict[str, Spec] = {
-    'pc_female_fterza_jpn_upper': Spec(512, 'Heroes_Faceskin', rules(({'area_below': 0.004}, GOLD), ({}, SILVER)),
-                                       phong=(6, 0.3)),
-    'pc_female_fterza_jpn_lower': Spec(512, 'Heroes_Faceskin', rules(({'z_above': 0.88}, ERZA_BELT),
-                                                                     ({'area_below': 0.003}, GOLD), ({}, ERZA_SKIRT)),
+    'pc_female_fterza_jpn_upper': Spec(512, 'Heroes_Faceskin', rules(({}, ERZA_WRAP))),
+    'pc_female_fterza_jpn_lower': Spec(512, 'Heroes_Faceskin', rules(({'z_above': 0.88}, ERZA_BELT), ({}, ERZA_SKIRT)),
                                        nocull=1),
-    'pc_female_fterza_jpn_hand': Spec(256, 'Heroes_Faceskin', rules(({}, SILVER)), phong=(6, 0.3)),
-    'pc_female_fterza_jpn_head_metal': Spec(256, 'Heroes_Armor', rules(({'z_above': 0.5}, GOLD), ({}, SILVER))),
-    'pc_female_ftlucy_jpn_upper': Spec(512, 'Heroes_Faceskin', rules(({'side_above': 0.8, 'area_below': 0.01}, LUCY_BLUE),
-                                                                     ({'area_below': 0.002}, LUCY_BLUE), ({}, LUCY_WHITE)),
+    'pc_female_fterza_jpn_hand': Spec(256, 'Heroes_Faceskin', rules(({}, ERZA_BAND)), phong=(8, 0.4)),
+    'pc_female_fterza_jpn_head_metal': Spec(256, 'Heroes_Armor', rules(({}, SILVER))),
+    'pc_female_ftlucy_jpn_upper': Spec(512, 'Heroes_Faceskin', rules(({'side_above': 0.35}, LUCY_SLEEVE),
+                                                                     ({'area_below': 0.002}, LUCY_TRIM), ({}, LUCY_TOP)),
                                        nocull=1),
     'pc_female_ftlucy_jpn_lower': Spec(512, 'Heroes_Faceskin', rules(({'z_below': 0.7}, STOCKING), ({'z_above': 0.93}, LUCY_BELT),
                                                                      ({}, LUCY_SKIRT)),
@@ -109,15 +119,14 @@ SPECS: dict[str, Spec] = {
     'pc_female_ftlucy_jpn_lower_metal': Spec(256, 'Heroes_Armor', rules(({}, GOLD))),
     'pc_female_ftlucy_jpn_foot': Spec(512, 'Heroes_Faceskin', rules(({'z_below': 0.06}, BOOT_SOLE), ({'z_above': 0.93}, BOOT_CUFF),
                                                                     ({}, BOOT))),
-    'pc_female_ftlucy_jpn_head_metal': Spec(256, 'Heroes_Armor', rules(({'z_above': 0.5}, GOLD), ({}, PINK))),
+    'pc_female_ftlucy_jpn_head_metal': Spec(256, 'Heroes_Armor', rules(({'z_above': 0.5}, SILVER), ({}, HEART))),
     'pc_female_ftwendy_jpn_upper_metal': Spec(256, 'Heroes_Armor', rules(({}, GOLD))),
     'pc_female_ftwendy_jpn_upper': Spec(512, 'Heroes_Faceskin', rules(({'area_below': 0.0015}, WENDY_YELLOW),
-                                                                      ({'z_above': 0.72}, WENDY_WHITE), ({}, WENDY_DRESS)),
+                                                                      ({'z_above': 0.72}, WENDY_COLLAR), ({}, WENDY_DRESS)),
                                         nocull=1),
-    'pc_female_ftwendy_jpn_hand': Spec(256, 'Heroes_Faceskin', rules(({'area_below': 0.0004}, WENDY_YELLOW), ({}, WENDY_WHITE)),
-                                       nocull=1),
-    'pc_female_ftwendy_jpn_head_metal': Spec(256, 'Heroes_Armor', rules(({'z_above': 0.5}, GOLD), ({}, RED))),
-    'pc_female_ftwendy_jpn_foot': Spec(256, 'Heroes_Faceskin', rules(({'z_above': 0.6}, WENDY_WHITE), ({}, WENDY_SHOE))),
+    'pc_female_ftwendy_jpn_hand': Spec(256, 'Heroes_Faceskin', rules(({}, WENDY_SCRUNCHIE)), nocull=1),
+    'pc_female_ftwendy_jpn_head_metal': Spec(256, 'Heroes_Armor', rules(({'z_above': 0.5}, SILVER), ({}, HEART))),
+    'pc_female_ftwendy_jpn_foot': Spec(256, 'Heroes_Faceskin', rules(({}, WENDY_SHOE))),
 }
 
 
@@ -142,7 +151,7 @@ def role_of(spec: Spec, features: dict) -> Role:
 # -------------------------------------------------------------------------------------------- geometry
 @dataclass
 class Island:
-    triangles: list[tuple[tuple[float, float], ...]]   # UV triangles
+    triangles: list[tuple[tuple[float, float, float], ...]]   # (u, v, height 0..1) of each corner
     boundary: list[tuple[tuple[float, float], tuple[float, float]]]  # UV edges used by one triangle
     z: float
     side: float
@@ -182,7 +191,10 @@ def islands_of(uvs: list[tuple], positions: list[tuple], triangles: list[tuple],
             verts.update((a, b, c))
         z = sum(positions[i][2] for i in verts) / len(verts)
         side = abs(sum(positions[i][0] for i in verts) / len(verts))
-        out.append(Island([tuple(uvs[i] for i in t) for t in tris], [(uvs[a], uvs[b]) for (a, b), n in edges.items() if n == 1],
+        def height(i: int) -> float:
+            return (positions[i][2] - z0) / (z1 - z0) if z1 > z0 else 0.5
+        out.append(Island([tuple((*uvs[i], height(i)) for i in t) for t in tris],
+                          [(uvs[a], uvs[b]) for (a, b), n in edges.items() if n == 1],
                           (z - z0) / (z1 - z0) if z1 > z0 else 0.5, side / side_max if side_max > 0 else 0.0, area))
     return out
 
@@ -242,6 +254,60 @@ def shaded(color: tuple[int, int, int], height: Image.Image, amount: float) -> I
     return Image.merge('RGB', [height.point(lut[i * 256:(i + 1) * 256]) for i in range(3)])
 
 
+def height_map(islands: list[Island], size: int) -> list[float]:
+    """Model height (0..1) at each texel the islands' triangles cover, -1 elsewhere (barycentric over UV)."""
+    z = [-1.0] * (size * size)
+    for island in islands:
+        for (u0, v0, h0), (u1, v1, h1), (u2, v2, h2) in island.triangles:
+            x0, y0, x1, y1, x2, y2 = u0 * size, v0 * size, u1 * size, v1 * size, u2 * size, v2 * size
+            det = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
+            if abs(det) < 1e-9:
+                continue
+            for y in range(max(0, int(min(y0, y1, y2))), min(size, int(max(y0, y1, y2)) + 1)):
+                py = y + 0.5
+                for x in range(max(0, int(min(x0, x1, x2))), min(size, int(max(x0, x1, x2)) + 1)):
+                    px = x + 0.5
+                    a = ((y1 - y2) * (px - x2) + (x2 - x1) * (py - y2)) / det
+                    b = ((y2 - y0) * (px - x2) + (x0 - x2) * (py - y2)) / det
+                    if a >= -0.05 and b >= -0.05 and a + b <= 1.05:
+                        z[y * size + x] = a * h0 + b * h1 + (1 - a - b) * h2
+    return z
+
+
+FLAME = ((246, 204, 52), (236, 120, 34))
+
+
+def decorate(base: Image.Image, height: Image.Image, masks: dict[str, Image.Image], z: list[float]) -> None:
+    """Pattern drawn over the role colour: flames rising from the hem (Erza's skirt), wrapping bands
+    (Erza's chest wrap) and quilting lines (Wendy's dress)."""
+    size = base.width
+    color, bump = base.load(), height.load()
+    for decor, mask in masks.items():
+        covered = mask.tobytes()
+        for i, m in enumerate(covered):
+            if not m:
+                continue
+            y, x = divmod(i, size)
+            if decor == 'flames':
+                h = z[i] if z[i] >= 0 else 1.0
+                edge = 0.17 + 0.07 * abs(math.sin(x / 9.0)) + 0.025 * math.sin(x / 3.3)
+                if h < edge:
+                    color[x, y] = FLAME[0]
+                    bump[x, y] = 150
+                elif h < edge + 0.045:
+                    color[x, y] = FLAME[1]
+            elif decor == 'wrap' and y % 14 < 2:
+                r, g, b = color[x, y]
+                color[x, y] = (r * 86 // 100, g * 86 // 100, b * 86 // 100)
+                bump[x, y] = 156
+            elif decor == 'quilt' and ((x + y) % 26 < 2 or (x - y) % 26 < 2):
+                r, g, b = color[x, y]
+                color[x, y] = (r * 3 // 4, g * 3 // 4, b * 3 // 4)
+                bump[x, y] = 170
+            elif decor not in ('flames', 'wrap', 'quilt'):
+                raise TextureError(f'Unknown decoration {decor}.')
+
+
 def paint(spec: Spec, islands: list[Island], seed: int) -> tuple[Image.Image, Image.Image]:
     """(base RGBA, normal RGBA) of one material."""
     size = spec.size
@@ -256,26 +322,39 @@ def paint(spec: Spec, islands: list[Island], seed: int) -> tuple[Image.Image, Im
     height = patterns[main.pattern].copy()
     spec_mask = Image.new('L', (size, size), main.spec if main.spec is not None else SPEC[main.pattern])
     textures = {role: shaded(role.color, patterns[role.pattern], 0.06 if role.pattern == 'cloth' else 0.1) for role in by_area}
+    z = height_map(islands, size)
+    # cloth and leather a little darker downwards (folds, shadow), metal even
+    gradient = Image.new('L', (size, size))
+    gradient.putdata([round(255 * (0.78 + 0.22 * h)) if h >= 0 else 230 for h in z])
+    light = Image.new('L', (size, size), 255)
+    decor: dict[str, Image.Image] = {}
+    trims = []
     for island, role in zip(islands, roles):
         mask = Image.new('L', (size, size))
         draw = ImageDraw.Draw(mask)
         for tri in island.triangles:
-            points = [(u * size, v * size) for u, v in tri]
-            draw.polygon(points, fill=255, outline=255)
+            draw.polygon([(u * size, v * size) for u, v, _ in tri], fill=255, outline=255)
         # a little bleed around the island against seams in the mipmaps
         for a, b in island.boundary:
             draw.line([(a[0] * size, a[1] * size), (b[0] * size, b[1] * size)], fill=255, width=3)
         base.paste(textures[role], (0, 0), mask)
         height.paste(patterns[role.pattern], (0, 0), mask)
         spec_mask.paste(role.spec if role.spec is not None else SPEC[role.pattern], (0, 0), mask)
+        if role.pattern != 'metal':
+            light.paste(gradient, (0, 0), mask)
+        if role.decor:
+            decor.setdefault(role.decor, Image.new('L', (size, size))).paste(255, (0, 0), mask)
         if role.trim:
             trim = Image.new('L', (size, size))
             line = ImageDraw.Draw(trim)
             for a, b in island.boundary:
                 line.line([(a[0] * size, a[1] * size), (b[0] * size, b[1] * size)], fill=255, width=trim_width * 2)
-            trim = ImageChops.multiply(trim, mask)
-            base.paste(role.trim, (0, 0), trim)
-            height.paste(172, (0, 0), trim)
+            trims.append((ImageChops.multiply(trim, mask), role.trim))
+    decorate(base, height, decor, z)
+    base = ImageChops.multiply(base, Image.merge('RGB', (light, light, light)))
+    for trim, colour in trims:
+        base.paste(colour, (0, 0), trim)
+        height.paste(172, (0, 0), trim)
     height = height.filter(ImageFilter.GaussianBlur(0.6))
     return base.convert('RGBA'), normal_map(height, spec_mask)
 
@@ -405,8 +484,23 @@ def model_names(models: Path) -> list[str]:
     return sorted(p.stem for p in models.glob('*.mdl'))
 
 
-def generate(models: Path, out: Path, previews: Path | None = None) -> dict:
-    """Writes the VMT/VTF of every material of the Fairy Tail models and the manifest; returns a report."""
+def icon_name(model: str) -> str:
+    """ItemClassInfo.Icon of a model's items: pc_female_fterza_jpn_upper -> eq_fterza_jpn_upper."""
+    if not model.startswith('pc_female_'):
+        raise TextureError(f'{model} is not a female collab model.')
+    return 'eq_' + model[len('pc_female_'):]
+
+
+def checked_icon(data: bytes, name: str) -> bytes:
+    """An item icon as the client's: uncompressed 40x40 TGA, 32 bits with 8 alpha bits."""
+    if len(data) < 18 or data[2] != 2 or struct.unpack_from('<HH', data, 12) != (40, 40) or data[16] != 32             or data[17] & 0x0F != 8 or len(data) < 18 + data[0] + 40 * 40 * 4:
+        raise TextureError(f'{name} is not a 40x40 32-bit TGA icon.')
+    return data
+
+
+def generate(models: Path, out: Path, previews: Path | None = None, icons: Path | None = ICONS) -> dict:
+    """Writes the VMT/VTF of every material of the Fairy Tail models, the items' icons and the manifest;
+    returns a report."""
     files: dict[str, bytes] = {}
     report = {}
     names = model_names(models)
@@ -439,6 +533,13 @@ def generate(models: Path, out: Path, previews: Path | None = None) -> dict:
     missing = set(SPECS) - set(report)
     if missing:
         raise TextureError(f'The models no longer name {sorted(missing)[0]}.')
+    # The EU 1.69 has no icon for these items (blank slot); the NA client has the official ones.
+    for name in (names if icons else []):
+        icon = icon_name(name) + '.tga'
+        source = icons / icon
+        if not source.is_file():
+            raise TextureError(f'No item icon {source}.')
+        files[f'{ICON_FOLDER}/{icon}'] = checked_icon(source.read_bytes(), icon)
     records = []
     for path, data in sorted(files.items()):
         target = out / path
@@ -448,7 +549,8 @@ def generate(models: Path, out: Path, previews: Path | None = None) -> dict:
         records.append({'path': path, 'sha256': hashlib.sha256(data).hexdigest()})
     (out / MANIFEST).write_text(json.dumps({'collab': 'fairytail', 'generator': 'scripts/client/fairytail_textures.py',
                                             'files': records}, indent=1), encoding='utf-8')
-    return {'materials': len(report), 'files': len(records), 'bytes': sum(len(d) for d in files.values()), 'detail': report}
+    return {'materials': len(report), 'icons': sum(p.startswith(ICON_FOLDER) for p in files), 'files': len(records),
+            'bytes': sum(len(d) for d in files.values()), 'detail': report}
 
 
 def main() -> int:
@@ -456,9 +558,10 @@ def main() -> int:
     parser.add_argument('--models', type=Path, default=MODELS)
     parser.add_argument('--out', type=Path, default=OUT)
     parser.add_argument('--previews', type=Path, help='PNG sheets (base | normal) of each material')
+    parser.add_argument('--icons', type=Path, default=ICONS, help='folder with the eq_ft*.tga item icons (NA client)')
     args = parser.parse_args()
     try:
-        report = generate(args.models, args.out, args.previews)
+        report = generate(args.models, args.out, args.previews, args.icons)
     except (TextureError, OSError, ValueError) as error:
         print(f'error: {error}', file=sys.stderr)
         return 1

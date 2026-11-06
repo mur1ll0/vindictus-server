@@ -156,16 +156,27 @@ class ApplyLabHfsTest(unittest.TestCase):
     def test_collab_textures_get_a_new_pack_and_undo(self):
         import hashlib
         import json
+        # a 1.69 icon pack: an icon of an existing folder joins that pack
+        icons = hfs.pack_name('scaleform/item_icon') + '.hfs'
+        (self.client / 'hfs' / icons).write_bytes(hfs.build_pack([hfs.Entry('box_gold.tga.comp', hfs.comp_wrap(b'TGA0'), 0x20)], KS))
+        plain, _ = hfs.sync(hfs.decode_index((self.client / INDEX).read_bytes()),
+                            [(icons[:-4], (self.client / 'hfs' / icons).read_bytes())], KS)
+        (self.client / INDEX).write_bytes(hfs.encode_index(plain, HEAD))
+        self.original = {p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}
         root = self.assets / 'collabs/fairytail'
         files = {'materials/models/armor/fairytail/pc_female_ftlucy_jpn_upper.vmt': b'"Heroes_Faceskin" {}',
-                 'materials/models/armor/fairytail/pc_female_ftlucy_jpn_upper.vtf': b'VTF\0data'}
+                 'materials/models/armor/fairytail/pc_female_ftlucy_jpn_upper.vtf': b'VTF\0data',
+                 'scaleform/item_icon/eq_ftlucy_jpn_upper.tga': b'TGA1'}
         for path, data in files.items():
             (root / path).parent.mkdir(parents=True, exist_ok=True)
             (root / path).write_bytes(data)
         records = [{'path': p, 'sha256': hashlib.sha256(d).hexdigest()} for p, d in files.items()]
         (root / 'collab-assets.json').write_text(json.dumps({'files': records}), encoding='utf-8')
         report = self.run_apply([])
-        self.assertEqual((report['hfs'], report['collab_files'], report['class_files'], report['class_packs']), ('applied', 2, 0, 1))
+        self.assertEqual((report['hfs'], report['collab_files'], report['collab_injected'], report['class_files'], report['class_packs']),
+                         ('applied', 3, 1, 0, 1))
+        self.assertEqual([(e.name, hfs.comp_unwrap(e.data)) for e in hfs.read_pack((self.client / 'hfs' / icons).read_bytes(), KS)],
+                         [('box_gold.tga.comp', b'TGA0'), ('eq_ftlucy_jpn_upper.tga.comp', b'TGA1')])
         folder = 'materials/models/armor/fairytail'
         pack = self.client / 'hfs' / (hfs.pack_name(folder) + '.hfs')
         self.assertEqual(sorted((e.name, hfs.comp_unwrap(e.data)) for e in hfs.read_pack(pack.read_bytes(), KS)),
@@ -174,6 +185,8 @@ class ApplyLabHfsTest(unittest.TestCase):
         plain = hfs.decode_index((self.client / INDEX).read_bytes())
         self.assertIn(hfs.pack_name(folder), hfs.index_packs(plain))
         self.assertIn(hfs.name_key('pc_female_ftlucy_jpn_upper.vtf'), {e[:6] for e in hfs.index_entries(plain)})
+        self.assertIn(hfs.name_key('eq_ftlucy_jpn_upper.tga'), {e[:6] for e in hfs.index_entries(plain)})
+        self.assertNotIn(hfs.pack_name('scaleform/item_icon', 1), hfs.index_packs(plain))
         self.assertEqual(self.run_apply([])['hfs_files_changed'], 0)
         # a game path outside materials/ is refused
         records.append({'path': 'scripts/x.txt', 'sha256': '0' * 64})
