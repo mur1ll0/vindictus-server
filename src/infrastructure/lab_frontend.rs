@@ -163,7 +163,10 @@ impl Runtime {
         let guilds = Arc::new(super::guild::GuildHub::new(
             super::guild::GuildConfig::from_policy(p).map_err(|_| RuntimeError::Profile)?,
         ));
-        let pvp = Arc::new(super::pvp_match::PvpHub::new(Arc::clone(&party)));
+        let pvp = Arc::new(super::pvp_match::PvpHub::new(
+            Arc::clone(&party),
+            Arc::clone(&guilds),
+        ));
         Ok(Self {
             profile,
             content,
@@ -2597,7 +2600,7 @@ impl Connection {
                 return self.pvp_register(runtime, pool, cid, &request).await;
             }
             Some(Pvp::Unregister(_)) => {
-                runtime.pvp.remove(cid);
+                runtime.pvp.unregister(cid);
                 tracing::info!("pvp unregister processed; values omitted");
                 return Ok(());
             }
@@ -2612,6 +2615,24 @@ impl Connection {
             Some(Pvp::UnregisterGameWaitingQueue(_)) => {
                 runtime.pvp.leave_waiting_queue(cid);
                 tracing::info!("pvp waiting queue left; values omitted");
+                return Ok(());
+            }
+            Some(Pvp::ConfirmJoin(confirm)) => {
+                let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+                let assets = minimum.assets.current();
+                let binder = self.pvp_binder(runtime, pool, &assets)?;
+                let rules = super::pvp_match::Rules::from_assets(
+                    &assets,
+                    confirm.pvp_mode.as_deref().unwrap_or_default(),
+                )
+                .map_err(|_| RuntimeError::Profile)?;
+                runtime.pvp.confirm_join(binder, cid, rules);
+                tracing::info!("pvp confirm join processed; values omitted");
+                return Ok(());
+            }
+            Some(Pvp::Penalty(penalty)) => {
+                runtime.pvp.penalty(cid, penalty.player_index);
+                tracing::info!("pvp penalty processed; values omitted");
                 return Ok(());
             }
             Some(Pvp::Report(report)) => {
@@ -2665,6 +2686,28 @@ impl Connection {
         }
         tracing::info!(category, "free match report processed; values omitted");
         Ok(())
+    }
+    /// The PvP hub's store, WhoIs profile, MakeEntityID and guild levels.
+    fn pvp_binder(
+        &self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        assets: &Arc<super::minimum_assets::Assets>,
+    ) -> Result<super::pvp_match::Binder, RuntimeError> {
+        let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+        let guild_levels = assets
+            .economy
+            .as_ref()
+            .and_then(|e| super::guild::levels(e.guild_levels(), &runtime.content.policy).ok())
+            .map(Arc::new);
+        Ok(super::pvp_match::Binder {
+            pool: pool.clone(),
+            assets: Arc::clone(assets),
+            config: runtime.minimum_header()?,
+            arithmetic: runtime.stat_arithmetic(),
+            ids: Some(minimum.creation.entity_id_source()),
+            guild_levels,
+        })
     }
     /// PvpServiceProxy.Initial(PvpRegisterMessage): DSWaiting does not exist without a DS;
     /// InMicroPlay in a mission; BattleServiceProxy.QueryPartyMembers (a party member is
@@ -2730,18 +2773,18 @@ impl Connection {
                 .ok_or(RuntimeError::Operation)?
                 .revision(),
         };
-        let binder = super::pvp_match::Binder {
-            pool: pool.clone(),
-            assets: Arc::clone(&assets),
-            config: runtime.minimum_header()?,
-            arithmetic: runtime.stat_arithmetic(),
-            ids: Some(minimum.creation.entity_id_source()),
-        };
+        let binder = self.pvp_binder(runtime, pool, &assets)?;
+        // GuildID of the registering character (0 without a guild).
+        let guild_id = super::guild::membership(pool, cid)
+            .await
+            .map_err(|_| RuntimeError::Operation)?
+            .map_or(0, |(sn, _)| sn);
         let entry = super::pvp_match::Entry {
             cid,
             owner: &owner,
             level,
             name: &name,
+            guild_id,
         };
         let rules = super::pvp_match::Rules::from_assets(
             &assets,

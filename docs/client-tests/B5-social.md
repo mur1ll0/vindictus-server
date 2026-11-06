@@ -160,3 +160,11 @@ Pré-condição: PV2c confirmado (A hospedou a Arena em 06/11). A e B com nível
 5. [ ] Durante uma luta, o perdedor (B) sai da Arena → A vence por W.O.
 6. [ ] "Observe" e o histórico de Arena no personagem não fazem parte deste passo; anote o que acontecer.
 Relato: o resultado de cada passo, o horário e prints da contagem, do fim da luta e das mensagens de selo.
+
+### PV3b — DeathMatch e GodMatch (dois clientes)
+Pré-condição: nos dados do EU os times são de 8 (DeathMatch p03, só guilda; p03_free sem guilda, 6) e de 6 (GodMatch p04), então com dois clientes é preciso baixar "Jogadores por time" para 1 no painel (Ajustes de jogo → PvP). O registro de party inteira não está migrado: cada jogador entra sozinho.
+1. [ ] A e B entram em GodMatch (ou DeathMatch sem guilda) → A vê "aguardando oponente"; com B, os dois veem "oponente encontrado" e o pedido de confirmação; os dois confirmam.
+2. [ ] A partida abre com o primeiro jogador como anfitrião (o cliente carrega o mapa p04/p03), o outro entra ~10 s depois; ~10 s com os dois prontos começa a contagem (60 s) e a partida.
+3. [ ] GodMatch: derrubar o deus do outro time → fim (se for antes de 7 min, aviso de "partida rápida demais" e o fim espera); DeathMatch: vencer 2 rodadas.
+4. [ ] Fim: selos para vencedor e perdedor; cada um confirma a saída (ou todos saem em 32 s).
+5. [ ] O anfitrião sai no meio → o outro vira anfitrião (recarrega como host).

@@ -120,7 +120,10 @@ async fn pvp_arena_channels_register_bind_and_remove() {
     .unwrap();
     let owner = initial_inventory::key();
     let party = Arc::new(PartyHub::new(false, false));
-    let hub = Arc::new(PvpHub::new(Arc::clone(&party)));
+    let hub = Arc::new(PvpHub::new(
+        Arc::clone(&party),
+        Arc::new(vindictus_server::infrastructure::guild::GuildHub::default()),
+    ));
     hub.set_relay(Some(Relay::new("127.0.0.1:27006".parse().unwrap())));
     let (tx, mut rx) = tokio::sync::mpsc::channel(64);
     party.register(1, "Fiona", tx);
@@ -133,6 +136,7 @@ async fn pvp_arena_channels_register_bind_and_remove() {
         },
         arithmetic: Arithmetic::FrameworkX64,
         ids: None,
+        guild_levels: None,
     };
     let query = wire::QueryChannelList {
         pvp_mode: Some("p05".to_owned()),
@@ -149,6 +153,7 @@ async fn pvp_arena_channels_register_bind_and_remove() {
         owner: &owner,
         level: 1,
         name: "Fiona",
+        guild_id: 0,
     };
     hub.register(binder.clone(), entry(), None, rules(), &register(5))
         .map(|own| assert_eq!(result(&own[0]), (register_state::CANCELED, "GameUI_Heroes_PvpJoinFail_InvalidChannel".to_owned())))
@@ -221,7 +226,10 @@ async fn pvp_arena_bound_player_is_kicked_and_the_channel_empties() {
     .unwrap();
     let owner = initial_inventory::key();
     let party = Arc::new(PartyHub::new(false, false));
-    let hub = Arc::new(PvpHub::new(Arc::clone(&party)));
+    let hub = Arc::new(PvpHub::new(
+        Arc::clone(&party),
+        Arc::new(vindictus_server::infrastructure::guild::GuildHub::default()),
+    ));
     hub.set_relay(Some(Relay::new("127.0.0.1:27006".parse().unwrap())));
     let (tx, mut rx) = tokio::sync::mpsc::channel(64);
     party.register(1, "Fiona", tx);
@@ -234,12 +242,14 @@ async fn pvp_arena_bound_player_is_kicked_and_the_channel_empties() {
         },
         arithmetic: Arithmetic::FrameworkX64,
         ids: None,
+        guild_levels: None,
     };
     let entry = Entry {
         cid: 1,
         owner: &owner,
         level: 50,
         name: "Fiona",
+        guild_id: 0,
     };
     hub.register(binder, entry, None, rules(), &register(1)).unwrap();
     until(&mut rx, MKind::ConnectionRequest.category()).await;
@@ -269,5 +279,104 @@ async fn pvp_arena_bound_player_is_kicked_and_the_channel_empties() {
     };
     let list = hub.channel_list(rules().config.as_ref(), &query).unwrap();
     assert_eq!(channels(&list)[1], "1:0/32");
+    cleanup_game_pool(a, p, s).await;
+}
+
+fn full_rules() -> Rules {
+    let row = |k: &str, v: &str| ("p04".to_owned(), k.to_owned(), Some(v.to_owned()), None::<String>);
+    let contents = PvpContents::load(
+        &[
+            row("GameRule", "GodMatch"),
+            row("MatchingSystem", "Full"),
+            row("TeamSize", "1"),
+            row("IsGuild", "FALSE"),
+        ],
+        &mut |_| Ok(true),
+    )
+    .unwrap();
+    Rules {
+        config: contents.get("p04").cloned(),
+        spectator_min: 1,
+        double_event: false,
+        character_rank: true,
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn pvp_full_matching_pairs_confirms_and_dodges() {
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = Arc::new(super::minimum_give::skill_assets(&p, 0).await);
+    let config = QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    vindictus_server::infrastructure::minimum_selection::select(&p, &initial_inventory::key(), &assets, 0, config, Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    let owner = initial_inventory::key();
+    let party = Arc::new(PartyHub::new(false, false));
+    let hub = Arc::new(PvpHub::new(
+        Arc::clone(&party),
+        Arc::new(vindictus_server::infrastructure::guild::GuildHub::default()),
+    ));
+    hub.set_relay(Some(Relay::new("127.0.0.1:27006".parse().unwrap())));
+    let (tx1, mut rx1) = tokio::sync::mpsc::channel(64);
+    party.register(1, "Fiona", tx1);
+    let (tx2, mut rx2) = tokio::sync::mpsc::channel(64);
+    party.register(2, "Evie", tx2);
+    let binder = Binder {
+        pool: p.clone(),
+        assets,
+        config,
+        arithmetic: Arithmetic::FrameworkX64,
+        ids: None,
+        guild_levels: None,
+    };
+    let entry = |cid: i64, name: &'static str| Entry {
+        cid,
+        owner: &owner,
+        level: 50,
+        name,
+        guild_id: 0,
+    };
+    let request = wire::Register {
+        pvp_mode: Some("p04".to_owned()),
+        cheat: 0,
+        channel_id: 0,
+    };
+    let formats = |got: &[OutgoingPacket]| -> Vec<(i32, String)> {
+        got.iter().filter(|p| p.category == Kind::RegisterResult.category()).map(result).collect()
+    };
+    hub.register(binder.clone(), entry(1, "Fiona"), None, full_rules(), &request).unwrap();
+    let got = until(&mut rx1, Kind::RegisterResult.category()).await;
+    assert_eq!(formats(&got), [(register_state::WAIT, "GameUI_Heroes_PvpJoin_WaitingOpponent".to_owned())]);
+    hub.register(binder.clone(), entry(2, "Evie"), None, full_rules(), &request).unwrap();
+    for rx in [&mut rx1, &mut rx2] {
+        let mut got = until(rx, Kind::RegisterResult.category()).await;
+        got.extend(until(rx, Kind::RegisterResult.category()).await);
+        assert_eq!(
+            formats(&got),
+            [
+                (register_state::WAIT, "GameUI_Heroes_PvpJoin_OpponentFound".to_owned()),
+                (register_state::JOINABLE, "GameUI_Heroes_PvpJoin_DSReady".to_owned()),
+            ]
+        );
+    }
+    // The play opens when both confirm; the first player binds and joins the relay.
+    hub.confirm_join(binder.clone(), 1, full_rules());
+    hub.confirm_join(binder.clone(), 2, full_rules());
+    let got = until(&mut rx1, MKind::ConnectionRequest.category()).await;
+    assert!(got.iter().any(|p| p.category == MKind::ConnectionRequest.category()));
+    hub.remove(1);
+    hub.remove(2);
+    // A waiting player who unregisters is Dodged.
+    hub.register(binder.clone(), entry(1, "Fiona"), None, full_rules(), &request).unwrap();
+    until(&mut rx1, Kind::RegisterResult.category()).await;
+    hub.unregister(1);
+    let got = until(&mut rx1, Kind::RegisterResult.category()).await;
+    assert_eq!(formats(&got)[0].1, "GameUI_Heroes_PvpJoinFail_Dodged");
     cleanup_game_pool(a, p, s).await;
 }

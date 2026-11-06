@@ -21,6 +21,7 @@ use crate::{
         map_partition::OutgoingPacket,
         pvp::{Matching, PvpConfig},
         pvp_arena::{self as arena, Arena, Effect, Timer},
+        pvp_team::{self as team_rules, TeamGame, TeamState, TeamTimer},
     },
     protocol::{
         DEFAULT_MAX_BODY,
@@ -87,6 +88,7 @@ struct Player {
     /// The character's name and level (PlayerInfo).
     name: String,
     level: i32,
+    guild_id: i32,
 }
 
 /// ArenaChannel: PlayerDic in registration order, InGamePlayers, WaitingPlayers.
@@ -109,6 +111,28 @@ struct Play {
     config: PvpConfig,
     /// ArenaGame of an Arena play.
     arena: Option<Arena>,
+    /// DeathMatchGame or GodMatchGame of a Full matching play.
+    team: Option<TeamGame>,
+    /// Play.GameEndConfirm.
+    end_confirm: Option<std::collections::BTreeSet<i64>>,
+}
+
+/// FullMatchingSystem.StartingGameInfo: TeamA (red), TeamB (blue) and the players still to
+/// confirm the join.
+struct Starting {
+    a: Vec<i64>,
+    b: Vec<i64>,
+    pending: std::collections::BTreeSet<i64>,
+}
+
+/// FullMatchingSystem of a mode: MakingTeams, WaitingTeams and StartingGame.
+#[derive(Default)]
+struct Full {
+    /// The mode's config of the last registration.
+    config: Option<PvpConfig>,
+    making: Vec<Vec<i64>>,
+    waiting: Vec<Vec<i64>>,
+    starting: Vec<Starting>,
 }
 
 #[derive(Default)]
@@ -117,6 +141,7 @@ struct State {
     channels: HashMap<(String, i32), Channel>,
     plays: HashMap<i64, Play>,
     next_play: i64,
+    full: HashMap<String, Full>,
 }
 
 /// What an async player step needs: the store and the WhoIs profile.
@@ -128,6 +153,8 @@ pub struct Binder {
     pub arithmetic: Arithmetic,
     /// MakeEntityID for the rewards.
     pub ids: Option<crate::application::creation_lifecycle::EntityIds>,
+    /// GuildContents.GuildLevelUpInfoDic for GiveGuildGP.
+    pub guild_levels: Option<Arc<crate::domain::guild::Levels>>,
 }
 
 /// The mode's PvpConfig and FeatureMatrix ArenaSpecatorLevelLimitMin.
@@ -192,11 +219,14 @@ pub struct Entry<'a> {
     pub level: i32,
     /// The character's name.
     pub name: &'a str,
+    /// GuildID (0 without a guild).
+    pub guild_id: i32,
 }
 
 pub struct PvpHub {
     state: Mutex<State>,
     party: Arc<PartyHub>,
+    guilds: Arc<super::guild::GuildHub>,
     /// The PvP relay (the frontend's relay, set when the minimum profile loads).
     relay: std::sync::RwLock<Option<Relay>>,
     /// The latest binder, for players a removal moves from a queue into a play.
@@ -266,10 +296,11 @@ fn game_info(play: &Play) -> wire::PvpGameInfo {
 }
 
 impl PvpHub {
-    pub fn new(party: Arc<PartyHub>) -> Self {
+    pub fn new(party: Arc<PartyHub>, guilds: Arc<super::guild::GuildHub>) -> Self {
         Self {
             state: Mutex::new(State::default()),
             party,
+            guilds,
             relay: std::sync::RwLock::new(None),
             binder: Mutex::new(None),
         }
@@ -390,9 +421,25 @@ impl PvpHub {
                     &[config.level_max.to_string()],
                 )?]);
             }
-            if config.matching != Matching::Arena {
-                // FullMatchingSystem (DeathMatch, GodMatch) is PV3.
-                return canceled("GameUI_Heroes_PvpJoinFail_InvalidPvpMode");
+            match config.matching {
+                Matching::Arena => {}
+                // A guild mode registers a whole guild team of TeamSize; a solo player only
+                // fits a TeamSize of 1 (the party registration is not migrated).
+                Matching::Full if config.is_guild && entry.guild_id == 0 => {
+                    return canceled("GameUI_Heroes_PvpJoinFail_InvalidGuildTeam");
+                }
+                Matching::Full if config.is_guild && config.team_size != 1 => {
+                    return Ok(vec![register_result(
+                        &mode,
+                        register_state::CANCELED,
+                        true,
+                        false,
+                        "GameUI_Heroes_PvpJoinFail_InvalidPartySize",
+                        &[config.team_size.to_string()],
+                    )?]);
+                }
+                Matching::Full => {}
+                _ => return canceled("GameUI_Heroes_PvpJoinFail_InvalidPvpMode"),
             }
             state.players.insert(
                 entry.cid,
@@ -412,8 +459,13 @@ impl PvpHub {
                     },
                     name: entry.name.to_owned(),
                     level: entry.level,
+                    guild_id: entry.guild_id,
                 },
             );
+        }
+        if config.matching == Matching::Full {
+            self.full_register(&mode, &config, entry.cid);
+            return Ok(Vec::new());
         }
         let mut out = Vec::new();
         let mut binds = Vec::new();
@@ -474,6 +526,8 @@ impl PvpHub {
                             slots: vec![None; size],
                             config: config.clone(),
                             arena: Some(Arena::new(arena_rules(&config, &rules), now_ms())),
+                            team: None,
+                            end_confirm: None,
                         },
                     );
                     if let Some(c) = state.channels.get_mut(&key) {
@@ -691,8 +745,9 @@ impl PvpHub {
     }
 
     /// PvpPlayer.JoinComplete.
-    fn join_complete(&self, cid: i64) {
+    fn join_complete(self: &Arc<Self>, cid: i64) {
         let mut out = Vec::new();
+        let mut ready = None;
         {
             let mut state = self.lock();
             let Some(p) = state.players.get(&cid) else {
@@ -707,7 +762,10 @@ impl PvpHub {
                 return;
             };
             let config = client_config(&play.config);
-            let team = wire::team::INVALID;
+            let team = match (&play.team, usize::try_from(slot)) {
+                (Some(t), Ok(s)) => t.team_of(s),
+                _ => wire::team::INVALID,
+            };
             if let Some(info) = &play.host_info {
                 if play.host == Some(cid) {
                     return;
@@ -731,6 +789,7 @@ impl PvpHub {
                     p.stage = Stage::Ready;
                     p.proxy = Proxy::Member;
                 }
+                ready = Some(play_id);
             } else if play.host == Some(cid) {
                 if let Ok(h) = packet(&wire::Message::GameHosted(wire::GameHosted {
                     game_info: Some(game_info(play)),
@@ -745,6 +804,7 @@ impl PvpHub {
                     p.stage = Stage::Ready;
                     p.proxy = Proxy::Hosting;
                 }
+                ready = Some(play_id);
             } else {
                 if let Ok(w) = register_result(
                     &mode,
@@ -762,6 +822,24 @@ impl PvpHub {
             }
         }
         self.deliver(out);
+        if let Some(play_id) = ready {
+            let effects = {
+                let mut state = self.lock();
+                let all_ready = state
+                    .players
+                    .values()
+                    .filter(|p| p.play == Some(play_id))
+                    .all(|p| p.stage == Stage::Ready);
+                state
+                    .plays
+                    .get_mut(&play_id)
+                    .and_then(|p| p.team.as_mut())
+                    .map(|t| t.on_player_ready(all_ready))
+            };
+            if let Some(effects) = effects {
+                self.apply(play_id, effects);
+            }
+        }
     }
 
     /// RegisterServerMessage in the Hosting or Member proxy state: RegisterHostGameInfo
@@ -820,6 +898,8 @@ impl PvpHub {
         let mut binds = Vec::new();
         let mut cascade = Vec::new();
         let mut removal_effects = None;
+        let mut reselected = None;
+        self.full_unregister(cid);
         {
             let mut state = self.lock();
             let Some(p) = state.players.get(&cid).map(|p| {
@@ -852,6 +932,13 @@ impl PvpHub {
                         let effects = a.remove_player(slot);
                         removal_effects = Some((play_id, effects));
                     }
+                    if let (Some(t), Ok(slot)) = (play.team.as_mut(), usize::try_from(p.slot)) {
+                        let effects = t.remove_player(slot, now_ms());
+                        removal_effects = Some((play_id, effects));
+                    }
+                    if let Some(confirm) = play.end_confirm.as_mut() {
+                        confirm.remove(&cid);
+                    }
                     if let Some(s) = play.slots.iter_mut().find(|s| **s == Some(cid)) {
                         *s = None;
                     }
@@ -859,7 +946,15 @@ impl PvpHub {
                         relay.leave(play.group, cid);
                     }
                     if play.host == Some(cid) {
-                        cascade.extend(play.slots.iter().flatten().copied());
+                        match &play.team {
+                            // PvpPlayTeam.RemovePlayer: ReselectHost before the game ends.
+                            Some(t) if t.state() != TeamState::GameEnded => {
+                                play.host = play.slots.iter().flatten().copied().next();
+                                play.host_info = None;
+                                reselected = play.host.map(|_| play_id);
+                            }
+                            _ => cascade.extend(play.slots.iter().flatten().copied()),
+                        }
                     }
                     close = play.slots.iter().all(Option::is_none);
                 }
@@ -913,6 +1008,9 @@ impl PvpHub {
         if let Some((play_id, effects)) = removal_effects {
             self.apply(play_id, effects);
         }
+        if let Some(play_id) = reselected {
+            self.host_changed(play_id);
+        }
         for other in cascade {
             if other != cid {
                 self.remove(other);
@@ -933,6 +1031,11 @@ impl PvpHub {
 
 /// ArenaTeam.AddPlayer: the first player of a hostless play is its host; the first free slot.
 fn add_to_play(state: &mut State, play_id: i64, cid: i64) -> bool {
+    add_to_team(state, play_id, cid, wire::team::INVALID)
+}
+
+/// PvpPlayTeam.AddPlayer (TeamRed/TeamBlue) or ArenaTeam.AddPlayer (Invalid).
+fn add_to_team(state: &mut State, play_id: i64, cid: i64, team: i32) -> bool {
     let Some(name) = state.players.get(&cid).map(|p| p.name.clone()) else {
         return false;
     };
@@ -947,7 +1050,13 @@ fn add_to_play(state: &mut State, play_id: i64, cid: i64) -> bool {
         play.host = Some(cid);
     }
     if let Some(a) = play.arena.as_mut() {
-        a.add_player(slot, arena::Member { cid, name });
+        a.add_player(slot, arena::Member {
+            cid,
+            name: name.clone(),
+        });
+    }
+    if let Some(t) = play.team.as_mut() {
+        t.add_player(slot, team, arena::Member { cid, name });
     }
     let _ = (&play.mode, play.channel);
     match state.players.get_mut(&cid) {
@@ -977,6 +1086,8 @@ enum Job {
     RankBasis,
     /// PvpResultLog, then a winner's PvpResultInfoGet → ArenaResultInfoMessage.
     Result { win: bool, successive: i32 },
+    /// GiveGuildGP(ByPVP) to the player's guild.
+    GuildGp { gp: i32 },
 }
 struct Work {
     cid: i64,
@@ -1001,6 +1112,7 @@ impl PvpHub {
         let mut out = Vec::new();
         let mut work = Vec::new();
         let mut timers = Vec::new();
+        let mut end_confirm = false;
         {
             let state = self.lock();
             let Some(play) = state.plays.get(&play_id) else {
@@ -1085,6 +1197,36 @@ impl PvpHub {
                     }
                     // NotifyStoryEvent(PVP): story events are not migrated.
                     Effect::Story { .. } => {}
+                    Effect::Telepathy { format, args } => {
+                        for cid in play.slots.iter().flatten() {
+                            if let Ok(p) = super::minimum_shop::system_message(2, format, &args) {
+                                out.push((*cid, p));
+                            }
+                        }
+                    }
+                    Effect::Notice { slot, format } => {
+                        if let (Some(cid), Ok(p)) = (
+                            at(slot),
+                            super::minimum_shop::system_message(super::minimum_shop::SYSTEM, format, &[]),
+                        ) {
+                            out.push((cid, p));
+                        }
+                    }
+                    Effect::GuildGp { slot, gp } => {
+                        if let Some(cid) = at(slot)
+                            && let Some(o) = owner(cid)
+                        {
+                            work.push(Work {
+                                cid,
+                                owner: o,
+                                mode: play.mode.clone(),
+                                job: Job::GuildGp { gp },
+                            });
+                        }
+                    }
+                    // UpdateRankBasis_Pvp of a guild: the guild ranking is off in EN-EU.
+                    Effect::GuildRankBasis { .. } => {}
+                    Effect::EndConfirm => end_confirm = true,
                     Effect::Result {
                         slot,
                         win,
@@ -1102,6 +1244,12 @@ impl PvpHub {
                         }
                     }
                 }
+            }
+        }
+        if end_confirm {
+            let mut state = self.lock();
+            if let Some(play) = state.plays.get_mut(&play_id) {
+                play.end_confirm = Some(play.slots.iter().flatten().copied().collect());
             }
         }
         self.deliver(out);
@@ -1131,9 +1279,26 @@ impl PvpHub {
     fn fire(self: &Arc<Self>, play_id: i64, timer: Timer) {
         let effects = {
             let mut state = self.lock();
-            match state.plays.get_mut(&play_id).and_then(|p| p.arena.as_mut()) {
-                Some(a) => a.timer(timer, now_ms()),
-                None => return,
+            let Some(play) = state.plays.get_mut(&play_id) else {
+                return;
+            };
+            match (timer, play.arena.as_mut(), play.team.as_mut()) {
+                (Timer::Team(TeamTimer::ForceRemove), _, Some(_)) => {
+                    let left: Vec<i64> = play
+                        .end_confirm
+                        .as_ref()
+                        .map(|c| c.iter().copied().collect())
+                        .unwrap_or_default();
+                    drop(state);
+                    for cid in left {
+                        self.remove(cid);
+                    }
+                    return;
+                }
+                (Timer::Team(t), _, Some(game)) => game.timer(t, now_ms()),
+                (Timer::Team(_), _, None) => return,
+                (_, Some(a), _) => a.timer(timer, now_ms()),
+                _ => return,
             }
         };
         self.apply(play_id, effects);
@@ -1181,6 +1346,26 @@ impl PvpHub {
                         Err(_) => Err(fail()),
                     }
                 }
+                Job::GuildGp { gp } => match (&binder.guild_levels, super::guild::membership(&binder.pool, w.cid).await) {
+                    (Some(levels), Ok(Some((guild_sn, _)))) => super::guild::give_gp(
+                        &binder.pool,
+                        &self.party,
+                        &self.guilds,
+                        levels,
+                        guild_sn,
+                        w.cid,
+                        *gp,
+                        crate::domain::guild::gain::BY_PVP,
+                    )
+                    .await
+                    .map(|packets| {
+                        if let Some(p) = packets.filter(|p| !p.is_empty()) {
+                            self.party.deliver(w.cid, p);
+                        }
+                    }),
+                    (_, Err(e)) => Err(e),
+                    _ => Ok(()),
+                },
                 Job::RankBasis => super::rank::update_rank_basis(
                     &binder.pool,
                     &binder.assets,
@@ -1296,17 +1481,274 @@ impl PvpHub {
                 return;
             };
             match state.plays.get_mut(&play_id) {
-                Some(play) if play.host == Some(cid) => play.arena.as_mut().map(|a| {
-                    (
-                        play_id,
-                        a.report(report.event, report.subject, report.object, now_ms()),
-                    )
-                }),
+                Some(play) if play.host == Some(cid) => {
+                    let now = now_ms();
+                    if let Some(a) = play.arena.as_mut() {
+                        Some((play_id, a.report(report.event, report.subject, report.object, now)))
+                    } else {
+                        play.team.as_mut().map(|t| {
+                            (play_id, t.report(report.event, report.subject, report.object, now))
+                        })
+                    }
+                }
                 _ => None,
             }
         };
         if let Some((play_id, effects)) = found {
             self.apply(play_id, effects);
+        }
+    }
+}
+
+impl PvpHub {
+    fn make_message(mode: &str, team: &[i64], size: i32) -> Vec<(i64, OutgoingPacket)> {
+        let args = [team.len().to_string(), size.to_string()];
+        team.iter()
+            .filter_map(|c| {
+                register_result(mode, register_state::MAKE, false, false, "GameUI_Heroes_PvpJoin_MakePartyMembers", &args)
+                    .ok()
+                    .map(|p| (*c, p))
+            })
+            .collect()
+    }
+    fn team_message(mode: &str, team: &[i64], state: i32, pending: bool, format: &str, args: &[String]) -> Vec<(i64, OutgoingPacket)> {
+        team.iter()
+            .filter_map(|c| register_result(mode, state, pending, false, format, args).ok().map(|p| (*c, p)))
+            .collect()
+    }
+
+    /// FullMatchingSystem.RegisterPlayer of a solo player (AddMakingParty).
+    fn full_register(self: &Arc<Self>, mode: &str, config: &PvpConfig, cid: i64) {
+        let mut out = Vec::new();
+        {
+            let mut state = self.lock();
+            let guilds: HashMap<i64, i32> = state.players.iter().map(|(c, p)| (*c, p.guild_id)).collect();
+            let full = state.full.entry(mode.to_owned()).or_default();
+            full.config = Some(config.clone());
+            Self::add_making(full, mode, config, vec![cid], &guilds, &mut out);
+        }
+        self.deliver(out);
+    }
+
+    /// AddMakingParty: a full (or guild) team waits; else it joins a making team with room.
+    fn add_making(full: &mut Full, mode: &str, config: &PvpConfig, team: Vec<i64>, guilds: &HashMap<i64, i32>, out: &mut Vec<(i64, OutgoingPacket)>) {
+        let size = usize::try_from(config.team_size).unwrap_or(0);
+        if config.is_guild || team.len() == size {
+            Self::add_waiting(full, mode, config, team, guilds, out);
+            return;
+        }
+        if let Some(i) = full.making.iter().position(|m| m.len() + team.len() <= size) {
+            full.making[i].extend(team);
+            if full.making[i].len() == size {
+                let ready = full.making.remove(i);
+                Self::add_waiting(full, mode, config, ready, guilds, out);
+            } else {
+                out.extend(Self::make_message(mode, &full.making[i], config.team_size));
+            }
+            return;
+        }
+        out.extend(Self::make_message(mode, &team, config.team_size));
+        full.making.push(team);
+    }
+
+    /// AddWaitingParty: the first waiting team (another guild in a guild mode) is the opponent;
+    /// without a DS the game is joinable at once (DSReady).
+    fn add_waiting(full: &mut Full, mode: &str, config: &PvpConfig, team: Vec<i64>, guilds: &HashMap<i64, i32>, out: &mut Vec<(i64, OutgoingPacket)>) {
+        let guild = |t: &[i64]| t.first().and_then(|c| guilds.get(c)).copied().unwrap_or(0);
+        let opponent = full
+            .waiting
+            .iter()
+            .position(|w| !config.is_guild || guild(w) != guild(&team));
+        match opponent {
+            None => {
+                out.extend(Self::team_message(mode, &team, register_state::WAIT, false, "GameUI_Heroes_PvpJoin_WaitingOpponent", &[]));
+                full.waiting.push(team);
+            }
+            Some(i) => {
+                let a = full.waiting.remove(i);
+                for t in [&a, &team] {
+                    out.extend(Self::team_message(mode, t, register_state::WAIT, false, "GameUI_Heroes_PvpJoin_OpponentFound", &[]));
+                    out.extend(Self::team_message(mode, t, register_state::JOINABLE, true, "GameUI_Heroes_PvpJoin_DSReady", &[]));
+                }
+                let pending = a.iter().chain(team.iter()).copied().collect();
+                full.starting.push(Starting { a, b: team, pending });
+            }
+        }
+    }
+
+    /// FullMatchingSystem.UnregisterPlayer of a player not yet in a play: the making or
+    /// waiting team loses it; a starting game's opponent goes back to making.
+    fn full_unregister(self: &Arc<Self>, cid: i64) {
+        let mut out = Vec::new();
+        {
+            let mut state = self.lock();
+            let Some(mode) = state.players.get(&cid).filter(|p| p.play.is_none()).map(|p| p.mode.clone()) else {
+                return;
+            };
+            let guilds: HashMap<i64, i32> = state.players.iter().map(|(c, p)| (*c, p.guild_id)).collect();
+            if let Some(full) = state.full.get_mut(&mode) {
+                let config = full.config.clone();
+                Self::drop_member(full, cid, &mode, config.as_ref(), &guilds, &mut out);
+            }
+        }
+        self.deliver(out);
+    }
+
+    fn drop_member(full: &mut Full, cid: i64, mode: &str, config: Option<&PvpConfig>, guilds: &HashMap<i64, i32>, out: &mut Vec<(i64, OutgoingPacket)>) {
+        let dodged = |out: &mut Vec<(i64, OutgoingPacket)>| {
+            out.extend(Self::team_message(mode, &[cid], register_state::CANCELED, true, "GameUI_Heroes_PvpJoinFail_Dodged", &[]));
+        };
+        for team in full.making.iter_mut().chain(full.waiting.iter_mut()) {
+            if let Some(pos) = team.iter().position(|c| *c == cid) {
+                team.remove(pos);
+                dodged(out);
+            }
+        }
+        full.making.retain(|t| !t.is_empty());
+        full.waiting.retain(|t| !t.is_empty());
+        if let Some(i) = full.starting.iter().position(|g| g.a.contains(&cid) || g.b.contains(&cid)) {
+            let g = full.starting.remove(i);
+            let (own, other) = if g.a.contains(&cid) { (g.a, g.b) } else { (g.b, g.a) };
+            dodged(out);
+            out.extend(Self::team_message(mode, &other, register_state::WAIT, false, "GameUI_Heroes_PvpJoinFail_OpponentDodged", &[String::new()]));
+            if let Some(config) = config {
+                Self::add_making(full, mode, config, other, guilds, out);
+                let rest: Vec<i64> = own.into_iter().filter(|c| *c != cid).collect();
+                if !rest.is_empty() {
+                    Self::add_making(full, mode, config, rest, guilds, out);
+                }
+            } else {
+                full.making.push(other);
+            }
+        }
+    }
+
+    /// PvpConfirmJoin: the last confirmation of a starting game opens its play (TeamA red,
+    /// TeamB blue) on a relay group, without a DS.
+    pub fn confirm_join(self: &Arc<Self>, binder: Binder, cid: i64, rules: Rules) {
+        *self.binder.lock().unwrap_or_else(PoisonError::into_inner) = Some(binder.clone());
+        let mut binds = Vec::new();
+        {
+            let mut state = self.lock();
+            let Some(mode) = state.players.get(&cid).map(|p| p.mode.clone()) else { return };
+            let Some(config) = rules.config.clone() else { return };
+            let Some(full) = state.full.get_mut(&mode) else { return };
+            let Some(i) = full.starting.iter().position(|g| g.pending.contains(&cid)) else { return };
+            full.starting[i].pending.remove(&cid);
+            if !full.starting[i].pending.is_empty() {
+                return;
+            }
+            let g = full.starting.remove(i);
+            let Some(relay) = self.relay() else { return };
+            state.next_play += 1;
+            let id = state.next_play;
+            let size = usize::try_from(config.team_size.max(0) * 2).unwrap_or(0);
+            let rule = if config.rule == crate::domain::pvp::GameRule::GodMatch {
+                team_rules::Rule::GodMatch
+            } else {
+                team_rules::Rule::DeathMatch
+            };
+            let game = TeamGame::new(
+                team_rules::Rules {
+                    rule,
+                    game_length: config.game_length,
+                    wait_before_start: config.wait_before_start,
+                    wait_between_round: config.wait_between_round,
+                    round_to_win: config.round_to_win,
+                    win_signet: config.win_signet,
+                    draw_signet: config.draw_signet,
+                    lose_signet: config.lose_signet,
+                    min_clear_time: config.min_clear_time,
+                    is_guild: config.is_guild,
+                    has_event_reward: !config.event_reward_item.is_empty(),
+                    character_rank: rules.character_rank,
+                },
+                now_ms(),
+            );
+            state.plays.insert(
+                id,
+                Play {
+                    mode: mode.clone(),
+                    channel: -1,
+                    group: relay.make_group(),
+                    host: None,
+                    host_info: None,
+                    slots: vec![None; size],
+                    config,
+                    arena: None,
+                    team: Some(game),
+                    end_confirm: None,
+                },
+            );
+            for (members, team) in [(g.a, arena::RED), (g.b, arena::BLUE)] {
+                for member in members {
+                    if add_to_team(&mut state, id, member, team) {
+                        binds.push(member);
+                    }
+                }
+            }
+        }
+        for member in binds {
+            tokio::spawn(Arc::clone(self).bind(binder.clone(), member));
+        }
+    }
+
+    /// PlayerConn HostChanged of every player after ReselectHost: the new host hosts again
+    /// (PvpGameHosted), the others wait for its RegisterServer.
+    fn host_changed(self: &Arc<Self>, play_id: i64) {
+        let players: Vec<i64> = {
+            let mut state = self.lock();
+            let members: Vec<i64> = state.players.iter().filter(|(_, p)| p.play == Some(play_id)).map(|(c, _)| *c).collect();
+            for c in &members {
+                if let Some(p) = state.players.get_mut(c) {
+                    p.stage = Stage::WaitingHostInfo;
+                }
+            }
+            members
+        };
+        let host = self.lock().plays.get(&play_id).and_then(|p| p.host);
+        if let Some(host) = host {
+            self.join_complete(host);
+        }
+        for c in players.into_iter().filter(|c| Some(*c) != host) {
+            self.join_complete(c);
+        }
+    }
+
+    /// PvpUnregister: during the end confirmation it only confirms (everyone leaves when the
+    /// last one does); otherwise Remove.
+    pub fn unregister(self: &Arc<Self>, cid: i64) {
+        let confirm = {
+            let mut state = self.lock();
+            let play_id = state.players.get(&cid).and_then(|p| p.play);
+            match play_id.and_then(|id| state.plays.get_mut(&id).map(|p| (id, p))) {
+                Some((_, play)) if play.end_confirm.is_some() => {
+                    let set = play.end_confirm.get_or_insert_with(Default::default);
+                    set.remove(&cid);
+                    Some(if set.is_empty() { play.slots.iter().flatten().copied().collect() } else { Vec::new() })
+                }
+                _ => None,
+            }
+        };
+        match confirm {
+            Some(all) => {
+                for c in all {
+                    self.remove(c);
+                }
+            }
+            None => self.remove(cid),
+        }
+    }
+
+    /// PvpGivePanalty of the host: the player gets no team-game reward.
+    pub fn penalty(self: &Arc<Self>, cid: i64, index: i32) {
+        let mut state = self.lock();
+        let Some((play_id, _)) = Self::seat(&state, cid) else { return };
+        if let Some(play) = state.plays.get_mut(&play_id)
+            && play.host == Some(cid)
+            && let (Some(t), Ok(slot)) = (play.team.as_mut(), usize::try_from(index))
+        {
+            t.penalty(slot);
         }
     }
 }

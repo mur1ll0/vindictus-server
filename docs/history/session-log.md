@@ -3752,3 +3752,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` PV3a (dois clientes).
 - Commits: ver "feat: Arena bouts, rounds and rewards (B5 PV3a)".
 - Pendente / próxima ação: PV3b (Full matching e regras de DeathMatch/GodMatch), PV4 (penalidade, GP de guilda, chat/kick de PvP).
+
+## 2026-11-06 — PV3b DeathMatch e GodMatch com Full matching (B5)
+- Feito: `domain::pvp_team` (DeathMatchGame/GodMatchGame + PvpPlayTeam: prontos → AllPlayerReady, StartGame/StartRound/EndRound, deus e GodKill, MinClearTime com Too_Fast_Finish_Pvp, Reward com selos, GP 25/6 de guilda, RankBasis, penalidade e PvPReward_Panalty, EndGame com GameEndConfirm e 32 s). Efeitos comuns estendidos (Telepathy, Notice, GuildGp, GuildRankBasis, EndConfirm, Timer::Team). `PvpHub`: FullMatchingSystem sem DS (AddMakingParty/AddWaitingParty, OpponentFound, DSReady, UnregisterPlayer com Dodged/OpponentDodged), PvpConfirmJoin abre a partida (TeamRed/TeamBlue no relay), OnPlayerReady no JoinComplete, ReselectHost/HostChanged, PvpPenalty, PvpUnregister na confirmação de fim, GP de guilda pelo `guild::give_gp` (Binder com os níveis de guilda). `lab_frontend`: ConfirmJoin, Penalty, `pvp_binder`, GuildID no registro. Registro só solo (party e guilda com TeamSize > 1 não migrados).
+- Verificação: `cargo test --lib -- domain::pvp` 5 passed; PostgreSQL `pvp_` 3 passed (novo Full matching: espera, oponente, DSReady, confirmação abre a partida, Dodged); `cargo clippy --all-targets` sem avisos. Logs `.cache/verification/pv3b-*.log`.
+- Cliente: `docs/client-tests/B5-social.md` PV3b.
+- Commits: ver "feat: DeathMatch and GodMatch with Full matching (B5 PV3b)".
+- Pendente / próxima ação: ajuste "Jogadores por time" no painel para testar com dois clientes; chat de PvP; Docker e sessão de cliente.

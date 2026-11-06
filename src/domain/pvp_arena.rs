@@ -59,6 +59,8 @@ pub enum Timer {
     EndGame(usize),
     /// EndGame() of the whole cycle (GameEnded).
     EndCycle,
+    /// A job of a DeathMatch or GodMatch game (`pvp_team`).
+    Team(super::pvp_team::TeamTimer),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -100,6 +102,19 @@ pub enum Effect {
         win: bool,
         successive: i32,
     },
+    /// SystemMessage(Telepathy) to every player of the play.
+    Telepathy {
+        format: &'static str,
+        args: Vec<String>,
+    },
+    /// SystemMessage(System) to the player of a slot.
+    Notice { slot: usize, format: &'static str },
+    /// GiveGuildGP(ByPVP) of the slot's guild member.
+    GuildGp { slot: usize, gp: i32 },
+    /// RankBasis "Pvp_" + mode of the slot's guild (IsGuild).
+    GuildRankBasis { slot: usize },
+    /// Play.GameEndConfirm: every player confirms with PvpUnregister, or all leave after 32 s.
+    EndConfirm,
 }
 
 /// The ArenaConfig and FeatureMatrix values of the game.
@@ -801,6 +816,7 @@ impl Arena {
             Timer::EndRound(i) => self.end_round(i, now_ms, &mut out),
             Timer::EndGame(i) => self.end_game(i, now_ms, &mut out),
             Timer::EndCycle => self.change_state(GameState::GameEnded, now_ms, &mut out),
+            Timer::Team(_) => {}
         }
         out
     }
