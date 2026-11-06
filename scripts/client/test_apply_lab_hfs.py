@@ -153,6 +153,38 @@ class ApplyLabHfsTest(unittest.TestCase):
         self.run_apply([])
         self.assertEqual({p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}, self.original)
 
+    def test_collab_textures_get_a_new_pack_and_undo(self):
+        import hashlib
+        import json
+        root = self.assets / 'collabs/fairytail'
+        files = {'materials/models/armor/fairytail/pc_female_ftlucy_jpn_upper.vmt': b'"Heroes_Faceskin" {}',
+                 'materials/models/armor/fairytail/pc_female_ftlucy_jpn_upper.vtf': b'VTF\0data'}
+        for path, data in files.items():
+            (root / path).parent.mkdir(parents=True, exist_ok=True)
+            (root / path).write_bytes(data)
+        records = [{'path': p, 'sha256': hashlib.sha256(d).hexdigest()} for p, d in files.items()]
+        (root / 'collab-assets.json').write_text(json.dumps({'files': records}), encoding='utf-8')
+        report = self.run_apply([])
+        self.assertEqual((report['hfs'], report['collab_files'], report['class_files'], report['class_packs']), ('applied', 2, 0, 1))
+        folder = 'materials/models/armor/fairytail'
+        pack = self.client / 'hfs' / (hfs.pack_name(folder) + '.hfs')
+        self.assertEqual(sorted((e.name, hfs.comp_unwrap(e.data)) for e in hfs.read_pack(pack.read_bytes(), KS)),
+                         [('pc_female_ftlucy_jpn_upper.vmt.comp', b'"Heroes_Faceskin" {}'),
+                          ('pc_female_ftlucy_jpn_upper.vtf.comp', b'VTF\0data')])
+        plain = hfs.decode_index((self.client / INDEX).read_bytes())
+        self.assertIn(hfs.pack_name(folder), hfs.index_packs(plain))
+        self.assertIn(hfs.name_key('pc_female_ftlucy_jpn_upper.vtf'), {e[:6] for e in hfs.index_entries(plain)})
+        self.assertEqual(self.run_apply([])['hfs_files_changed'], 0)
+        # a game path outside materials/ is refused
+        records.append({'path': 'scripts/x.txt', 'sha256': '0' * 64})
+        (root / 'collab-assets.json').write_text(json.dumps({'files': records}), encoding='utf-8')
+        from prepare_lab_client import PreparationError
+        with self.assertRaises(PreparationError):
+            self.run_apply([])
+        (root / 'collab-assets.json').unlink()
+        self.run_apply([])
+        self.assertEqual({p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}, self.original)
+
     def test_class_text_adds_only_missing_class_tokens(self):
         import json
         root = self.assets / 'classes/miri'

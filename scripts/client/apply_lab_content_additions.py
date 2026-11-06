@@ -302,22 +302,37 @@ CLASS_PACKS = 'class-packs.json'
 GAME_PATH = re.compile(r'^[a-z0-9_./ -]{1,240}$')
 
 
-def class_asset_files(assets: Path = ASSETS) -> list[tuple[str, Path, str]]:
-    """(game path, staged file, SHA-256) of every NA class staged by scripts/client/stage_na_class.py."""
+def manifest_files(manifests: list[Path], prefixes: tuple[str, ...], what: str) -> list[tuple[str, Path, str]]:
+    """(game path, staged file, SHA-256) of the files listed by staged asset manifests."""
     files: dict[str, tuple[Path, str]] = {}
-    for manifest in sorted((assets / 'classes').glob('*/' + CLASS_MANIFEST)):
+    for manifest in manifests:
         root = manifest.parent.resolve()
         for record in json.loads(manifest.read_text(encoding='utf-8')).get('files', []):
             path = str(record.get('path', ''))
-            if (not GAME_PATH.match(path) or not path.startswith(CLASS_PREFIXES) or '..' in path.split('/')
+            if (not GAME_PATH.match(path) or not path.startswith(prefixes) or '..' in path.split('/')
                     or not re.fullmatch(r'[0-9a-f]{64}', str(record.get('sha256', '')))):
-                raise PreparationError(f'Bad class asset entry in {manifest}.')
+                raise PreparationError(f'Bad {what} asset entry in {manifest}.')
             file = (root / path).resolve()
             if not file.is_relative_to(root) or not file.is_file():
-                raise PreparationError(f'Missing staged class asset {path}.')
+                raise PreparationError(f'Missing staged {what} asset {path}.')
             if files.setdefault(path, (file, record['sha256']))[0] != file:
-                raise PreparationError(f'{path} is staged by two classes.')
+                raise PreparationError(f'{path} is staged twice.')
     return sorted((path, file, sha) for path, (file, sha) in files.items())
+
+
+def class_asset_files(assets: Path = ASSETS) -> list[tuple[str, Path, str]]:
+    """(game path, staged file, SHA-256) of every NA class staged by scripts/client/stage_na_class.py."""
+    return manifest_files(sorted((assets / 'classes').glob('*/' + CLASS_MANIFEST)), CLASS_PREFIXES, 'class')
+
+
+COLLAB_MANIFEST = 'collab-assets.json'
+
+
+def collab_asset_files(assets: Path = ASSETS) -> list[tuple[str, Path, str]]:
+    """(game path, file, SHA-256) of the lab's collab assets the client lacks, e.g. the Fairy Tail outfit
+    textures of scripts/client/fairytail_textures.py (collabs/<name>/collab-assets.json). They go into new
+    packs like the classes' files, without the classes' 1.69 fixes."""
+    return manifest_files(sorted((assets / 'collabs').glob('*/' + COLLAB_MANIFEST)), ('materials/',), 'collab')
 
 
 def class_weapon_costumes(assets: Path = ASSETS, imports: Path = content_additions.CLASS_IMPORTS) -> list[dict]:
@@ -629,6 +644,9 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
                 raise PreparationError(f'{name} has a lab fix and a replacement model.')
             fixed.setdefault(pack, {})[name] = fix
     class_files = [f for f in class_files if f[0] not in injected_paths]
+    collab_files = collab_asset_files(assets)
+    if {f[0] for f in collab_files} & {f[0] for f in class_files}:
+        raise PreparationError('A collab asset is also a class file.')
     # Every pack with a backup comes back to it unless rebuilt below (a merge that was undone).
     restored = [client_copy / 'hfs' / p.name for p in backup_dir.glob('*.hfs') if p.name != index.name]
     originals = {path: backup_dir / path.name
@@ -641,7 +659,7 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     class_names = [class_imports.read_meta(p)['name'] for p in class_imports.load_imports(content_additions.CLASS_IMPORTS)]
     # Collab texts (collabs.py): English where the EU text has no line or a Korean one.
     collab_texts = collab_texts or {}
-    if (not items and not entries and not collab_texts and not class_files and not merges and not class_tokens and not replacements
+    if (not items and not entries and not collab_texts and not class_files and not collab_files and not merges and not class_tokens and not replacements
             and not any(b.exists() for b in originals.values()) and not previously_added):
         return {'hfs': 'unchanged: no added items'}
     if apply_changes:
@@ -734,7 +752,7 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
         raise PreparationError(f'The scripts pack has no {sorted(by_file)[0]}.')
     plain = hfs.decode_index(source[index])
     # NA classes first (gigabytes, written pack by pack), then the item editor's packs after them.
-    plan = class_pack_plan(class_files, set(hfs.index_packs(plain)))
+    plan = class_pack_plan(class_files + collab_files, set(hfs.index_packs(plain)))
     listed, class_built = class_packs(client_copy, plan, ks, apply_changes)
     taken = set(hfs.index_packs(plain)) | {name for name, _, _ in plan}
     new_packs = {}
@@ -755,12 +773,13 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
         for path in stale:
             path.unlink(missing_ok=True)
         added_list.write_text(json.dumps(added), encoding='utf-8')
-    return {'hfs': 'applied' if items or entries or class_files or merges or class_tokens or replacements else 'restored',
+    return {'hfs': 'applied' if items or entries or class_files or collab_files or merges or class_tokens or replacements else 'restored',
             'text_tokens': len(entries),
             'model_replacements': {'files': len(replacements), 'new': len(replacement_new),
                                    'packs_rewritten': len(replaced)},
             'class_tokens': len(class_tokens),
             'costumes': len(costumes), 'new_packs': sorted(p.name for p in new_packs), 'class_files': len(class_files),
+            'collab_files': len(collab_files),
             'class_packs': len(plan), 'class_injected': len(injected_paths), 'class_packs_built': class_built, 'class_merges': merge_report, 'original_fixes': fix_report,
             'hfs_files_changed': len(changed), 'stale_packs': len(stale)}
 
