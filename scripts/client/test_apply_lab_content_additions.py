@@ -27,6 +27,17 @@ class MarketplaceTabsTest(unittest.TestCase):
         self.assertEqual(a.target_categories(rows, [{'MainCategoryName': 'WEAPON', 'Name': 'DRAKER', 'Feature': None}]), rows)
 
 
+class ShopPriceTest(unittest.TestCase):
+    def test_price_changes_reach_the_client_rows(self):
+        empty = a.content_edits.EMPTY
+        rows = a.target_rows([ROW], [], empty, [{'ShopID': 'FERGHUS_Shop', 'Order': 124, 'PriceItemClass': 'gold', 'PriceCount': 9}])
+        self.assertEqual((rows[0]['PriceItemClass'], rows[0]['PriceCount']), ('gold', 9))
+        # A shop the copy lacks is skipped; a missing row of a present shop fails.
+        self.assertEqual(a.target_rows([ROW], [], empty, [{'ShopID': 'NONE', 'Order': 1, 'PriceItemClass': 'gold', 'PriceCount': 9}]), [ROW])
+        with self.assertRaises(PreparationError):
+            a.target_rows([ROW], [], empty, [{'ShopID': 'FERGHUS_Shop', 'Order': 1, 'PriceItemClass': 'gold', 'PriceCount': 9}])
+
+
 class ApplyLabContentAdditionsTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

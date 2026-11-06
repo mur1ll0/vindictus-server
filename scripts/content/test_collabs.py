@@ -129,6 +129,31 @@ class Stories(unittest.TestCase):
         self.assertEqual(npc.without_collab_expiry(later), later)
 
 
+class Prices(unittest.TestCase):
+    def test_lab_prices_change_one_row_or_fail(self):
+        import export_npc_scripts as npc
+        shops = [{'ShopID': 'SAO_KIRITO_ENUS_Shop', 'Order': 0, 'PriceItemClass': 'event_SAO_revival_stone', 'PriceCount': 1},
+                 {'ShopID': 'SAO_KIRITO_ENUS_Shop', 'Order': 1, 'PriceItemClass': 'event_SAO_revival_stone', 'PriceCount': 3}]
+        out = npc.with_lab_prices(shops, [{'ShopID': 'SAO_KIRITO_ENUS_Shop', 'Order': 1, 'PriceItemClass': 'gold', 'PriceCount': 75000}])
+        self.assertEqual([(r['PriceItemClass'], r['PriceCount']) for r in out], [('event_SAO_revival_stone', 1), ('gold', 75000)])
+        self.assertEqual(shops[1]['PriceCount'], 3)
+        self.assertEqual(npc.with_lab_prices(shops, [{'ShopID': 'X', 'Order': 0, 'PriceItemClass': 'gold', 'PriceCount': 1}]), shops)
+        for bad in ({'ShopID': 'SAO_KIRITO_ENUS_Shop', 'Order': 9, 'PriceItemClass': 'gold', 'PriceCount': 1},
+                    {'ShopID': 'SAO_KIRITO_ENUS_Shop', 'Order': 0, 'PriceItemClass': 'gold', 'PriceCount': 0}):
+            with self.assertRaises(ValueError):
+                npc.with_lab_prices(shops, [bad])
+
+    def test_versioned_collab_exchange_is_in_gold(self):
+        from export_npc_scripts import lab_additions
+        data = lab_additions()
+        rows = [r for r in data['ShopInfo'] if r['ShopID'] in ('SAO_KIRITO_ENUS_Shop', 'FAIRYTAIL_MAKALOV_Shop')]
+        self.assertEqual(len(rows), 61)
+        self.assertEqual({r['PriceItemClass'] for r in rows}, {'gold'})
+        self.assertEqual({r['PriceCount'] for r in rows}, {50000, 100000})
+        self.assertEqual({(c['PriceItemClass'], c['PriceCount']) for c in data['ShopInfoPrice'] if c['Order'] == 4},
+                         {('gold', 200000)})
+
+
 class Events(unittest.TestCase):
     """read_events lists collab keys of other regions and the keys only the NPC scripts read."""
 

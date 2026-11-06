@@ -51,13 +51,22 @@ def missing_rows(db: sqlite3.Connection, rows: list[dict]) -> list[dict]:
     return out
 
 
-def target_rows(original: list[dict], additions: list[dict], edits: dict) -> list[dict]:
+def target_rows(original: list[dict], additions: list[dict], edits: dict, prices: list[dict] = ()) -> list[dict]:
     keys = {(r['ShopID'], r['Order']): r for r in original}
     for r in additions:
         found = keys.get((r['ShopID'], r['Order']))
         if found is not None and found['ItemClass'] != r['ItemClass']:
             raise PreparationError('A client ShopInfo row already uses this ShopID and Order.')
-    rows = original + [r for r in additions if (r['ShopID'], r['Order']) not in keys]
+    # Laboratory price changes of original rows (ShopInfoPrice), as export_npc_scripts.with_lab_prices.
+    rows = list(original)
+    for change in prices:
+        if not any(r['ShopID'] == change['ShopID'] for r in rows):
+            continue  # a copy without the shop (test databases)
+        found = [i for i, r in enumerate(rows) if r['ShopID'] == change['ShopID'] and r['Order'] == change['Order']]
+        if len(found) != 1:
+            raise PreparationError('A ShopInfoPrice change names no client ShopInfo row.')
+        rows[found[0]] = {**rows[found[0]], 'PriceItemClass': change['PriceItemClass'], 'PriceCount': change['PriceCount']}
+    rows += [r for r in additions if (r['ShopID'], r['Order']) not in keys]
     rows = content_edits.apply_shop_rows(rows, edits)
     # The client stores CharacterBind as the text 'True'/'False'.
     return [{**r, 'CharacterBind': ('True' if r['CharacterBind'] else 'False') if isinstance(r['CharacterBind'], bool)
@@ -802,7 +811,7 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
                 original = rows_of(original_db)
         else:
             original = current
-        target = target_rows(original, rows, edits)
+        target = target_rows(original, rows, edits, json.loads(additions.read_text(encoding='utf-8')).get('ShopInfoPrice', []))
         if backup.exists():
             with closing(sqlite3.connect(backup.resolve().as_uri() + '?mode=ro', uri=True)) as original_db:
                 original_categories = category_rows(original_db)

@@ -164,6 +164,23 @@ def lab_additions():
     return json.loads(ADDITIONS.read_text(encoding='utf-8'))
 
 
+def with_lab_prices(shops, prices):
+    """Original ShopInfo rows with the laboratory's price changes (lab_content_additions.json ShopInfoPrice):
+    the row of ShopID and Order takes PriceItemClass and PriceCount; a change naming no row is a
+    content change and fails (a content without the shop, such as a test database, keeps its rows)."""
+    out = [dict(r) for r in shops]
+    for change in prices:
+        if not any(r['ShopID'] == change['ShopID'] for r in out):
+            continue
+        found = [r for r in out if r['ShopID'] == change['ShopID'] and r['Order'] == change['Order']]
+        price = change['PriceCount']
+        if (len(found) != 1 or not isinstance(change['PriceItemClass'], str) or type(price) is not int
+                or not 0 < price < 2**31):
+            raise ValueError('ShopInfoPrice must name one ShopInfo row and a positive price')
+        found[0]['PriceItemClass'], found[0]['PriceCount'] = change['PriceItemClass'], price
+    return out
+
+
 def read_package(base, database, config, edits=content_edits.EMPTY):
     catalog = catalog_read(database, config)
     hasher = hashlib.sha256()
@@ -241,7 +258,9 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
             if row['ID'] is not None and (type(row['ID']) is not int or not -(2**31) <= row['ID'] < 2**31): raise ValueError('ShopInfo ID')
             shops.append(row)
             if len(shops) > 100000: raise ValueError('ShopInfo bound')
-        # Laboratory additions (lab_content_additions.json) after the original rows.
+        # Laboratory price changes of original rows, then the additions after the original rows
+        # (lab_content_additions.json).
+        shops = with_lab_prices(shops, lab_additions().get('ShopInfoPrice', []))
         keys = {(r['ShopID'], r['Order']) for r in shops}
         for r in lab_additions().get('ShopInfo', []):
             row = {'ShopID': nullable_text(r['ShopID']), 'Order': short(r['Order']), 'ItemClass': nullable_text(r['ItemClass']),

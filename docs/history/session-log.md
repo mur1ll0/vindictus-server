@@ -3794,3 +3794,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` G7, G8 e PvP de party.
 - Commits: ver "feat: newbie guild recommendation, guild member purchase and PvP party registration (B5)".
 - Pendente / próxima ação: sessão de cliente (PV3a/PV3b/G7/G8/PvP de party); decisão D-S1 para SO3/SO4.
+
+## 2026-11-06 — B5 eventos: troca dos collabs em ouro
+- Feito: pedido do operador (06/11): sozinho não se cumprem as metas coletivas que dão Revival Stone. As 61 linhas de troca (`lab_content_additions.json` ShopInfo, Kirito ENUS e bingo do Makarov) passam a ouro, 25.000 por moeda que custavam (50.000 por peça, 100.000 pelas raras/Shining/Klein); nova seção `ShopInfoPrice` muda o preço de linhas originais (caixas ENUS do Kirito e do gato: 25.000 a 200.000 de ouro), aplicada no servidor (`export_npc_scripts.with_lab_prices`, antes das adições) e na cópia do cliente (`apply_lab_content_additions.target_rows`); conteúdo sem a loja (bancos de teste) fica igual, linha ausente de loja presente falha. Os números de bingo seguem pelo cupom.
+- Verificação: Python `scripts/content` OK (novos `Prices` em `test_collabs`), `test_apply_lab_content_additions` OK (`ShopPriceTest`); `export_npc_scripts.py` (Kirito 42 em ouro, gato 5 em ouro, Makarov 24 em ouro + 25 cupons). Logs `.cache/verification/collabs3-*.log`.
+- Cliente: `docs/client-tests/B5-eventos.md` EV13 (em ouro).
+- Commits: (este)
+- Pendente / próxima ação: sessão de cliente EV12–EV14 e MK12.
