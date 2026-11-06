@@ -441,8 +441,10 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
     # PvpConfig.Load (B5 PV2): PvpInfo rows; the Feature is evaluated by the server.
     with contextlib.closing(content_additions.connect(database)) as db:
         db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
+        # A content database without the table (older or synthetic ones) has no PvP modes.
+        has_pvp = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='PvpInfo'").fetchone() is not None
         pvp = [[nullable_text(r['PvpMode']), nullable_text(r['Key']), nullable_text(r['Value']), nullable_text(r['Feature'])]
-               for r in db.execute('Select * From [PvpInfo]')]
+               for r in db.execute('Select * From [PvpInfo]')] if has_pvp else []
     if len(pvp) > 10000 or any(r[0] is None or r[1] is None for r in pvp): raise ValueError('PvpInfo bound')
     # AllUserGoal.Initialize: AllUserGoalInfo rows of this server (FeatureMatrix.IsMatchServerCode
     # with the ServerCode of ServiceCore.dll.config); the Feature is evaluated by the server.
