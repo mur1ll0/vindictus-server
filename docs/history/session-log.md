@@ -3892,3 +3892,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: roteiro completo `docs/client-tests/B5-social.md`; todas as entradas pendentes (dois clientes).
 - Commits: ver "chore: B5 social gate".
 - Pendente / próxima ação: parado para o cliente — sessão de gameplay do operador pelo roteiro do B5 social; falhas relatadas viram correções no bloco.
+
+## 2026-11-07 — B5 RK4 / categorias restantes da aba RANKINGS
+- Feito: pedido do operador (aba RANKINGS com várias categorias). RK1–RK3 já publicavam e consultavam; só batalhas concluídas, tempos por missão, carruagem e PvP eram alimentados. Ligados os demais chamadores do `UpdateRankBasisUtility` do C#: GamePlay_lvl_up (`minimum_growth::level_up`, níveis ganhos), GamePlay_use_ap (`minimum_skills::learn`), GamePlay_get_title (`acquire_title`, `proceed_titles`), GamePlay_try_enhance (`minimum_enhance`), GamePlay_try_enchant (`minimum_enchant` DoEnchant), GamePlay_produce_cook/_equipment (`minimum_manufacture::craft`), GetItem_* (`minimum_mission::give_reward`), UseItem_*, GamePlay_success_mining e GamePlay_revive_party (`Mission.rank_notes`, escoados em `lab_frontend::mission_after`). Regras puras em `domain::rank` (get_item, use_item, produce, is_mining); `rank::note_in`/`note` registram falha sem parar o caso de uso (carruagem migrada para o helper). Sem fonte: complete_story (sem chamador), help_beginner (TeacherFinder vazio), part_destruction (WeakPoint), fishing, try_dyeing, Guild_Gp_ranking.
+- Verificação: `cargo test --test rank` 6/6; `cargo clippy --lib --test rank -D warnings` exit 0; `cargo fmt`. Logs em `.cache/verification/rank-hooks*.log`. Sem PostgreSQL (o RankBasisUpdate já tem teste; ganchos são chamadas ao mesmo helper).
+- Cliente: entrada RK4 em `docs/client-tests/B5-social.md`; pendente (Docker não reconstruído).
+- Commits: d5d65b3
+- Pendente / próxima ação: rebuild do Docker e sessão de cliente pelo roteiro `docs/client-tests/B5-social.md` (inclui RK4).
