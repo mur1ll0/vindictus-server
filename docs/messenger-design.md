@@ -12,6 +12,7 @@ Base: `docs/messenger-protocol.md` (MS1) e `protocol::nm` (MS3a). Sem sessão de
 - Local na DLL: os registros de callback (0x1002/0x1003, 0xc001, 0xb001) guardam (chave → hWnd, mensagem) e também seguem ao servidor; Initialize/SetLocale/SetCodePage respondem localmente se o túnel não conectar.
 - `CallNMFunction` é síncrona: envia Call e espera o Reply com o mesmo seq (5 s; sem resposta = FALSE). Uma thread lê o socket: Reply vai ao chamador; Event é copiado para um buffer alocado pela DLL e postado com `PostMessage(hWnd, msg, código, buffer)`; o engine o devolve em `NMCO_MemoryFree`, que libera.
 - Só o módulo `ffi` da DLL tem `unsafe` (ponteiros do engine, PostMessage, alocação dos eventos).
+- Implementado (07/11, `tools/nmcogame/src/tunnel.rs`): conexão sob demanda (2 s), Reply em até 5 s, thread leitora, alvos de 0x1002 (alvo 0) e 0xc001/0xb001 (chave = campo antes do hWnd), evento 0x1002 MsgConnectionClosed ao cair; respostas maiores que o buffer do engine e eventos usam buffers da DLL liberados em `NMCO_MemoryFree`.
 
 ## Serviço `messenger` no servidor (MS3b)
 
@@ -21,7 +22,12 @@ Base: `docs/messenger-protocol.md` (MS1) e `protocol::nm` (MS3a). Sem sessão de
 - Dados (migração própria): `game_messenger_category(uid, category_id, name)`, `game_messenger_friend(uid, friend_uid, category_id, state)` com estados pedido/aceito/bloqueado; amigos por conta (NexonSN), nome exibido = personagem selecionado ou o último.
 - Funções: GetMyInfo 0x2001, GetFriendList 0x4001, RequestNewFriend 0x4003 (evento 0x1005 ao destinatário online), ConfirmNewFriend 0x4004 (aceite/recusa; 0x100e/0x1010 aos dois), BlockFriend 0x4005, categorias 0x4007–0x4009 e 0x4101–0x4105. Códigos de patcher, notas, arquivos, canais e log falham (FALSE).
 - Presença: entrar/sair do jogo (registro no `party_hub`) dispara FriendInfoChanged 0x1010 aos amigos online pela conexão messenger deles; tudo por um ponto único (`MessengerHub`).
-- A confirmar no cliente: type words dos objetos derivados (FriendInfo, RealUserInfo, CateFriendInfo), significado dos campos sem nome, sequência pós-login real (log da MS2a).
+- Implementado (07/11): `infrastructure::messenger` (ouvinte em `127.0.0.1:47611`, `Service`, `MessengerHub`), `messenger_friends` (migração 0069: `game_messenger_categories`, `game_messenger_friends` com estados pedido/aguardando/amigo/bloqueado por direção) e `protocol::nm::objects` (layouts do §2.4 do protocolo).
+- Nome na lista: `[Vindictus]` + personagem (último logado, senão o primeiro vivo; sem personagem, o login), porque o engine só mostra nomes com o prefixo de `GetGameServerName` (0x8011, respondida pelo servidor com "Vindictus"). O pedido de amizade aceita nome de personagem ou login, com ou sem o prefixo.
+- Código de jogo: o argumento da 0x8011 fica no contexto da conexão e vai nas chaves e eventos de amigo (o engine descarta evento com código diferente); o virtualId vai 0.
+- Lista (0x4001): categoria 0 "Amigos" e as criadas, cada uma com seus amigos, depois todos os amigos; pedidos aguardando resposta seguem como eventos 0x1005 (serial = NexonSN de quem pediu, que o ConfirmNewFriend devolve; código 1 aceita, outro recusa).
+- Remover amigo: DeleteFriendFromCategory (0x4008) desfaz a amizade (um amigo tem uma categoria só); o outro lado recebe 0x1010 offline.
+- A confirmar no cliente: valores reais do código de jogo e do virtualId (vt+0x84/vt+0x8c), código de aceite do ConfirmNewFriend, se a lista usa as categorias ou a lista solta (as duas vão preenchidas), sequência pós-login real.
 
 ## Chat em grupo (MS4)
 

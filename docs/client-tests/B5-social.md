@@ -190,3 +190,14 @@ Pré-condição: o `nmcogame.dll` do laboratório já está instalado na cópia 
 2. [ ] Abrir a janela da comunidade (amigos/grupos/bloqueados), tentar adicionar um amigo por nome, abrir o chat em grupo, tentar convidar alguém.
 3. [ ] Sair do jogo.
 Relato: se o jogo funcionou normal, se as janelas abriram (o Messenger fica desligado, é esperado), e me envie o arquivo `nmcogame-lab.log` que aparece na pasta do jogo (`.cache/play-client`), ou só me avise que ele está lá. O log não grava conteúdo das chamadas de login.
+
+### MS2/MS3b — Messenger: amigos e presença (dois clientes; pode ser feito junto do MS2a)
+Pré-condição: servidor reconstruído (porta 47611 publicada); o `nmcogame.dll` do túnel instalado nas duas cópias (`pwsh tools/nmcogame/build.ps1`, depois `pwsh tools/nmcogame/install-lab.ps1`); no outro computador, um `nmcogame.ini` ao lado da DLL com `[messenger]` e `address=<IP do servidor>:47611`. Contas A e B, cada uma com personagem.
+1. [ ] A e B entram no jogo → nenhum erro; `nmcogame-lab.log` mostra `tunnel connected` e chamadas com `answered=true`.
+2. [ ] A abre a comunidade → aba de amigos vazia, sem erro.
+3. [ ] A adiciona B pelo nome do personagem → B recebe o pedido; B aceita → os dois se veem na lista, online.
+4. [ ] B sai do jogo → A vê B offline; B volta → online de novo.
+5. [ ] A cria um grupo, renomeia, move B para ele, apaga o grupo (B volta para "Amigos").
+6. [ ] A remove B → some da lista de A; B vê A offline.
+7. [ ] Com o servidor parado, o jogo abre normal (messenger desligado).
+Relato: o que apareceu em cada passo e os dois `nmcogame-lab.log`.

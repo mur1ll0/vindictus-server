@@ -118,6 +118,43 @@ Layouts read so far [C]:
 - CSSendChatMessage 0xc101 — call: CNMChatMessage {u32, u32, sub-object, wstr 0x40, wstr 0x100, wstr 0x100,
   wstr 0x400, u32}.
 
+### 2.4 Data objects (MS3b, targeted decompilation; decoder 0x42363a60, handlers 0x42374100) [C unless I]
+
+- A derived class keeps its base's type word; its ctor only raises b6. Optional blocks follow the class's own b6,
+  not the wire's. Version 2 nests the base as an object; send version 1 (flat) everywhere. `char[N]` fields hold N-1.
+- CNMDefaultUserInfo 0x7569/b6 1: wstr(0x40) login [I], u64 IDCode [I], u32 flags, wstr(0x40) nickname [I],
+  u32 status (0, 13, 14 = offline), u32, u32, u16.
+- CNMRealUserInfo 0x7569/b6 2 (GetMyInfo): default body, wstr(0x20), wstr(0x40), u32, u8, u32, u32, wstr(2), u32,
+  wstr(2), u32, u8, u8, obj CNMAvatarFullInfo, u8 ×4, u8, wstr(0x40).
+- CNMAvatarFullInfo 0x6169/b6 2: u8, u32, u8, u16, u16, 0x26 × (u32, u32) (zeros, ignored). CNMAvatarItemInfo
+  0x6169/b6 1: u8, u32.
+- CNMFriendInfo 0x7569/b6 3: default body, wstr (empty, discarded), obj AvatarItemInfo, NMFriendKey {u64 IDCode,
+  u32 owner gameCode, u32 owner virtualId, u32 friend gameCode, u32 friend virtualId}, wstr(0x40) display name,
+  wstr(0x40), u8 in-game flag (online = status online and flag 1), u32 (low 24 bits), u32, u8, u8, u8,
+  wstr(1000) memo [I], wstr(0x20). **The friend list shows only names starting with "[" + GetGameServerName + "]"**
+  (0x4235e900); GetGameServerName 0x8011 replies bSuccess + wstr(0x80) and its argument is the engine's game code.
+- CNMCategoryInfo 0x6369/b6 1: u32 category, u32, u32, wstr(0x20) name, u8, u8. CNMCateFriendInfo 0x6369/b6 2:
+  u32 category, u32, u32, wstr(0x20), u32 n, n × obj CNMFriendInfo, u8, u8.
+- CNMRequestNewFriendData 0x7266/b6 1: u32 serial, wstr(0x40) peer (target on the call, requester on the event),
+  u32, u32 gameCode, u32 virtualId, u32 gameCode, u32 virtualId, wstr(0x40), wstr(0x40), u32 category,
+  wstr(0x100) message, u8. Event 0x1005 is dropped unless its game code is the engine's.
+- Calls (derived fields after callArg): GetMyInfo reply = obj RealUserInfo, u64, u64, u32, u32, wstr(0x1000);
+  ConfirmNewFriend = u32 serial [I], u8 confirm code [I], u32; BlockFriend = key, u8; AddFriendToCategory =
+  key, u32 category, u8; DeleteFriendFromCategory = key, u32 category, u8; MoveFriendCategory = key, u32 from,
+  u32 to, u8; AddCategory = u32 gameCode [I], u32, wstr(0x20) name, u32, u32 (no id returned); DeleteCategory =
+  u32, u8; ChangeCategoryName = u32, wstr(0x20), u8. 0x4005/0x4007/0x4009 have no caller in engine.dll.
+- Events: 0x1010 FriendInfoChanged = obj CNMFriendInfo, u8 hasAvatar, [obj AvatarFullInfo]; dropped unless the
+  friend game code is the engine's and the owner virtualId equals the engine's (vt+0x8c, value unknown).
+  0x100e has no case in the game's handler: friend updates go as 0x1010.
+- Chat: CNMChatMessage 0x636d/b6 1 = u32 gameCode, u32, obj AvatarItemInfo, wstr(0x40), wstr(0x100), wstr(0x100),
+  wstr(0x400) text [I], u32. CNMSessionInfo 0x7369 = u32, u32 gameCode, u32, u8, u32, u32, u64, u64, u32 ×4.
+  CNMSessionMemberInfo 0x736d = u64 IDCode, wstr(0x40), wstr(0x40), u32, u32, wstr(0x40), u32, obj AvatarFullInfo.
+  0xa00b call = key, u32; reply = bSuccess, u32 r1, u32 r2 (session key = r2 or r1). 0xa00c call = u32 ×3, u32 n,
+  n × key; reply = bSuccess, u32 session key [I]. 0xa001 = u32, obj SessionInfo, u32 n, n × obj member, u8, u8;
+  0xa101 = u32, obj ChatMessage, u8.
+- Unknown: the engine's game code and virtualId values (vt+0x84 / vt+0x8c of the interface at 0x4286ad5c), the
+  confirm code values and most unnamed fields (zeros are accepted).
+
 ## 3. Event path (messenger → game) [C]
 
 - NMCOGame::RegisterCallbackMessage (vtbl 0x42737d4c slot 2 = 0x42360040), called by engine init 0x421cb340

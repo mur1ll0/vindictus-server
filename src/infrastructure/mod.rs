@@ -173,6 +173,7 @@ pub mod pvp;
 pub mod pvp_match;
 pub mod pvp_reward;
 pub mod messenger;
+pub mod messenger_friends;
 pub mod rank;
 pub mod rank_title;
 pub mod relay;

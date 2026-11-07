@@ -306,3 +306,204 @@ mod tests {
         assert_eq!(Reader::new(&cut.bytes).wstring().unwrap(), "abc");
     }
 }
+
+/// The messenger data objects the engine decodes (B5 MS3b; .cache/reverse notes summarized in
+/// docs/messenger-protocol.md §2.4). A derived class keeps its base's type word and only raises
+/// b6; every object is written flat (version 1). Fields whose meaning is unknown are zero, which
+/// the engine accepts.
+pub mod objects {
+    use super::{Reader, NmError, Writer};
+
+    pub const USER: u16 = 0x7569;
+    pub const CATEGORY: u16 = 0x6369;
+    pub const REQUEST: u16 = 0x7266;
+    pub const AVATAR: u16 = 0x6169;
+    pub const CHAT_MESSAGE: u16 = 0x636d;
+    pub const SESSION: u16 = 0x7369;
+    pub const SESSION_MEMBER: u16 = 0x736d;
+    /// DefaultUserInfo status of an online user (0, 13 and 14 are offline).
+    pub const ONLINE: u32 = 1;
+
+    /// A user as the objects show it.
+    pub struct User<'a> {
+        pub login: &'a str,
+        pub id_code: u64,
+        pub nickname: &'a str,
+        pub online: bool,
+    }
+
+    /// NMFriendKey: the friend's IDCode, the owner's (game code, virtual id), the friend's.
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub struct FriendKey {
+        pub id_code: u64,
+        pub owner: (u32, u32),
+        pub friend: (u32, u32),
+    }
+    impl FriendKey {
+        pub fn write(&self, w: &mut Writer) {
+            w.u64(self.id_code)
+                .u32(self.owner.0)
+                .u32(self.owner.1)
+                .u32(self.friend.0)
+                .u32(self.friend.1);
+        }
+        pub fn read(r: &mut Reader<'_>) -> Result<Self, NmError> {
+            Ok(Self {
+                id_code: r.u64()?,
+                owner: (r.u32()?, r.u32()?),
+                friend: (r.u32()?, r.u32()?),
+            })
+        }
+    }
+
+    /// char[N] fields hold N - 1 characters.
+    fn text(w: &mut Writer, value: &str, bytes: usize) {
+        w.wstring(value, bytes - 1);
+    }
+
+    /// CNMDefaultUserInfo body.
+    fn default_body(w: &mut Writer, u: &User<'_>) {
+        text(w, u.login, 0x40);
+        w.u64(u.id_code).u32(0);
+        text(w, u.nickname, 0x40);
+        w.u32(if u.online { ONLINE } else { 0 }).u32(0).u32(0).u16(0);
+    }
+
+    /// CNMAvatarItemInfo (b6 1): zeros, ignored by the engine.
+    pub fn avatar_item(w: &mut Writer) {
+        let mut b = Writer::default();
+        b.u8(0).u32(0);
+        w.object(AVATAR, 1, &b);
+    }
+
+    /// CNMAvatarFullInfo (b6 2): zeros, ignored by the engine.
+    pub fn avatar_full(w: &mut Writer) {
+        let mut b = Writer::default();
+        b.u8(0).u32(0).u8(0).u16(0).u16(0);
+        for _ in 0..0x26 {
+            b.u32(0).u32(0);
+        }
+        w.object(AVATAR, 2, &b);
+    }
+
+    /// CNMRealUserInfo (b6 2), the GetMyInfo object.
+    pub fn real_user(w: &mut Writer, u: &User<'_>) {
+        let mut b = Writer::default();
+        default_body(&mut b, u);
+        b.wstring("", 0x1f).wstring("", 0x3f).u32(0).u8(0).u32(0).u32(0);
+        b.wstring("", 1).u32(0).wstring("", 1).u32(0).u8(0).u8(0);
+        avatar_full(&mut b);
+        b.u8(0).u8(0).u8(0).u8(0).u8(0).wstring("", 0x3f);
+        w.object(USER, 2, &b);
+    }
+
+    /// A friend as the list shows it.
+    pub struct FriendView<'a> {
+        pub user: User<'a>,
+        pub key: FriendKey,
+        /// "[" + game server name + "]" + name: the list hides other entries.
+        pub display: &'a str,
+        pub memo: &'a str,
+    }
+
+    /// CNMFriendInfo (b6 3).
+    pub fn friend(w: &mut Writer, f: &FriendView<'_>) {
+        let mut b = Writer::default();
+        default_body(&mut b, &f.user);
+        b.u8(0); // the discarded RealFriendInfo string
+        avatar_item(&mut b);
+        f.key.write(&mut b);
+        text(&mut b, f.display, 0x40);
+        text(&mut b, "", 0x40);
+        b.u8(u8::from(f.user.online)).u32(0).u32(0).u8(0).u8(0).u8(0);
+        text(&mut b, f.memo, 1000);
+        text(&mut b, "", 0x20);
+        w.object(USER, 3, &b);
+    }
+
+    /// CNMCateFriendInfo (b6 2): a category and its friends.
+    pub fn category(w: &mut Writer, id: u32, name: &str, friends: &[FriendView<'_>]) {
+        let mut b = Writer::default();
+        b.u32(id).u32(0).u32(0);
+        text(&mut b, name, 0x20);
+        b.u32(friends.len() as u32);
+        for f in friends {
+            friend(&mut b, f);
+        }
+        b.u8(0).u8(0);
+        w.object(CATEGORY, 2, &b);
+    }
+
+    /// CNMRequestNewFriendData.
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    pub struct Request {
+        pub serial: u32,
+        /// The target on the call, the requester on event 0x1005.
+        pub peer: String,
+        pub from: (u32, u32),
+        pub to: (u32, u32),
+        pub category: u32,
+        pub message: String,
+    }
+    impl Request {
+        pub fn write(&self, w: &mut Writer) {
+            let mut b = Writer::default();
+            b.u32(self.serial);
+            text(&mut b, &self.peer, 0x40);
+            b.u32(0).u32(self.from.0).u32(self.from.1).u32(self.to.0).u32(self.to.1);
+            text(&mut b, "", 0x40);
+            text(&mut b, "", 0x40);
+            b.u32(self.category);
+            text(&mut b, &self.message, 0x100);
+            b.u8(0);
+            w.object(REQUEST, 1, &b);
+        }
+        pub fn read(r: &mut Reader<'_>) -> Result<Self, NmError> {
+            let (word, _, _, mut b) = r.object()?;
+            if word != REQUEST {
+                return Err(NmError::Object);
+            }
+            let serial = b.u32()?;
+            let peer = b.wstring()?;
+            b.u32()?;
+            let from = (b.u32()?, b.u32()?);
+            let to = (b.u32()?, b.u32()?);
+            b.wstring()?;
+            b.wstring()?;
+            let category = b.u32()?;
+            let message = b.wstring()?;
+            Ok(Self { serial, peer, from, to, category, message })
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn objects_have_their_headers_and_requests_round_trip() {
+            let mut w = Writer::default();
+            avatar_full(&mut w);
+            assert_eq!(w.bytes.len(), 8 + 10 + 0x26 * 8);
+            assert_eq!(&w.bytes[..4], &[1, 2, 0x69, 0x61]);
+            let user = User { login: "alpha", id_code: 11, nickname: "Fiona", online: true };
+            let view = FriendView { user, key: FriendKey { id_code: 11, ..FriendKey::default() }, display: "[Vindictus]Fiona", memo: "" };
+            let mut list = Writer::default();
+            category(&mut list, 0, "Amigos", std::slice::from_ref(&view));
+            let mut r = Reader::new(&list.bytes);
+            let (word, b6, version, mut body) = r.object().unwrap();
+            assert_eq!((word, b6, version), (CATEGORY, 2, 1));
+            assert_eq!((body.u32().unwrap(), body.u32().unwrap(), body.u32().unwrap()), (0, 0, 0));
+            assert_eq!(body.wstring().unwrap(), "Amigos");
+            assert_eq!(body.u32().unwrap(), 1);
+            let (word, b6, _, mut f) = body.object().unwrap();
+            assert_eq!((word, b6), (USER, 3));
+            assert_eq!(f.wstring().unwrap(), "alpha");
+            assert_eq!(f.u64().unwrap(), 11);
+            let request = Request { serial: 12, peer: "Beta".into(), from: (7, 0), to: (7, 0), category: 0, message: "oi".into() };
+            let mut w = Writer::default();
+            request.write(&mut w);
+            assert_eq!(Request::read(&mut Reader::new(&w.bytes)).unwrap(), request);
+        }
+    }
+}

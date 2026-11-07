@@ -172,8 +172,23 @@ pub mod code {
     pub const SET_LOCALE: u32 = 0x2104;
     pub const SET_CODE_PAGE: u32 = 0x2109;
     pub const GET_FRIEND_LIST: u32 = 0x4001;
+    pub const GET_MY_INFO: u32 = 0x2001;
+    pub const REQUEST_NEW_FRIEND: u32 = 0x4003;
+    pub const CONFIRM_NEW_FRIEND: u32 = 0x4004;
+    pub const BLOCK_FRIEND: u32 = 0x4005;
+    pub const ADD_FRIEND_TO_CATEGORY: u32 = 0x4007;
+    pub const DELETE_FRIEND_FROM_CATEGORY: u32 = 0x4008;
+    pub const MOVE_FRIEND_CATEGORY: u32 = 0x4009;
+    pub const ADD_CATEGORY: u32 = 0x4101;
+    pub const DELETE_CATEGORY: u32 = 0x4102;
+    pub const CHANGE_CATEGORY_NAME: u32 = 0x4103;
+    pub const GET_GAME_SERVER_NAME: u32 = 0x8011;
     /// Event MessengerReply.
     pub const EVENT_MESSENGER_REPLY: u32 = 0x1001;
+    /// Event RequestNewFriend (CNMRequestNewFriendData).
+    pub const EVENT_REQUEST_NEW_FRIEND: u32 = 0x1005;
+    /// Event FriendInfoChanged (CNMFriendInfo, u8 avatar follows).
+    pub const EVENT_FRIEND_INFO_CHANGED: u32 = 0x1010;
 }
 
 /// One messenger connection's state.
@@ -298,7 +313,7 @@ const MAX_CONNECTIONS: usize = 256;
 const IDLE: Duration = Duration::from_secs(600);
 
 /// Accepts tunnel connections: each frame of kind Call gets its Reply, then its events.
-pub async fn serve(listener: tokio::net::TcpListener, passports: std::sync::Arc<Passports>) {
+pub async fn serve(listener: tokio::net::TcpListener, service: std::sync::Arc<Service>) {
     let limit = std::sync::Arc::new(tokio::sync::Semaphore::new(MAX_CONNECTIONS));
     loop {
         let Ok((stream, _)) = listener.accept().await else {
@@ -307,45 +322,397 @@ pub async fn serve(listener: tokio::net::TcpListener, passports: std::sync::Arc<
         let Ok(permit) = limit.clone().try_acquire_owned() else {
             continue;
         };
-        let passports = passports.clone();
+        let service = service.clone();
         tokio::spawn(async move {
             let _permit = permit;
-            if connection(stream, &passports).await.is_err() {
+            if connection(stream, &service).await.is_err() {
                 tracing::info!("messenger connection closed; values omitted");
             }
         });
     }
 }
 
-async fn connection(mut stream: tokio::net::TcpStream, passports: &Passports) -> std::io::Result<()> {
+async fn connection(stream: tokio::net::TcpStream, service: &Service) -> std::io::Result<()> {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let (mut read, mut write) = stream.into_split();
+    let (outbox, mut queued) = tokio::sync::mpsc::channel::<Vec<u8>>(OUTBOX);
+    let writer = tokio::spawn(async move {
+        while let Some(bytes) = queued.recv().await {
+            if write.write_all(&bytes).await.is_err() {
+                break;
+            }
+        }
+    });
+    let context = std::sync::Arc::new(Context::default());
     let mut session = Session::default();
-    loop {
-        let mut len = [0u8; 4];
-        tokio::time::timeout(IDLE, stream.read_exact(&mut len))
-            .await
-            .map_err(|_| std::io::ErrorKind::TimedOut)??;
-        let len = u32::from_le_bytes(len) as usize;
-        if len == 0 || len > MAX_FRAME {
-            return Err(std::io::ErrorKind::InvalidData.into());
+    let mut joined: Option<(i32, u64)> = None;
+    let result: std::io::Result<()> = async {
+        loop {
+            let mut len = [0u8; 4];
+            tokio::time::timeout(IDLE, read.read_exact(&mut len))
+                .await
+                .map_err(|_| std::io::ErrorKind::TimedOut)??;
+            let len = u32::from_le_bytes(len) as usize;
+            if len == 0 || len > MAX_FRAME {
+                return Err(std::io::ErrorKind::InvalidData.into());
+            }
+            let mut payload = vec![0u8; len];
+            read.read_exact(&mut payload).await?;
+            let Some(Frame::Call { seq, code, envelope }) = Frame::decode(&payload) else {
+                return Err(std::io::ErrorKind::InvalidData.into());
+            };
+            let a = service.call(&mut session, &context, code, &envelope).await;
+            tracing::info!(code, ok = a.ok, "messenger call processed; values omitted");
+            let mut out = Frame::Reply { seq, ok: a.ok, envelope: a.envelope }.encode();
+            for (target, code, envelope) in a.events {
+                out.extend(Frame::Event { target, code, envelope }.encode());
+            }
+            outbox
+                .send(out)
+                .await
+                .map_err(|_| std::io::Error::from(std::io::ErrorKind::BrokenPipe))?;
+            let me = session.account.as_ref().map(|a| a.nexon_sn);
+            match (session.online, joined, me) {
+                (true, None, Some(sn)) => {
+                    joined = Some((sn, service.hub.join(sn, outbox.clone(), context.clone())));
+                    service.presence(sn).await;
+                }
+                (false, Some((sn, id)), _) => {
+                    joined = None;
+                    if service.hub.leave(sn, id) {
+                        service.presence(sn).await;
+                    }
+                }
+                _ => {}
+            }
         }
-        let mut payload = vec![0u8; len];
-        stream.read_exact(&mut payload).await?;
-        let Some(Frame::Call { seq, code, envelope }) = Frame::decode(&payload) else {
-            return Err(std::io::ErrorKind::InvalidData.into());
+    }
+    .await;
+    if let Some((sn, id)) = joined
+        && service.hub.leave(sn, id)
+    {
+        service.presence(sn).await;
+    }
+    drop(outbox);
+    let _ = writer.await;
+    result
+}
+
+/// What the engine of one connection reveals: its game code (the GetGameServerName argument)
+/// and virtual id. Events about friends carry them; the engine drops those that do not match.
+#[derive(Default)]
+pub struct Context {
+    pub game_code: std::sync::atomic::AtomicU32,
+    pub virtual_id: std::sync::atomic::AtomicU32,
+}
+impl Context {
+    fn pair(&self) -> (u32, u32) {
+        use std::sync::atomic::Ordering::Relaxed;
+        (self.game_code.load(Relaxed), self.virtual_id.load(Relaxed))
+    }
+}
+
+/// The game server name GetGameServerName returns; friend names carry it as "[name]".
+pub const SERVER_NAME: &str = "Vindictus";
+/// The name of the default category (0).
+pub const DEFAULT_CATEGORY: &str = "Amigos";
+/// ConfirmNewFriend code that accepts (others refuse) [I, docs/messenger-protocol.md].
+const CONFIRM_ACCEPT: u8 = 1;
+
+type Error = super::messenger_friends::FriendError;
+
+/// The messenger with its database and online connections.
+pub struct Service {
+    pub passports: std::sync::Arc<Passports>,
+    pub pool: Option<sqlx::PgPool>,
+    pub hub: MessengerHub,
+}
+
+/// The list name of an account: "[server]" + its character (or login).
+pub fn display(p: &super::messenger_friends::Profile) -> String {
+    let name = if p.character.is_empty() { &p.login } else { &p.character };
+    format!("[{SERVER_NAME}]{name}")
+}
+
+fn ok_with(results: &crate::protocol::nm::Writer) -> Answer {
+    Answer {
+        ok: true,
+        envelope: crate::protocol::nm::reply(true, results),
+        events: Vec::new(),
+    }
+}
+
+/// A friend entry as `owner` (game code, virtual id) sees it.
+fn view<'a>(
+    p: &'a super::messenger_friends::Profile,
+    name: &'a str,
+    memo: &'a str,
+    online: bool,
+    owner: (u32, u32),
+) -> crate::protocol::nm::objects::FriendView<'a> {
+    use crate::protocol::nm::objects::{FriendKey, FriendView, User};
+    let id_code = u64::from(p.nexon_sn.unsigned_abs());
+    FriendView {
+        user: User { login: &p.login, id_code, nickname: &p.character, online },
+        key: FriendKey { id_code, owner, friend: (owner.0, 0) },
+        display: name,
+        memo,
+    }
+}
+
+impl Service {
+    pub fn new(passports: std::sync::Arc<Passports>, pool: Option<sqlx::PgPool>) -> Self {
+        Self { passports, pool, hub: MessengerHub::default() }
+    }
+
+    /// One call: the friend functions with the database, the rest by `handle`.
+    pub async fn call(&self, s: &mut Session, context: &Context, code: u32, envelope: &[u8]) -> Answer {
+        use crate::protocol::nm;
+        let body = nm::open(envelope).ok();
+        let call = body.as_deref().and_then(|b| nm::call(b).ok());
+        if code == code::GET_GAME_SERVER_NAME {
+            if let Some(mut c) = call {
+                let game_code = c.fields.u32().unwrap_or(c.argument);
+                context.game_code.store(game_code, std::sync::atomic::Ordering::Relaxed);
+            }
+            let mut results = nm::Writer::default();
+            results.wstring(SERVER_NAME, 0x7f);
+            return ok_with(&results);
+        }
+        let me = s.account.as_ref().filter(|_| s.online).map(|a| a.nexon_sn);
+        let (Some(pool), Some(me)) = (self.pool.as_ref(), me) else {
+            return handle(s, &self.passports, code, envelope, Instant::now());
         };
-        let a = handle(&mut session, passports, code, &envelope, Instant::now());
-        tracing::info!(code, ok = a.ok, "messenger call processed; values omitted");
-        let mut out = Frame::Reply {
-            seq,
-            ok: a.ok,
-            envelope: a.envelope,
+        let Some(mut c) = call else {
+            return handle(s, &self.passports, code, envelope, Instant::now());
+        };
+        let outcome = match code {
+            code::GET_MY_INFO => self.my_info(pool, me).await,
+            code::GET_FRIEND_LIST => self.friend_list(pool, me, context).await,
+            code::REQUEST_NEW_FRIEND => self.request(pool, me, &mut c.fields).await,
+            code::CONFIRM_NEW_FRIEND => self.confirm(pool, me, &mut c.fields).await,
+            code::BLOCK_FRIEND
+            | code::ADD_FRIEND_TO_CATEGORY
+            | code::DELETE_FRIEND_FROM_CATEGORY
+            | code::MOVE_FRIEND_CATEGORY
+            | code::ADD_CATEGORY
+            | code::DELETE_CATEGORY
+            | code::CHANGE_CATEGORY_NAME => self.edit(pool, me, code, &mut c.fields).await,
+            _ => return handle(s, &self.passports, code, envelope, Instant::now()),
+        };
+        outcome.unwrap_or_else(|_| {
+            tracing::info!(code, "messenger call refused; values omitted");
+            answer(false)
+        })
+    }
+
+    async fn my_info(&self, pool: &sqlx::PgPool, me: i32) -> Result<Answer, Error> {
+        use crate::protocol::nm::{Writer, objects};
+        let p = super::messenger_friends::profile(pool, me).await?.ok_or(Error::Refused)?;
+        let mut results = Writer::default();
+        let user = objects::User {
+            login: &p.login,
+            id_code: u64::from(me.unsigned_abs()),
+            nickname: &p.character,
+            online: true,
+        };
+        objects::real_user(&mut results, &user);
+        results.u64(0).u64(0).u32(0).u32(0).wstring("", 0xfff);
+        Ok(ok_with(&results))
+    }
+
+    /// The categories (0 first) with their friends, then every friend; requests waiting for an
+    /// answer follow as RequestNewFriend events.
+    async fn friend_list(&self, pool: &sqlx::PgPool, me: i32, context: &Context) -> Result<Answer, Error> {
+        use super::messenger_friends::{self as db, State};
+        use crate::protocol::nm::{self, Writer, objects};
+        let mine = context.pair();
+        let categories = db::categories(pool, me).await?;
+        let all = db::friends(pool, me).await?;
+        let shown: Vec<_> = all.iter().filter(|f| f.state == State::Friend).collect();
+        let names: Vec<String> = shown.iter().map(|f| display(&f.profile)).collect();
+        let online: Vec<bool> = shown.iter().map(|f| self.hub.is_online(f.profile.nexon_sn)).collect();
+        let in_category = |id: i32| -> Vec<objects::FriendView<'_>> {
+            (0..shown.len())
+                .filter(|&i| shown[i].category_id == id)
+                .map(|i| view(&shown[i].profile, &names[i], &shown[i].memo, online[i], mine))
+                .collect()
+        };
+        let mut results = Writer::default();
+        results.u32(categories.len() as u32 + 1);
+        objects::category(&mut results, 0, DEFAULT_CATEGORY, &in_category(0));
+        for c in &categories {
+            objects::category(&mut results, c.id as u32, &c.name, &in_category(c.id));
         }
-        .encode();
-        for (target, code, envelope) in a.events {
-            out.extend(Frame::Event { target, code, envelope }.encode());
+        results.u32(shown.len() as u32);
+        for i in 0..shown.len() {
+            objects::friend(&mut results, &view(&shown[i].profile, &names[i], &shown[i].memo, online[i], mine));
         }
-        stream.write_all(&out).await?;
+        let mut a = ok_with(&results);
+        for f in all.iter().filter(|f| f.state == State::Waiting) {
+            let request = objects::Request {
+                serial: f.profile.nexon_sn.unsigned_abs(),
+                peer: display(&f.profile),
+                from: mine,
+                to: mine,
+                ..objects::Request::default()
+            };
+            let mut fields = Writer::default();
+            request.write(&mut fields);
+            a.events.push((0, code::EVENT_REQUEST_NEW_FRIEND, nm::event(&fields)));
+        }
+        Ok(a)
+    }
+
+    async fn request(
+        &self,
+        pool: &sqlx::PgPool,
+        me: i32,
+        fields: &mut crate::protocol::nm::Reader<'_>,
+    ) -> Result<Answer, Error> {
+        use super::messenger_friends::{self as db, Requested};
+        use crate::protocol::nm::{self, objects::Request};
+        let call = Request::read(fields).map_err(|_| Error::Refused)?;
+        let prefix = format!("[{SERVER_NAME}]");
+        let name = call.peer.strip_prefix(&prefix).unwrap_or(&call.peer);
+        let target = db::find(pool, name).await?.ok_or(Error::Refused)?;
+        match db::request(pool, me, target).await? {
+            Requested::Sent => {
+                let from = db::profile(pool, me).await?.ok_or(Error::Refused)?;
+                let peer = display(&from);
+                self.hub.send_with(target, code::EVENT_REQUEST_NEW_FRIEND, |pair| {
+                    let request = Request {
+                        serial: me.unsigned_abs(),
+                        peer: peer.clone(),
+                        from: pair,
+                        to: pair,
+                        message: call.message.clone(),
+                        ..Request::default()
+                    };
+                    let mut w = nm::Writer::default();
+                    request.write(&mut w);
+                    nm::event(&w)
+                });
+            }
+            Requested::Accepted => self.friendship_changed(pool, me, target).await?,
+        }
+        Ok(answer(true))
+    }
+
+    async fn confirm(
+        &self,
+        pool: &sqlx::PgPool,
+        me: i32,
+        fields: &mut crate::protocol::nm::Reader<'_>,
+    ) -> Result<Answer, Error> {
+        let serial = fields.u32().map_err(|_| Error::Refused)?;
+        let accept = fields.u8().map_err(|_| Error::Refused)? == CONFIRM_ACCEPT;
+        let other = i32::try_from(serial).map_err(|_| Error::Refused)?;
+        super::messenger_friends::confirm(pool, me, other, accept).await?;
+        if accept {
+            self.friendship_changed(pool, me, other).await?;
+        }
+        Ok(answer(true))
+    }
+
+    /// Block, category membership and category edits; the client asks for the list again.
+    async fn edit(
+        &self,
+        pool: &sqlx::PgPool,
+        me: i32,
+        code: u32,
+        f: &mut crate::protocol::nm::Reader<'_>,
+    ) -> Result<Answer, Error> {
+        use super::messenger_friends as db;
+        use crate::protocol::nm::{NmError, Reader, objects::FriendKey};
+        fn bad(_: NmError) -> Error {
+            Error::Refused
+        }
+        fn friend(f: &mut Reader<'_>) -> Result<i32, Error> {
+            let key = FriendKey::read(f).map_err(bad)?;
+            i32::try_from(key.id_code).map_err(|_| Error::Refused)
+        }
+        fn category(f: &mut Reader<'_>) -> Result<i32, Error> {
+            i32::try_from(f.u32().map_err(bad)?).map_err(|_| Error::Refused)
+        }
+        match code {
+            code::BLOCK_FRIEND => {
+                let other = friend(f)?;
+                let block = f.u8().unwrap_or(1) != 0;
+                db::block(pool, me, other, block).await?;
+            }
+            code::ADD_FRIEND_TO_CATEGORY => {
+                let other = friend(f)?;
+                db::move_friend(pool, me, other, category(f)?).await?;
+            }
+            code::DELETE_FRIEND_FROM_CATEGORY => {
+                // A friend belongs to one category: leaving it ends the friendship.
+                let other = friend(f)?;
+                db::remove(pool, me, other).await?;
+                self.send_friend(pool, other, me, false).await?;
+            }
+            code::MOVE_FRIEND_CATEGORY => {
+                let other = friend(f)?;
+                category(f)?;
+                db::move_friend(pool, me, other, category(f)?).await?;
+            }
+            code::ADD_CATEGORY => {
+                f.u32().map_err(bad)?;
+                f.u32().map_err(bad)?;
+                let name = f.wstring().map_err(bad)?;
+                db::add_category(pool, me, &name).await?;
+            }
+            code::DELETE_CATEGORY => db::delete_category(pool, me, category(f)?).await?,
+            _ => {
+                let id = category(f)?;
+                let name = f.wstring().map_err(bad)?;
+                db::rename_category(pool, me, id, &name).await?;
+            }
+        }
+        Ok(answer(true))
+    }
+
+    /// FriendInfoChanged 0x1010 to `to` about `about`, online as the hub sees it (`listed`
+    /// false sends it offline, the closest the protocol has to a removal).
+    async fn send_friend(&self, pool: &sqlx::PgPool, to: i32, about: i32, listed: bool) -> Result<(), Error> {
+        use crate::protocol::nm::{self, Writer, objects};
+        if !self.hub.is_online(to) {
+            return Ok(());
+        }
+        let Some(p) = super::messenger_friends::profile(pool, about).await? else {
+            return Ok(());
+        };
+        let online = listed && self.hub.is_online(about);
+        let name = display(&p);
+        self.hub.send_with(to, code::EVENT_FRIEND_INFO_CHANGED, |pair| {
+            let mut w = Writer::default();
+            objects::friend(&mut w, &view(&p, &name, "", online, pair));
+            w.u8(0);
+            nm::event(&w)
+        });
+        Ok(())
+    }
+
+    async fn friendship_changed(&self, pool: &sqlx::PgPool, a: i32, b: i32) -> Result<(), Error> {
+        self.send_friend(pool, a, b, true).await?;
+        self.send_friend(pool, b, a, true).await
+    }
+
+    /// An account came online or went offline: its friends online hear it (the single point
+    /// of presence).
+    pub async fn presence(&self, me: i32) {
+        use super::messenger_friends::{self as db, State};
+        let Some(pool) = self.pool.as_ref() else {
+            return;
+        };
+        let Ok(friends) = db::friends(pool, me).await else {
+            return;
+        };
+        for f in friends.iter().filter(|f| f.state == State::Friend) {
+            if self.send_friend(pool, f.profile.nexon_sn, me, true).await.is_err() {
+                tracing::info!("messenger presence not sent; values omitted");
+            }
+        }
     }
 }
 
@@ -358,7 +725,8 @@ mod listener_tests {
     async fn a_call_frame_gets_its_reply_frame() {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
-        let server = tokio::spawn(serve(listener, std::sync::Arc::new(Passports::default())));
+        let service = Service::new(std::sync::Arc::new(Passports::default()), None);
+        let server = tokio::spawn(serve(listener, std::sync::Arc::new(service)));
         let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
         let call = Frame::Call { seq: 5, code: code::INITIALIZE, envelope: Vec::new() }.encode();
         stream.write_all(&call).await.unwrap();
@@ -373,5 +741,63 @@ mod listener_tests {
         stream.write_all(&[0, 0, 0, 0]).await.unwrap();
         assert_eq!(stream.read(&mut len).await.unwrap(), 0);
         server.abort();
+    }
+}
+
+/// Frames queued per connection before further events to it are dropped.
+const OUTBOX: usize = 256;
+
+/// The online messenger connections per account: the single point through which a change seen
+/// by other players (presence, requests, friend changes, chat) reaches them.
+#[derive(Default)]
+pub struct MessengerHub {
+    online: Mutex<HashMap<i32, Vec<Connection>>>,
+    next: std::sync::atomic::AtomicU64,
+}
+struct Connection {
+    id: u64,
+    outbox: tokio::sync::mpsc::Sender<Vec<u8>>,
+    context: std::sync::Arc<Context>,
+}
+impl MessengerHub {
+    /// A connection of `nexon_sn` came online; the returned id removes it again.
+    pub fn join(
+        &self,
+        nexon_sn: i32,
+        outbox: tokio::sync::mpsc::Sender<Vec<u8>>,
+        context: std::sync::Arc<Context>,
+    ) -> u64 {
+        let id = self.next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let mut online = self.online.lock().unwrap_or_else(PoisonError::into_inner);
+        online.entry(nexon_sn).or_default().push(Connection { id, outbox, context });
+        id
+    }
+    /// Removes a connection; true when the account has no other connection left.
+    pub fn leave(&self, nexon_sn: i32, id: u64) -> bool {
+        let mut online = self.online.lock().unwrap_or_else(PoisonError::into_inner);
+        let Some(list) = online.get_mut(&nexon_sn) else {
+            return false;
+        };
+        list.retain(|c| c.id != id);
+        if list.is_empty() {
+            online.remove(&nexon_sn);
+            true
+        } else {
+            false
+        }
+    }
+    pub fn is_online(&self, nexon_sn: i32) -> bool {
+        let online = self.online.lock().unwrap_or_else(PoisonError::into_inner);
+        online.contains_key(&nexon_sn)
+    }
+    /// Pushes an event to the game window (target 0) of every connection of an account, built
+    /// with that connection's (game code, virtual id); a full outbox drops it.
+    pub fn send_with(&self, nexon_sn: i32, code: u32, build: impl Fn((u32, u32)) -> Vec<u8>) {
+        let online = self.online.lock().unwrap_or_else(PoisonError::into_inner);
+        for c in online.get(&nexon_sn).into_iter().flatten() {
+            let envelope = build(c.context.pair());
+            let frame = Frame::Event { target: 0, code, envelope }.encode();
+            let _ = c.outbox.try_send(frame);
+        }
     }
 }

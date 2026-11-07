@@ -476,7 +476,8 @@ async fn run(cli: Cli) -> Result<(), Error> {
             let listener =
                 tokio::net::TcpListener::bind(lab_peer::listen_addr(messenger::BIND)).await?;
             tracing::info!(address=%listener.local_addr()?, "laboratory messenger listening");
-            tokio::spawn(messenger::serve(listener, runtime.passports()))
+            let service = messenger::Service::new(runtime.passports(), Some(pool.clone()));
+            tokio::spawn(messenger::serve(listener, std::sync::Arc::new(service)))
         };
         // In-game cash shop purchases (ingame_cashshop_purchaseURL): served like the relay.
         let web_shop_task = match runtime.live_assets() {
