@@ -470,6 +470,14 @@ async fn run(cli: Cli) -> Result<(), Error> {
             }
             None => None,
         };
+        // Laboratory messenger (B5 MS3b): the nmcogame.dll tunnel, served like the relay.
+        let messenger_task = {
+            use vindictus_server::infrastructure::messenger;
+            let listener =
+                tokio::net::TcpListener::bind(lab_peer::listen_addr(messenger::BIND)).await?;
+            tracing::info!(address=%listener.local_addr()?, "laboratory messenger listening");
+            tokio::spawn(messenger::serve(listener, runtime.passports()))
+        };
         // In-game cash shop purchases (ingame_cashshop_purchaseURL): served like the relay.
         let web_shop_task = match runtime.live_assets() {
             Some(assets) => {
@@ -576,6 +584,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
         if let Some(task) = relay_task {
             task.abort();
         }
+        messenger_task.abort();
         if let Some(task) = web_shop_task {
             task.abort();
         }

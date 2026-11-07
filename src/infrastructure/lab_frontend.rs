@@ -311,6 +311,10 @@ impl Runtime {
         })
     }
     /// The RelayServer of mission entry, when the assets configure one.
+    /// The passports of accepted logins (the messenger listener's authentication).
+    pub fn passports(&self) -> Arc<super::messenger::Passports> {
+        Arc::clone(&self.passports)
+    }
     pub fn relay(&self) -> Option<super::relay::Relay> {
         self.relay.clone()
     }

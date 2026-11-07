@@ -288,3 +288,90 @@ mod service_tests {
         assert!(!handle(&mut s, &passports, 0x6001, &[], now).ok);
     }
 }
+
+/// The laboratory messenger listener (published like the relay; `nmcogame.ini` points at it).
+pub const BIND: std::net::SocketAddr =
+    std::net::SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), 47611);
+/// Concurrent messenger connections.
+const MAX_CONNECTIONS: usize = 256;
+/// A connection without a frame for this long is closed.
+const IDLE: Duration = Duration::from_secs(600);
+
+/// Accepts tunnel connections: each frame of kind Call gets its Reply, then its events.
+pub async fn serve(listener: tokio::net::TcpListener, passports: std::sync::Arc<Passports>) {
+    let limit = std::sync::Arc::new(tokio::sync::Semaphore::new(MAX_CONNECTIONS));
+    loop {
+        let Ok((stream, _)) = listener.accept().await else {
+            continue;
+        };
+        let Ok(permit) = limit.clone().try_acquire_owned() else {
+            continue;
+        };
+        let passports = passports.clone();
+        tokio::spawn(async move {
+            let _permit = permit;
+            if connection(stream, &passports).await.is_err() {
+                tracing::info!("messenger connection closed; values omitted");
+            }
+        });
+    }
+}
+
+async fn connection(mut stream: tokio::net::TcpStream, passports: &Passports) -> std::io::Result<()> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let mut session = Session::default();
+    loop {
+        let mut len = [0u8; 4];
+        tokio::time::timeout(IDLE, stream.read_exact(&mut len))
+            .await
+            .map_err(|_| std::io::ErrorKind::TimedOut)??;
+        let len = u32::from_le_bytes(len) as usize;
+        if len == 0 || len > MAX_FRAME {
+            return Err(std::io::ErrorKind::InvalidData.into());
+        }
+        let mut payload = vec![0u8; len];
+        stream.read_exact(&mut payload).await?;
+        let Some(Frame::Call { seq, code, envelope }) = Frame::decode(&payload) else {
+            return Err(std::io::ErrorKind::InvalidData.into());
+        };
+        let a = handle(&mut session, passports, code, &envelope, Instant::now());
+        tracing::info!(code, ok = a.ok, "messenger call processed; values omitted");
+        let mut out = Frame::Reply {
+            seq,
+            ok: a.ok,
+            envelope: a.envelope,
+        }
+        .encode();
+        for (target, code, envelope) in a.events {
+            out.extend(Frame::Event { target, code, envelope }.encode());
+        }
+        stream.write_all(&out).await?;
+    }
+}
+
+#[cfg(test)]
+mod listener_tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[tokio::test]
+    async fn a_call_frame_gets_its_reply_frame() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(serve(listener, std::sync::Arc::new(Passports::default())));
+        let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+        let call = Frame::Call { seq: 5, code: code::INITIALIZE, envelope: Vec::new() }.encode();
+        stream.write_all(&call).await.unwrap();
+        let mut len = [0u8; 4];
+        stream.read_exact(&mut len).await.unwrap();
+        let mut payload = vec![0u8; u32::from_le_bytes(len) as usize];
+        stream.read_exact(&mut payload).await.unwrap();
+        let Some(Frame::Reply { seq, ok, .. }) = Frame::decode(&payload) else {
+            panic!("expected a reply");
+        };
+        assert_eq!((seq, ok), (5, true));
+        stream.write_all(&[0, 0, 0, 0]).await.unwrap();
+        assert_eq!(stream.read(&mut len).await.unwrap(), 0);
+        server.abort();
+    }
+}
