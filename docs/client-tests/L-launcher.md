@@ -49,3 +49,10 @@ Pré-condição: Docker reconstruído com a migração 0053; `.cache/play-client
 - [ ] Se o jogo não abrir ou falhar sem administrador: marcar "Abrir o jogo como administrador" → Jogar → o Windows pede permissão só para o jogo → o resto igual.
 - [ ] Fechar o launcher com o jogo na tela de título → Start Game → recusa (sessão encerrada).
 Limites conhecidos: instalar, atualizar e verificar arquivos ainda não existem (L1–L3).
+
+### LV1–LV3 — versões montadas pela receita (07/11/2026)
+Pré-condição: as pastas `.cache/client-versions/v1`, `v2` e `v3` montadas por `scripts/client/build_client_version.py` (relatórios `.cache/client-versions/v<N>.report.json`); Docker rodando com o servidor atual; o launcher (`vindictus-launcher.exe`) copiado para a pasta da versão testada ao lado do `Vindictus.exe` (ele não faz parte da versão); `.cache/play-client` não muda. Fechar o jogo entre uma versão e outra.
+- [ ] **LV1 (v1, sem classe nova)**: launcher → login → Jogar → Start Game → seleção sem o diálogo → cidade com um personagem de classe 0–9 → loja de NPC, cash shop (lista carrega), uma missão curta até o fim (IOCP). Não criar Delia nem Miri nem entrar com personagens dessas classes: a v1 não tem as classes, e o servidor ainda não restringe classes pela versão do cliente (anotar se a grade oferece a Delia). Os collabs SAO/Fairy Tail aparecem com texto em inglês.
+- [ ] **LV2 (v2, + Delia)**: o mesmo que o LV1, e criar uma Delia pela grade (botão voltar e nome na customização, Create → estalagem → cidade), pular na cidade (arma nas costas) e uma missão com a guarda. A Miri não aparece na grade.
+- [ ] **LV3 (v3, + Miri)**: o mesmo que o LV2, e entrar com uma Miri (corrente, Flamebreath, transformação). Deve ser igual à cópia de laboratório, sem os itens de teste do editor (`fiona_inner_lab`, `fiona_inner_fringe`, `fiona_inner_zero`, `evy_inner_zero`).
+Relato: versão, passo e o que apareceu de diferente; uma queda junto com o `.mdmp` de `Documents`.

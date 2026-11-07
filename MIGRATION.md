@@ -1,6 +1,6 @@
 # Migração Vindictus .NET → Rust — roadmap vivo
 
-Atualizado em 03/11/2026. Este arquivo é a memória de trabalho do projeto: o que já foi feito (checklist curto) e o que falta fazer. Os registros detalhados de cada sessão (relatos, causas, comandos, logs, hashes) ficam em `docs/history/session-log.md`, que só recebe acréscimos e não deve ser lido inteiro (ver `AGENTS.md`). A ordem de trabalho e as regras dos blocos estão em `docs/playable-game-roadmap.md`.
+Atualizado em 07/11/2026. Este arquivo é a memória de trabalho do projeto: o que já foi feito (checklist curto) e o que falta fazer. Os registros detalhados de cada sessão (relatos, causas, comandos, logs, hashes) ficam em `docs/history/session-log.md`, que só recebe acréscimos e não deve ser lido inteiro (ver `AGENTS.md`). A ordem de trabalho e as regras dos blocos estão em `docs/playable-game-roadmap.md`.
 
 ## Objetivo e critério de conclusão
 
@@ -20,7 +20,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 1. Rebuild do Docker (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, depois `docker compose up -d --wait`) e sessão de cliente do operador pelo roteiro `docs/client-tests/B5-pets.md` (checkpoints P3 e P6).
 2. Miri: aceita no cliente em 02/11/2026 (combate, grade e customização MG1–MG4, teclas da Delia regravadas MI45; `docs/future/miri-class-port.md`); branch `feat/miri-class` no `main`. Pendentes no cliente: B4 I3 (modelo substituto pelo painel, MG6), MI1–MI3 e MI30–MI36 sem relato isolado.
    - B2 RL1 (do ramo do `engine.dll`): rodar no cliente (barco sem trava; `engine.dll` do laboratório já com o patch).
-3. Launcher: login pelo launcher aceito (LA0, LA2, LA4, LA5); D-L6 feito em 07/11 (só ticket; nome digitado com `typed_login` no perfil privado; entra em vigor no próximo rebuild do Docker). Em andamento: versões em camadas reconstruídas (v1 = 1.69 + tudo que não é classe nova, v2 = + Delia, v3 = + Miri; decisão de 07/11), depois L1 (`crates/client-dist`, `updates`) e L3 (instalar/atualizar no launcher).
+3. Launcher: login pelo launcher aceito (LA0, LA2, LA4, LA5); D-L6 feito em 07/11 (só ticket; nome digitado com `typed_login` no perfil privado; entra em vigor no próximo rebuild do Docker). Versões em camadas feitas em 07/11: receita `scripts/client/build_client_version.py` (v1/v2/v3 em `.cache/client-versions/`, hard links somente leitura entre versões), v3 igual à cópia de laboratório menos os itens de teste (`compare_client_version.py`); roteiro LV1–LV3 em `docs/client-tests/L-launcher.md`. Próximo: L1 (`crates/client-dist`, `updates`, publicação zstd + `hfs-xor`), depois L3 (instalar/atualizar no launcher). Risco anotado: o servidor ainda não restringe classes pela versão do cliente (v1/v2 com personagens Delia/Miri).
 4. B5 multijogador implementado (MP1–MP7): sessão de cliente do operador pelo roteiro `docs/client-tests/B5-multijogador.md` (duas contas, dois clientes; Docker já reconstruído). Depois, os sistemas restantes do B5.
 5. B5 correio implementado em 03/11 (ciclo completo e GiveItem ForceMail): sessão de cliente pelo roteiro `docs/client-tests/B5-correio.md` (duas personagens; Docker reconstruído).
 6. B5 mercado implementado em 03/11: sessão de cliente pelo roteiro `docs/client-tests/B5-marketplace.md` (duas contas; Docker reconstruído). Depois, o próximo sistema restante do B5.

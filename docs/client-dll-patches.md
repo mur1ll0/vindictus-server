@@ -19,6 +19,18 @@ Vale para `bin/client.dll`, `bin/server.dll` e `bin/engine.dll` da cópia `.cach
 
 Os hashes intermediários são os que os *scripts* esperam na entrada. O hash final muda a cada mudança em `patch_class_routing.py` ou `EXTRA_CLASSES`. A lista acima vale para o *commit* da verificação; nos passos seguintes, o hash atual fica registrado no `docs/history/session-log.md`.
 
+### Versões distribuídas em camadas (07/11/2026)
+O launcher distribui três versões (`docs/future/game-launcher.md` 4.7), montadas por `scripts/client/build_client_version.py`. A camada de classes vem de `scripts/client/class_layers.py`: os *scripts* de classe aceitam `--classes none|delia|delia,miri` (padrão: todas, a saída da tabela acima). A ordem das cadeias é sempre a mesma; uma camada só pula os passos de classe.
+
+| Versão | `client.dll` | `server.dll` | `engine.dll` |
+|---|---|---|---|
+| v1 (sem classe nova) | loja → login do launcher: `57ea793688bcf97f` | original `d7727e182f6cdec1` | IOCP sobre o original: `60c3f4aaf3da6b0a` |
+| v2 (+ Delia) | loja → `.hcls` (bound 11, `a9591d3a…`) → roteamento só da Delia → login: `bb6852295cff9642` | `.hcls` (`af43431e…`) → roteamento: `651527214e9356a1` | *flags* só da classe 10 → IOCP: `c4e97a77bd8b2c28` |
+| v3 (+ Miri) | a cadeia da tabela acima: `59b60e7a1fd5cc74` | `5f0429365ee0ccd1` | `df6c70d2d66f52ed` |
+
+- O roteamento só da Delia deixa de fora os grupos da Miri (FLAMEBREATH, CHAIN, CUSTOM_EFFECT, FLAMEBREATH_LEAVE, SUMMON_PARENT, SUMMON_FOLLOW, a guarda dela e o tipo de status Dragon Knight). Os nomes de condição da Miri continuam na tabela de condições, com os mesmos ids da v3; nenhum *script* da Delia os usa.
+- A receita confere esses hashes (`DLL_RESULTS`). Quem mudar um patch atualiza a tabela e `DLL_RESULTS` no mesmo *commit*.
+
 ## Os *scripts*
 
 | *Script* (teste) | DLL | O que faz | Entrada aceita | Marca no DLL | *Backup* que cria |
@@ -46,7 +58,7 @@ Concentra quase todo o trabalho de classe nova: cerca de 4.000 linhas e mais de 
 5. **Reconstrução:** a seção seguinte refaz os três DLLs a partir dos originais e prova que a cópia em uso corresponde ao código.
 
 ## Reconstruir do zero (a partir dos originais)
-Para conferir que a cópia em uso corresponde ao código, ou para recuperá-la:
+Para montar uma versão inteira (DLLs, `Mss32.dll`, `nmcogame.dll`, `heroes.db3`, pacotes), use a receita: `py -3.13 scripts/client/build_client_version.py --version 3 --out .cache/client-versions/v3` (`docs/future/game-launcher.md` 4.7). Para conferir só os DLLs da cópia em uso, ou para recuperá-los:
 
 ```bash
 S=<pasta descartável>; B=.cache/play-client/bin; mkdir -p "$S/bin" .cache/verification/dll-repro
