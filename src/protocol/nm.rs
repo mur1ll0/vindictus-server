@@ -1,0 +1,306 @@
+//! The Nexon Messenger call format of the 1.69 client (B5 MS3a, decision D-S1;
+//! docs/messenger-protocol.md): the stream envelope (v0 plain, v1 XOR-chained and reversed)
+//! that `NMCO_CallNMFunction` carries, and the CNMSerializable encoding inside it (object header
+//! `typeWord << 16 | b6 << 8 | version`, body length, little-endian primitives, compact lengths
+//! and UTF-16LE strings). The laboratory `nmcogame.dll` tunnels these envelopes to the server.
+use thiserror::Error;
+
+/// CStreamCryptor_v0.
+pub const V0_MAGIC: u32 = 0x001F_CA34;
+pub const V0_TRAILER: u32 = 0x008A_119E;
+/// CStreamCryptor_v1 (what the engine sends).
+pub const V1_MAGIC: u32 = 0x0A98_C32A;
+pub const V1_TRAILER: u32 = 0x820A_9E12;
+/// Type words of CNMFunc ('fo') and CNMEvent ('eo').
+pub const FUNC: u16 = 0x666f;
+pub const EVENT: u16 = 0x656f;
+/// Largest envelope accepted (the engine's reply buffer is 1 MB).
+pub const MAX_ENVELOPE: usize = 0x10_0000;
+
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum NmError {
+    #[error("truncated messenger data")]
+    Truncated,
+    #[error("unknown envelope")]
+    Envelope,
+    #[error("messenger data too large")]
+    TooLarge,
+    #[error("unexpected object type")]
+    Object,
+    #[error("invalid string")]
+    Text,
+}
+
+/// The body of an envelope (v0 plain or v1 deobfuscated; the v1 checksum is not checked).
+pub fn open(envelope: &[u8]) -> Result<Vec<u8>, NmError> {
+    if envelope.len() > MAX_ENVELOPE + 12 {
+        return Err(NmError::TooLarge);
+    }
+    let word = |at: usize| {
+        envelope
+            .get(at..at + 4)
+            .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+            .ok_or(NmError::Truncated)
+    };
+    let (magic, len) = (word(0)?, word(4)? as usize);
+    let body = envelope.get(8..8 + len).ok_or(NmError::Truncated)?;
+    let trailer = word(8 + len)?;
+    match (magic, trailer) {
+        (V0_MAGIC, V0_TRAILER) => Ok(body.to_vec()),
+        (V1_MAGIC, V1_TRAILER) => {
+            // out = reverse(tmp) ++ u16 checksum; tmp = 8 header bytes ++ chained bytes.
+            if body.len() < 10 {
+                return Err(NmError::Truncated);
+            }
+            let tmp: Vec<u8> = body[..body.len() - 2].iter().rev().copied().collect();
+            if tmp[1] != 1 {
+                return Err(NmError::Envelope);
+            }
+            let key = tmp[3];
+            Ok((8..tmp.len())
+                .map(|i| tmp[i] ^ key ^ if i == 8 { 0 } else { tmp[i - 1] })
+                .collect())
+        }
+        _ => Err(NmError::Envelope),
+    }
+}
+
+/// A v0 envelope of a body (the replies and events of the laboratory).
+pub fn seal(body: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(body.len() + 12);
+    out.extend_from_slice(&V0_MAGIC.to_le_bytes());
+    out.extend_from_slice(&(body.len() as u32).to_le_bytes());
+    out.extend_from_slice(body);
+    out.extend_from_slice(&V0_TRAILER.to_le_bytes());
+    out
+}
+
+/// A v1 envelope (the engine's own codec; used by the tests to mirror its requests). The
+/// checksum is the engine's 16-bit fold, which `open` does not check; zero here.
+pub fn seal_v1(body: &[u8], key: u32) -> Vec<u8> {
+    let mut tmp = vec![0x5a, 1, 0xa5];
+    tmp.extend_from_slice(&key.to_le_bytes());
+    tmp.push(0x3c);
+    let k = key as u8;
+    for (i, b) in body.iter().enumerate() {
+        let prev = if i == 0 { 0 } else { tmp[8 + i - 1] };
+        tmp.push(b ^ k ^ prev);
+    }
+    let mut out: Vec<u8> = tmp.into_iter().rev().collect();
+    out.extend_from_slice(&[0, 0]);
+    let mut env = Vec::with_capacity(out.len() + 12);
+    env.extend_from_slice(&V1_MAGIC.to_le_bytes());
+    env.extend_from_slice(&(out.len() as u32).to_le_bytes());
+    env.extend_from_slice(&out);
+    env.extend_from_slice(&V1_TRAILER.to_le_bytes());
+    env
+}
+
+/// CNMSerializableDecoder over a body.
+pub struct Reader<'a> {
+    rest: &'a [u8],
+}
+impl<'a> Reader<'a> {
+    pub fn new(bytes: &'a [u8]) -> Self {
+        Self { rest: bytes }
+    }
+    pub fn remaining(&self) -> usize {
+        self.rest.len()
+    }
+    fn take(&mut self, n: usize) -> Result<&'a [u8], NmError> {
+        if self.rest.len() < n {
+            return Err(NmError::Truncated);
+        }
+        let (a, b) = self.rest.split_at(n);
+        self.rest = b;
+        Ok(a)
+    }
+    pub fn u8(&mut self) -> Result<u8, NmError> {
+        Ok(self.take(1)?[0])
+    }
+    pub fn u16(&mut self) -> Result<u16, NmError> {
+        let b = self.take(2)?;
+        Ok(u16::from_le_bytes([b[0], b[1]]))
+    }
+    pub fn u32(&mut self) -> Result<u32, NmError> {
+        let b = self.take(4)?;
+        Ok(u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+    }
+    pub fn u64(&mut self) -> Result<u64, NmError> {
+        let b = self.take(8)?;
+        let mut a = [0; 8];
+        a.copy_from_slice(b);
+        Ok(u64::from_le_bytes(a))
+    }
+    /// Compact length: the low two bits of the first byte select u8, u16, u32 (value >> 2) or a
+    /// tag byte followed by a u32.
+    pub fn length(&mut self) -> Result<usize, NmError> {
+        let first = self.rest.first().copied().ok_or(NmError::Truncated)?;
+        let n = match first & 3 {
+            0 => u32::from(self.u8()? >> 2),
+            1 => u32::from(self.u16()? >> 2),
+            2 => self.u32()? >> 2,
+            _ => {
+                self.u8()?;
+                self.u32()?
+            }
+        };
+        usize::try_from(n).map_err(|_| NmError::TooLarge)
+    }
+    /// A wstring: compact length in UTF-16 units, UTF-16LE, no terminator.
+    pub fn wstring(&mut self) -> Result<String, NmError> {
+        let units = self.length()?;
+        if units > MAX_ENVELOPE / 2 {
+            return Err(NmError::TooLarge);
+        }
+        let raw = self.take(units * 2)?;
+        let wide: Vec<u16> = raw
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect();
+        String::from_utf16(&wide).map_err(|_| NmError::Text)
+    }
+    /// An object header: (typeWord, b6, version) and the body as its own reader.
+    pub fn object(&mut self) -> Result<(u16, u8, u8, Reader<'a>), NmError> {
+        let header = self.u32()?;
+        let len = self.u32()? as usize;
+        let body = self.take(len)?;
+        Ok((
+            (header >> 16) as u16,
+            (header >> 8) as u8,
+            header as u8,
+            Reader::new(body),
+        ))
+    }
+}
+
+/// CNMSerializableEncoder into a body.
+#[derive(Default)]
+pub struct Writer {
+    pub bytes: Vec<u8>,
+}
+impl Writer {
+    pub fn u8(&mut self, v: u8) -> &mut Self {
+        self.bytes.push(v);
+        self
+    }
+    pub fn u16(&mut self, v: u16) -> &mut Self {
+        self.bytes.extend_from_slice(&v.to_le_bytes());
+        self
+    }
+    pub fn u32(&mut self, v: u32) -> &mut Self {
+        self.bytes.extend_from_slice(&v.to_le_bytes());
+        self
+    }
+    pub fn u64(&mut self, v: u64) -> &mut Self {
+        self.bytes.extend_from_slice(&v.to_le_bytes());
+        self
+    }
+    /// The smallest compact length form.
+    pub fn length(&mut self, n: usize) -> &mut Self {
+        let n = n as u32;
+        if n < 0x40 {
+            self.u8((n << 2) as u8)
+        } else if n < 0x4000 {
+            self.u16(((n << 2) | 1) as u16)
+        } else if n < 0x4000_0000 {
+            self.u32((n << 2) | 2)
+        } else {
+            self.u8(3).u32(n)
+        }
+    }
+    /// A wstring cut to `max` UTF-16 units (the reader's field size).
+    pub fn wstring(&mut self, text: &str, max: usize) -> &mut Self {
+        let units: Vec<u16> = text.encode_utf16().take(max).collect();
+        self.length(units.len());
+        for u in units {
+            self.u16(u);
+        }
+        self
+    }
+    /// A nested object: header and body length, then `body`'s bytes.
+    pub fn object(&mut self, type_word: u16, b6: u8, body: &Writer) -> &mut Self {
+        self.u32((u32::from(type_word) << 16) | (u32::from(b6) << 8) | 1);
+        self.u32(body.bytes.len() as u32);
+        self.bytes.extend_from_slice(&body.bytes);
+        self
+    }
+}
+
+/// A function call of the engine: code, the call argument and the derived fields.
+pub struct Call<'a> {
+    pub argument: u32,
+    pub fields: Reader<'a>,
+}
+
+/// Opens a function call body (a 'fo' object, version 1).
+pub fn call(body: &[u8]) -> Result<Call<'_>, NmError> {
+    let mut r = Reader::new(body);
+    let (word, _, _, mut fields) = r.object()?;
+    if word != FUNC {
+        return Err(NmError::Object);
+    }
+    let argument = fields.u32()?;
+    Ok(Call { argument, fields })
+}
+
+/// A function reply envelope: `bSuccess` then the result fields.
+pub fn reply(success: bool, results: &Writer) -> Vec<u8> {
+    let mut body = Writer::default();
+    body.u32(u32::from(success));
+    body.bytes.extend_from_slice(&results.bytes);
+    let mut object = Writer::default();
+    object.object(FUNC, 1, &body);
+    seal(&object.bytes)
+}
+
+/// An event envelope ('eo' object) with its fields.
+pub fn event(fields: &Writer) -> Vec<u8> {
+    let mut object = Writer::default();
+    object.object(EVENT, 1, fields);
+    seal(&object.bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn v1_requests_open_and_v0_replies_round_trip() {
+        let mut fields = Writer::default();
+        fields.u32(0).u32(0x1234).u32(0x8001);
+        let mut body = Writer::default();
+        body.object(FUNC, 1, &fields);
+        let envelope = seal_v1(&body.bytes, 0xdead_beef);
+        let opened = open(&envelope).unwrap();
+        assert_eq!(opened, body.bytes);
+        let mut c = call(&opened).unwrap();
+        assert_eq!((c.argument, c.fields.u32().unwrap(), c.fields.u32().unwrap()), (0, 0x1234, 0x8001));
+        let r = reply(true, &Writer::default());
+        assert_eq!(
+            r,
+            [
+                0x34, 0xca, 0x1f, 0x00, 12, 0, 0, 0, 0x01, 0x01, 0x6f, 0x66, 4, 0, 0, 0, 1, 0, 0,
+                0, 0x9e, 0x11, 0x8a, 0x00
+            ]
+        );
+        assert_eq!(open(&r).unwrap().len(), 12);
+        assert_eq!(open(&[1, 2, 3]), Err(NmError::Truncated));
+    }
+
+    #[test]
+    fn compact_lengths_and_wstrings() {
+        let mut w = Writer::default();
+        w.wstring("Fiona_é", 0x40).length(0x3f).length(0x40).length(0x4000).length(0x4000_0000);
+        let mut r = Reader::new(&w.bytes);
+        assert_eq!(r.wstring().unwrap(), "Fiona_é");
+        assert_eq!(r.length().unwrap(), 0x3f);
+        assert_eq!(r.length().unwrap(), 0x40);
+        assert_eq!(r.length().unwrap(), 0x4000);
+        assert_eq!(r.length().unwrap(), 0x4000_0000);
+        assert_eq!(r.remaining(), 0);
+        let mut cut = Writer::default();
+        cut.wstring("abcdef", 3);
+        assert_eq!(Reader::new(&cut.bytes).wstring().unwrap(), "abc");
+    }
+}

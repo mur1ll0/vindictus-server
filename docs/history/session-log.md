@@ -3850,3 +3850,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-cosmeticos.md` AV1 (esconder/mostrar).
 - Commits: (este)
 - Pendente / próxima ação: sessão de cliente AV1.
+
+## 2026-11-07 — MS3a codec do protocolo do Messenger (B5)
+- Feito: `protocol::nm` (envelope v0 e v1 do CStreamCryptor — o v1 é aberto desfazendo inversão e XOR encadeado, sem conferir o checksum; respostas e eventos em v0; Reader/Writer do CNMSerializable: u8/u16/u32/u64, comprimento compacto de 2 bits, wstring UTF-16LE com corte no tamanho do campo, objetos `typeWord<<16|b6<<8|version`; `call`, `reply`, `event`). Operador sem cliente para testar (launcher ainda não distribui o cliente): seguir MS2/MS3 sem sessão de cliente.
+- Verificação: `cargo test --lib -- protocol::nm` 2 passed; clippy da lib sem avisos.
+- Cliente: não necessário.
+- Commits: ver "feat: messenger call codec (B5 MS3a)".
+- Pendente / próxima ação: MS3b (serviço messenger no servidor: túnel TCP, LoginAuth com o passport, GetMyInfo, lista de amigos, pedidos, presença e eventos) e MS2 (nmcogame.dll túnel).
