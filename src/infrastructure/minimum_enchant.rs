@@ -378,6 +378,9 @@ pub async fn enchant(
             packets.push(result_packet(result::CANCELED, -1, -1, "", 0.0)?);
         }
         "DoEnchant" => {
+            // UpdateRankBasis_TryEnchant follows every DoEnchant result; a failed request
+            // rolls the transaction (and the count) back.
+            super::rank::note_in(&mut tx, assets, cid, "GamePlay_try_enchant", 1).await;
             let scroll = item(&mut tx, cid, open.scroll).await?;
             let target = item(&mut tx, cid, open.target).await?;
             let outcome = match (scroll, target) {

@@ -285,3 +285,60 @@ pub fn update_rank_titles(
 pub fn next_week_start(now: i64) -> i64 {
     WEEK_REFERENCE + ((now - WEEK_REFERENCE).div_euclid(WEEK_SECONDS) + 1) * WEEK_SECONDS
 }
+
+/// UpdateRankBasisUtility.UpdateRankBasis_GetItem: the RankID of a given item class and its
+/// score (the amount for gold, 1 otherwise), None when no ranking counts the class. The
+/// tests run in the source's order; `GetItem_silk` has no RankDescription row in 1.69.
+pub fn get_item(class: &str, count: i64) -> Option<(&'static str, i64)> {
+    let rank_id = if class == "gold" {
+        return Some(("GetItem_gold", count));
+    } else if class.ends_with("_erg_crystal") {
+        "GetItem_erg_crystal"
+    } else if class.starts_with("cloth_lvl") {
+        "GetItem_cloth"
+    } else if class.starts_with("silk_lvl") {
+        "GetItem_silk"
+    } else if class.starts_with("skin_lvl") {
+        "GetItem_skin"
+    } else if class.starts_with("iron_ore_lvl") {
+        "GetItem_iron_ore"
+    } else if class.contains("sign_lvl") {
+        "GetItem_sign"
+    } else if class.starts_with("enhance_stone_lvl") {
+        "GetItem_enhance_stone"
+    } else {
+        return None;
+    };
+    Some((rank_id, 1))
+}
+
+/// UpdateRankBasisUtility.UpdateRankBasis_UseItem: the RankID of a consumable used in a
+/// non-practice play (score 1).
+pub fn use_item(class: &str) -> Option<&'static str> {
+    [
+        ("javelin", "UseItem_javelin"),
+        ("handbomb", "UseItem_handbomb"),
+        ("flashbang", "UseItem_flashbang"),
+        ("mining_bomb", "UseItem_mining_bomb"),
+        ("sticky_bomb", "UseItem_sticky_bomb"),
+    ]
+    .into_iter()
+    .find(|(prefix, _)| class.starts_with(prefix))
+    .map(|(_, rank_id)| rank_id)
+}
+
+/// ManufactureManager.Craft: a cooking recipe counts GamePlay_produce_cook, any other
+/// GamePlay_produce_equipment.
+pub fn produce(manufacture_id: &str) -> &'static str {
+    if manufacture_id.starts_with("cooking") {
+        "GamePlay_produce_cook"
+    } else {
+        "GamePlay_produce_equipment"
+    }
+}
+
+/// NamedProp.BreakNamedProp: breaking a named prop whose EntityName contains "ore_" outside
+/// practice counts GamePlay_success_mining for the breaker.
+pub fn is_mining(entity_name: &str) -> bool {
+    entity_name.contains("ore_")
+}

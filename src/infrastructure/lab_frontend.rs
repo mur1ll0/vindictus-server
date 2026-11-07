@@ -4704,6 +4704,10 @@ impl Connection {
             super::minimum_mission_finish::drain(state, ctx, std::time::Instant::now())
                 .map_err(|_| RuntimeError::Operation)?;
         packets.extend(Self::mission_titles(state, runtime, pool, owner, journal).await?);
+        // The RankService requests of this message's MicroPlay hooks.
+        for (rank_id, score) in std::mem::take(&mut state.rank_notes) {
+            super::rank::note(pool, assets, state.completion.cid, rank_id, score).await;
+        }
         if super::minimum_mission_finish::update_play_count(state, pool, owner, assets)
             .await
             .is_err()

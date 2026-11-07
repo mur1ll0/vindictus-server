@@ -237,6 +237,9 @@ pub async fn learn(
             .bind(learned.used)
             .execute(&mut *tx)
             .await?;
+        // SkillManager.Learn after AddSkillLog: UpdateRankBasis_UseAP(ap − refund).
+        super::rank::note_in(&mut tx, assets, cid, "GamePlay_use_ap", i64::from(learned.used))
+            .await;
         let list = packet(&mut tx, owner, assets, cid, level, class).await?;
         let stat_packets = stat_after(&mut tx, owner, assets, cid, stats, arithmetic).await?;
         let ap_packet = super::minimum_ap::packet(super::minimum_ap::current(&mut tx, owner, assets, cid, arithmetic).await?)?;

@@ -174,3 +174,41 @@ fn rank_titles_refresh_after_each_weekly_start() {
         saturday + rules::WEEK_SECONDS
     );
 }
+
+#[test]
+fn rank_hooks_map_item_classes_and_recipes_like_update_rank_basis_utility() {
+    assert_eq!(rules::get_item("gold", 350), Some(("GetItem_gold", 350)));
+    assert_eq!(
+        rules::get_item("lvl2_erg_crystal", 3),
+        Some(("GetItem_erg_crystal", 1))
+    );
+    assert_eq!(rules::get_item("cloth_lvl3", 5), Some(("GetItem_cloth", 1)));
+    assert_eq!(rules::get_item("skin_lvl1", 2), Some(("GetItem_skin", 1)));
+    assert_eq!(
+        rules::get_item("iron_ore_lvl4", 1),
+        Some(("GetItem_iron_ore", 1))
+    );
+    assert_eq!(
+        rules::get_item("black_sign_lvl2", 1),
+        Some(("GetItem_sign", 1))
+    );
+    assert_eq!(
+        rules::get_item("enhance_stone_lvl1", 1),
+        Some(("GetItem_enhance_stone", 1))
+    );
+    assert_eq!(rules::get_item("silk_lvl1", 1), Some(("GetItem_silk", 1)));
+    assert_eq!(rules::get_item("potion_hp_lvl1", 4), None);
+    assert_eq!(rules::use_item("javelin_iron"), Some("UseItem_javelin"));
+    assert_eq!(rules::use_item("handbomb"), Some("UseItem_handbomb"));
+    assert_eq!(rules::use_item("flashbang_s"), Some("UseItem_flashbang"));
+    assert_eq!(rules::use_item("mining_bomb"), Some("UseItem_mining_bomb"));
+    assert_eq!(
+        rules::use_item("sticky_bomb_x"),
+        Some("UseItem_sticky_bomb")
+    );
+    assert_eq!(rules::use_item("potion_hp_lvl1"), None);
+    assert_eq!(rules::produce("cooking_bread"), "GamePlay_produce_cook");
+    assert_eq!(rules::produce("weaponsmith"), "GamePlay_produce_equipment");
+    assert!(rules::is_mining("ore_iron_01") && rules::is_mining("big_ore_vein"));
+    assert!(!rules::is_mining("barrel_01"));
+}

@@ -378,6 +378,10 @@ pub async fn craft(
             s.experience = experience;
         }
     }
+    // Craft's last step: UpdateRankBasis_ProduceCook for a cooking manufacture, else
+    // UpdateRankBasis_ProduceEquipment.
+    let produced = crate::domain::rank::produce(&plan.recipe.manufacture_id);
+    super::rank::note_in(&mut tx, assets, cid, produced, 1).await;
     tx.commit().await?;
     super::minimum_item_logs::write_give(
         pool,

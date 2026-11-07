@@ -12,7 +12,7 @@ Sistemas sociais do servidor Rust (`docs/social-systems.md`): sussurro, bloqueio
 ## Ordem de gameplay
 1. Cidade: SO1 (sussurro) e SO2 (bloqueio); MS2a e MS2/MS3b passos 1–7 (comunidade, amigos, grupos, presença) e 8–9 (conversa 1:1).
 2. Guilda: G1 → G2 → G3 → G4 → G5; G7 (recomendação) e G8 (vagas); armazém G6b → G6e → G6c/G6d → G6f; carruagem.
-3. Ranking: RK1–RK2 e RK3 (títulos).
+3. Ranking: RK1–RK2, RK3 (títulos) e RK4 (categorias restantes).
 4. PvP: PV1 (duelo) → PV2c (Arena, anfitrião) → PV3a (lutas e recompensas) → PV3b (DeathMatch/GodMatch) → registro de party.
 5. Fim: sair do jogo com conversa aberta (MS passo 9), conferir `nmcogame.ini` (MS passo 10) e o messenger com o servidor parado (MS passo 7).
 
@@ -96,6 +96,19 @@ Pré-condição: A e B com missões concluídas em dias diferentes; o ranking pu
 - [ ] A marca um ranking como favorito → aparece na aba de favoritos; desmarca → some.
 - [ ] Ao entrar pela primeira vez no top 100 → aviso de ranking (alerta) uma única vez.
 - [ ] Anotar se o banner de ranking da cidade fica vazio (o sorteio do banner não está migrado).
+
+### RK4 — Categorias restantes da aba RANKINGS
+Pré-condição: personagem A; as pontuações só aparecem na aba depois de uma publicação (07:00 UTC ou peça ao Claude para forçar). Anotar os valores antes e depois.
+- [ ] A sobe de nível (missão ou painel) → ranking "level up" soma os níveis ganhos.
+- [ ] A distribui AP numa skill → ranking de AP usado soma o AP gasto.
+- [ ] A ganha um título (ex.: por nível ou por missão) → ranking de títulos +1.
+- [ ] A tenta um refino (sucesso ou falha) → ranking de refino +1; um encanto → ranking de encanto +1.
+- [ ] A produz um item na produção (culinária → ranking de culinária; outra receita → ranking de produção de equipamento).
+- [ ] Numa missão (fora do treino), A pega ouro, cristal de erg, tecido, couro, minério de ferro, sinal ou pedra de refino → o ranking do material sobe (o ouro soma a quantia, os outros +1 por coleta).
+- [ ] A usa dardo, bomba de mão, flashbang, bomba de mineração ou bomba pegajosa → o ranking do item +1 por uso.
+- [ ] A (anfitrião) quebra um minério nomeado → ranking de mineração +1. Anotar se um membro que não é anfitrião não recebe (o PropBroken só chega ao anfitrião).
+- [ ] Em party, A reanima B → ranking de reanimar party +1 para A (não para B).
+- [ ] Anotar as categorias que continuam vazias: história concluída, ajudar iniciante, destruição de partes, pesca, tintura (sem fonte migrada).
 
 ### RK3 — Títulos de rank e seleção de título
 Pré-condição: os títulos de rank do EU (`RankTitle`, 12 linhas) são só dos rankings de PvP (DeathMatch 60001–60003, Arena 60005): ninguém os recebe até o PvP alimentar o ranking (PV2–PV4). Para testar antes, peça ao Claude para gravar uma linha semanal de ranking (período 2, posição 1–3) para o personagem e reiniciar o servidor.

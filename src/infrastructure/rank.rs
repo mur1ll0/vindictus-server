@@ -209,6 +209,33 @@ pub async fn update_rank_basis(
     update_rank_basis_at(pool, assets, cid, rank_id, score, entity_id, now_seconds()).await
 }
 
+/// An UpdateRankBasisUtility call inside a use case's transaction (savepoint): a RankService
+/// request apart from the use case, so its failure is logged and never stops it.
+pub async fn note_in(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    assets: &Assets,
+    cid: i64,
+    rank_id: &str,
+    score: i64,
+) {
+    if update_rank_basis_in(tx, assets, cid, rank_id, score, 0)
+        .await
+        .is_err()
+    {
+        tracing::warn!("rank basis update failed; values omitted");
+    }
+}
+
+/// An UpdateRankBasisUtility call of its own (the MicroPlay hooks), logged on failure.
+pub async fn note(pool: &PgPool, assets: &Assets, cid: i64, rank_id: &str, score: i64) {
+    if update_rank_basis(pool, assets, cid, rank_id, score, 0)
+        .await
+        .is_err()
+    {
+        tracing::warn!("rank basis update failed; values omitted");
+    }
+}
+
 /// The enabled ranking events: (EventID, ScoreType, ascending), in EventID order.
 pub fn events(assets: &Assets) -> Result<Vec<(i32, ScoreType, bool)>, MinimumError> {
     let (Some(policy), Some(economy)) = (assets.npc_policy(), assets.economy.as_ref()) else {

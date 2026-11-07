@@ -718,6 +718,8 @@ async fn enhance_with(
     } else {
         None
     };
+    // UpdateRankBasis_TryEnhance after the outcome (and its announcement), success or not.
+    super::rank::note_in(&mut tx, assets, cid, "GamePlay_try_enhance", 1).await;
     tx.commit().await?;
     for a in &logs {
         super::minimum_item_logs::write_give(

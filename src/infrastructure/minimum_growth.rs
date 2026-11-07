@@ -224,6 +224,15 @@ async fn level_up(
     )
     .await?;
     packets.push(view.stat);
+    // UpdateRankBasis_LevelUp(new − previous level), last in GiveExp's level-up branch.
+    super::rank::note_in(
+        tx,
+        assets,
+        cid,
+        "GamePlay_lvl_up",
+        i64::from(to) - i64::from(from),
+    )
+    .await;
     Ok(())
 }
 
@@ -464,7 +473,7 @@ async fn title_changed(
 /// Story `acquire_title`: CharacterImpl.GiveReward(0, 0, null, {titleID: true}) →
 /// Titles.AcquireTitle (GiveTitle first when not owned; Acquired with AcquiredTime, goal
 /// progress removed, AcquireTitle log), then TitleChanged and the title update packets.
-/// Guild score and rank basis events are not migrated.
+/// GamePlay_get_title counts the acquisition; the guild score event is not migrated.
 pub(super) async fn acquire_title(
     tx: &mut Transaction<'_, Postgres>,
     owner: &UserKey<'_>,
@@ -511,6 +520,7 @@ pub(super) async fn acquire_title(
         .execute(&mut **tx)
         .await?;
     title_log(tx, ctx.journal, ACQUIRE_TITLE, title).await?;
+    super::rank::note_in(tx, assets, cid, "GamePlay_get_title", 1).await;
     let ticks = crate::domain::legacy_user_data::SqlDateTime::from_units300(units)
         .and_then(|t| t.framework_date_time())
         .map_err(|_| fail())?
@@ -568,7 +578,8 @@ async fn title_state(
 /// InformMicroplayEventProcessor for one informer event: Titles.Proceed for each tracked
 /// goal it matches (in tracker order, with the source's per-goal SubmitChanges), then
 /// Stats.TitleChanged when a title was acquired and PushTitleUpdate (UpdateTitle,
-/// CharacterCommonInfo) when any slot is reported. Rank basis is not migrated.
+/// CharacterCommonInfo) when any slot is reported; each acquired title counts
+/// GamePlay_get_title.
 #[allow(clippy::too_many_arguments)]
 pub async fn proceed_titles(
     pool: &sqlx::PgPool,
@@ -650,6 +661,7 @@ pub async fn proceed_titles(
                 t.1 = true;
             }
             title_log_value(&mut tx, ctx.journal, ACQUIRE_TITLE, p.title, goal, -1).await?;
+            super::rank::note_in(&mut tx, assets, cid, "GamePlay_get_title", 1).await;
             time_stamp = crate::domain::legacy_user_data::SqlDateTime::from_units300(units)
                 .and_then(|t| t.framework_date_time())
                 .map_err(|_| fail())?

@@ -525,6 +525,9 @@ pub struct Mission {
     pub title_goals: Option<Vec<i32>>,
     /// Informer events of a non-practice game waiting for the title tracker.
     pub title_events: Vec<(i64, String)>,
+    /// UpdateRankBasisUtility calls of this player's MicroPlay hooks (UseItem, mining,
+    /// ReviveParty) waiting for the RankService: (RankID, score).
+    pub rank_notes: Vec<(&'static str, i64)>,
     /// SectorSequence.BossKilledList.
     pub boss_killed: Vec<String>,
     /// MicroPlayer.Luck (Stats LUCK; no platinum, bless stone or dormant bonus).
@@ -1062,6 +1065,7 @@ fn new_mission(
         events: Vec::new(),
         title_goals: None,
         title_events: Vec::new(),
+        rank_notes: Vec::new(),
         boss_killed: Vec::new(),
         luck: 0,
         base_character: 1,
@@ -1703,6 +1707,10 @@ pub async fn give_reward(
     )
     .await?
     .map_err(|_| fail())?;
+    // GiveItem.OnComplete: UpdateRankBasis_GetItem(class, count) per requested class.
+    if let Some((rank_id, score)) = crate::domain::rank::get_item(class_ex, i64::from(count)) {
+        super::rank::note_in(&mut tx, assets, cid, rank_id, score).await;
+    }
     tx.commit().await?;
     let mut packets = Vec::new();
     if !given.applied.slots.is_empty() {
@@ -1849,6 +1857,11 @@ pub fn prop_broken(
             })
     });
     if let Some(ergs) = contents.break_named_prop(sequence, name, slot, difficulty, random) {
+        // BreakNamedProp: UpdateRankBasis_SuccessMining for the breaker of an ore outside
+        // practice.
+        if attacker == own && !practice && crate::domain::rank::is_mining(name) {
+            mission.rank_notes.push(("GamePlay_success_mining", 1));
+        }
         if let Some(table) = drop_table
             && attacker == own
         {
@@ -2066,6 +2079,18 @@ pub fn apply_effect(
     if list.is_empty() {
         return Ok(Vec::new());
     }
+    // ApplyMicroPlayEffect: the revives of other players count UpdateRankBasis_ReviveParty
+    // for the caster (each replica credits only its own player).
+    let revived_others = list
+        .iter()
+        .filter(|(who, (effect, _, _))| matches!(effect, 1 | 2) && *who != caster)
+        .count();
+    if revived_others > 0 && caster == slot {
+        mission.rank_notes.push((
+            "GamePlay_revive_party",
+            i64::try_from(revived_others).unwrap_or(0),
+        ));
+    }
     for (who, (effect, _, _)) in &list {
         if !matches!(effect, 1 | 2) {
             continue;
@@ -2141,6 +2166,12 @@ pub fn use_consumable(
     let (class, draft) = (row.1.clone(), row.4);
     let packets = apply_effect(mission, contents, tag, 0, &class, 1)?;
     let free = mission.settings.iter().any(|(k, _)| k == "ConsumableFree") || draft == 0;
+    // MicroPlayInformer.UseConsumableItem: UpdateRankBasis_UseItem outside practice.
+    if !mission.option.is_practice_mode
+        && let Some(rank_id) = crate::domain::rank::use_item(&class)
+    {
+        mission.rank_notes.push((rank_id, 1));
+    }
     mission.events.push((
         mission.completion.cid,
         format!(
