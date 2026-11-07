@@ -106,6 +106,9 @@ pub struct Info {
     pub equip_class: String,
     /// EquippedItemInfo.IsAvatar: an avatar piece's look is on this costume part.
     pub is_avatar: bool,
+    /// ItemClassInfo.Category of the item (empty for an empty slot): ApplyItemSkills' lazy
+    /// lookup for avatar_ classes.
+    pub category: String,
 }
 impl Info {
     /// Original ToCostume Double expressions for the explicit Framework x64 profile.
@@ -141,6 +144,7 @@ impl Info {
             class: String::new(),
             equip_class: String::new(),
             is_avatar: false,
+            category: String::new(),
         }
     }
 }
@@ -245,6 +249,7 @@ impl Projection {
                         class: item.class.clone(),
                         equip_class: item.equip_class.clone(),
                         is_avatar: false,
+                        category: item.category.clone(),
                     });
                     if let Some(c) = p.costume {
                         sent.insert(c);
@@ -282,8 +287,13 @@ impl Projection {
             })
             .collect();
         let mut out = empty_gear(set);
-        equipped_skills::apply(set, &items, cache, &mut out, |_| {
-            Err(EquipmentError::Category)
+        equipped_skills::apply(set, &items, cache, &mut out, |class| {
+            // SkillEffect.ApplyItemSkills: ItemClassInfo.Category of an avatar_ class.
+            self.infos
+                .iter()
+                .find(|i| i.class == class)
+                .map(|i| i.category.clone())
+                .ok_or(EquipmentError::Category)
         })?;
         Ok(out)
     }

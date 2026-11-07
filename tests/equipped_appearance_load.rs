@@ -27,6 +27,7 @@ fn info(v: &Value) -> Info {
         class: String::new(),
         equip_class: String::new(),
         is_avatar: v["IsAvatar"].as_bool().unwrap_or(false),
+        category: String::new(),
     }
 }
 fn costume(c: &Costume) -> Value {

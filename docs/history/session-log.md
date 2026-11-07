@@ -3836,3 +3836,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: EV14 revisto pendente do operador (ícones, prévia, peças vestidas; se a saia da Erza continuar branca com ícone presente, a causa é a leitura da pasta nova de materiais).
 - Commits: ver "fix: Fairy Tail outfit icons and icon-based colours (B5 EV14)".
 - Pendente / próxima ação: relato do EV14; se ainda branco, investigar a leitura de `materials/models/armor/fairytail` no cliente (pasta nova).
+
+## 2026-11-07 — B5 cosméticos: atributos com peça de avatar
+- Feito: o operador ainda não conseguia equipar (log: `view.stats` refused). `Projection::item_stats` passava ao `equipped_skills::apply` uma consulta de categoria que sempre falhava; o original (`SkillEffect.ApplyItemSkills`) consulta a categoria das classes `avatar_*` (categoria `AVATAR_*` pula as maestrias). `equipped_gear::Info.category` guarda a categoria do item e a consulta usa os infos.
+- Verificação: `cargo test --test equipped_gear` 3/3 (o teste de avatar agora calcula os atributos), `--test equipped_appearance_load` 2/2, `--test equipped_skills` 6/6. Log `.cache/verification/avatar3-cargo.log`.
+- Cliente: `docs/client-tests/B5-cosmeticos.md` AV1 (sem mudança).
+- Commits: (este)
+- Pendente / próxima ação: sessão de cliente AV1.

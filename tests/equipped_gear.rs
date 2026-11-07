@@ -311,6 +311,8 @@ fn avatar_pieces_put_their_look_on_the_costume_part() {
     );
     // The avatar slots project no costume part of their own; both pieces are equipment.
     assert_eq!(p.equipment.len(), 3);
+    // ApplyItemSkills looks up the category of an avatar_ class (AVATAR_* skips the masteries).
+    p.item_stats(&Stats::default(), &Cache::default()).unwrap();
     assert!(
         p.infos
             .iter()

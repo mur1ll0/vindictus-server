@@ -125,6 +125,7 @@ pub(super) async fn load(
                 class: String::new(),
                 equip_class: String::new(),
                 is_avatar: false,
+                category: String::new(),
             })
             .collect();
         return Ok(Loaded {
