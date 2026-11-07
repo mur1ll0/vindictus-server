@@ -112,6 +112,8 @@ pub struct Runtime {
     guilds: Arc<super::guild::GuildHub>,
     /// PvpService matches hosted by a player through the relay (B5 PV2c).
     pvp: Arc<super::pvp_match::PvpHub>,
+    /// Passports of the accepted logins for the messenger's LoginAuth (B5 MS3b).
+    passports: Arc<super::messenger::Passports>,
     /// RankTitleManager.highRankList (B5 RK3).
     rank_titles: Arc<super::rank_title::HighRanks>,
     web_shop: super::lab_web_shop::Sessions,
@@ -163,6 +165,7 @@ impl Runtime {
         let guilds = Arc::new(super::guild::GuildHub::new(
             super::guild::GuildConfig::from_policy(p).map_err(|_| RuntimeError::Profile)?,
         ));
+        let passports = Arc::new(super::messenger::Passports::default());
         let pvp = Arc::new(super::pvp_match::PvpHub::new(
             Arc::clone(&party),
             Arc::clone(&guilds),
@@ -177,6 +180,7 @@ impl Runtime {
             party,
             guilds,
             pvp,
+            passports,
             rank_titles: Arc::new(super::rank_title::HighRanks::new()),
             web_shop: super::lab_web_shop::Sessions::default(),
             maintenance: super::maintenance::Maintenance::default(),
@@ -821,6 +825,17 @@ impl Connection {
             };
             failure(stream, sender, reason, Some("")).await?;
             return Ok(());
+        }
+        // The messenger's LoginAuth carries the passport the client logged in with.
+        if let (Some(raw), Ok(id)) = (message.passport, self.frontend.accepted_identity()) {
+            runtime.passports.remember(
+                raw,
+                super::messenger::Account {
+                    nexon_sn: id.nexon_sn,
+                    nexon_id: id.nexon_id.to_string(),
+                },
+                Instant::now(),
+            );
         }
         // NGM_disable uses remote socket address; client hardware/version/cheat identity are not authority.
         let c = LocalLoginConfig {

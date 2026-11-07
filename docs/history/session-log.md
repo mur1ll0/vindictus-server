@@ -3857,3 +3857,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário.
 - Commits: ver "feat: messenger call codec (B5 MS3a)".
 - Pendente / próxima ação: MS3b (serviço messenger no servidor: túnel TCP, LoginAuth com o passport, GetMyInfo, lista de amigos, pedidos, presença e eventos) e MS2 (nmcogame.dll túnel).
+
+## 2026-11-07 — MS3b (parte 1) registro de passports do Messenger (B5)
+- Feito: `infrastructure::messenger::Passports` (SHA-256 do passport → conta (NexonSN, NexonID) dos logins aceitos, 10 min, limite 4096, nada em log); `lab_frontend` registra o passport original de cada login aceito (`Runtime.passports`), para o LoginAuth (0x110f) do Messenger autenticar a mesma conta mesmo com o ticket do launcher já gasto.
+- Verificação: `cargo test --lib -- messenger protocol::nm` 3 passed.
+- Cliente: não necessário.
+- Commits: ver "feat: messenger passport registry (B5 MS3b)".
+- Pendente / próxima ação: MS3b parte 2 — ouvinte TCP do túnel (quadros Call/Reply/Event), LoginAuth/LoginMessenger/GetMyInfo/GetFriendList, migração dos amigos e categorias, pedidos e presença (`docs/messenger-design.md`); depois MS2 (DLL túnel).
