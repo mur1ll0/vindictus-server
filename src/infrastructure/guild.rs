@@ -1947,7 +1947,11 @@ pub async fn direct_purchase(
     if rules::MAX_MEMBER_LIMIT < wanted {
         return Ok(code::OVER_MAX_MEMBER_LIMIT);
     }
-    let Some(product) = assets.cash_shop.as_ref().and_then(|c| c.product(product_no)) else {
+    let Some(product) = assets
+        .cash_shop
+        .as_ref()
+        .and_then(|c| c.product(product_no))
+    else {
         return Ok(0);
     };
     let mut tx = pool.begin().await?;

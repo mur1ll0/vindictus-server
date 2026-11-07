@@ -409,9 +409,9 @@ pub fn encode(
             Message::QueryChannelList(v) => v.write(&mut w)?,
             Message::ChannelList(v) => v.write(&mut w)?,
             Message::Register(v) => v.write(&mut w)?,
-            Message::Unregister(v) | Message::Kicked(v) | Message::UnregisterGameWaitingQueue(v) => {
-                v.write(&mut w)?
-            }
+            Message::Unregister(v)
+            | Message::Kicked(v)
+            | Message::UnregisterGameWaitingQueue(v) => v.write(&mut w)?,
             Message::ConfirmJoin(v) => v.write(&mut w)?,
             Message::RegisterResult(v) => v.write(&mut w)?,
             Message::Command(v) => v.write(&mut w)?,
@@ -489,9 +489,7 @@ fn decode_body(
             Kind::ArenaResultInfo => Message::ArenaResultInfo(Wire::read(r)?),
             Kind::Penalty => Message::Penalty(Wire::read(r)?),
             Kind::RegisterGameWaitingQueue => Message::RegisterGameWaitingQueue(Wire::read(r)?),
-            Kind::UnregisterGameWaitingQueue => {
-                Message::UnregisterGameWaitingQueue(Wire::read(r)?)
-            }
+            Kind::UnregisterGameWaitingQueue => Message::UnregisterGameWaitingQueue(Wire::read(r)?),
         })
     };
     if strict && !r.remaining.is_empty() {

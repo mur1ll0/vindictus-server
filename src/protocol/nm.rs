@@ -277,7 +277,10 @@ mod tests {
         let opened = open(&envelope).unwrap();
         assert_eq!(opened, body.bytes);
         let mut c = call(&opened).unwrap();
-        assert_eq!((c.argument, c.fields.u32().unwrap(), c.fields.u32().unwrap()), (0, 0x1234, 0x8001));
+        assert_eq!(
+            (c.argument, c.fields.u32().unwrap(), c.fields.u32().unwrap()),
+            (0, 0x1234, 0x8001)
+        );
         let r = reply(true, &Writer::default());
         assert_eq!(
             r,
@@ -293,7 +296,11 @@ mod tests {
     #[test]
     fn compact_lengths_and_wstrings() {
         let mut w = Writer::default();
-        w.wstring("Fiona_é", 0x40).length(0x3f).length(0x40).length(0x4000).length(0x4000_0000);
+        w.wstring("Fiona_é", 0x40)
+            .length(0x3f)
+            .length(0x40)
+            .length(0x4000)
+            .length(0x4000_0000);
         let mut r = Reader::new(&w.bytes);
         assert_eq!(r.wstring().unwrap(), "Fiona_é");
         assert_eq!(r.length().unwrap(), 0x3f);
@@ -312,7 +319,7 @@ mod tests {
 /// b6; every object is written flat (version 1). Fields whose meaning is unknown are zero, which
 /// the engine accepts.
 pub mod objects {
-    use super::{Reader, NmError, Writer};
+    use super::{NmError, Reader, Writer};
 
     pub const USER: u16 = 0x7569;
     pub const CATEGORY: u16 = 0x6369;
@@ -366,7 +373,10 @@ pub mod objects {
         text(w, u.login, 0x40);
         w.u64(u.id_code).u32(0);
         text(w, u.nickname, 0x40);
-        w.u32(if u.online { ONLINE } else { 0 }).u32(0).u32(0).u16(0);
+        w.u32(if u.online { ONLINE } else { 0 })
+            .u32(0)
+            .u32(0)
+            .u16(0);
     }
 
     /// CNMAvatarItemInfo (b6 1): zeros, ignored by the engine.
@@ -390,7 +400,12 @@ pub mod objects {
     pub fn real_user(w: &mut Writer, u: &User<'_>) {
         let mut b = Writer::default();
         default_body(&mut b, u);
-        b.wstring("", 0x1f).wstring("", 0x3f).u32(0).u8(0).u32(0).u32(0);
+        b.wstring("", 0x1f)
+            .wstring("", 0x3f)
+            .u32(0)
+            .u8(0)
+            .u32(0)
+            .u32(0);
         b.wstring("", 1).u32(0).wstring("", 1).u32(0).u8(0).u8(0);
         avatar_full(&mut b);
         b.u8(0).u8(0).u8(0).u8(0).u8(0).wstring("", 0x3f);
@@ -415,7 +430,12 @@ pub mod objects {
         f.key.write(&mut b);
         text(&mut b, f.display, 0x40);
         text(&mut b, "", 0x40);
-        b.u8(u8::from(f.user.online)).u32(0).u32(0).u8(0).u8(0).u8(0);
+        b.u8(u8::from(f.user.online))
+            .u32(0)
+            .u32(0)
+            .u8(0)
+            .u8(0)
+            .u8(0);
         text(&mut b, f.memo, 1000);
         text(&mut b, "", 0x20);
         w.object(USER, 3, &b);
@@ -450,7 +470,11 @@ pub mod objects {
             let mut b = Writer::default();
             b.u32(self.serial);
             text(&mut b, &self.peer, 0x40);
-            b.u32(0).u32(self.from.0).u32(self.from.1).u32(self.to.0).u32(self.to.1);
+            b.u32(0)
+                .u32(self.from.0)
+                .u32(self.from.1)
+                .u32(self.to.0)
+                .u32(self.to.1);
             text(&mut b, "", 0x40);
             text(&mut b, "", 0x40);
             b.u32(self.category);
@@ -472,7 +496,14 @@ pub mod objects {
             b.wstring()?;
             let category = b.u32()?;
             let message = b.wstring()?;
-            Ok(Self { serial, peer, from, to, category, message })
+            Ok(Self {
+                serial,
+                peer,
+                from,
+                to,
+                category,
+                message,
+            })
         }
     }
 
@@ -480,7 +511,14 @@ pub mod objects {
     /// (+0x40 = 3 would switch the sender name to a virtual user).
     pub fn session_info(w: &mut Writer, key: u32, owner: (u32, u32)) {
         let mut b = Writer::default();
-        b.u32(key).u32(owner.0).u32(owner.1).u8(0).u32(0).u32(0).u64(0).u64(0);
+        b.u32(key)
+            .u32(owner.0)
+            .u32(owner.1)
+            .u8(0)
+            .u32(0)
+            .u32(0)
+            .u64(0)
+            .u64(0);
         b.u32(0).u32(0).u32(0).u32(0);
         w.object(SESSION, 1, &b);
     }
@@ -542,7 +580,11 @@ pub mod objects {
             b.wstring()?;
             b.wstring()?;
             let text = b.wstring()?;
-            Ok(Self { game_code, sender, text })
+            Ok(Self {
+                game_code,
+                sender,
+                text,
+            })
         }
     }
 
@@ -556,28 +598,62 @@ pub mod objects {
             avatar_full(&mut w);
             assert_eq!(w.bytes.len(), 8 + 10 + 0x26 * 8);
             assert_eq!(&w.bytes[..4], &[1, 2, 0x69, 0x61]);
-            let user = User { login: "alpha", id_code: 11, nickname: "Fiona", online: true };
-            let view = FriendView { user, key: FriendKey { id_code: 11, ..FriendKey::default() }, display: "[Vindictus]Fiona", memo: "" };
+            let user = User {
+                login: "alpha",
+                id_code: 11,
+                nickname: "Fiona",
+                online: true,
+            };
+            let view = FriendView {
+                user,
+                key: FriendKey {
+                    id_code: 11,
+                    ..FriendKey::default()
+                },
+                display: "[Vindictus]Fiona",
+                memo: "",
+            };
             let mut list = Writer::default();
             category(&mut list, 0, "Amigos", std::slice::from_ref(&view));
             let mut r = Reader::new(&list.bytes);
             let (word, b6, version, mut body) = r.object().unwrap();
             assert_eq!((word, b6, version), (CATEGORY, 2, 1));
-            assert_eq!((body.u32().unwrap(), body.u32().unwrap(), body.u32().unwrap()), (0, 0, 0));
+            assert_eq!(
+                (
+                    body.u32().unwrap(),
+                    body.u32().unwrap(),
+                    body.u32().unwrap()
+                ),
+                (0, 0, 0)
+            );
             assert_eq!(body.wstring().unwrap(), "Amigos");
             assert_eq!(body.u32().unwrap(), 1);
             let (word, b6, _, mut f) = body.object().unwrap();
             assert_eq!((word, b6), (USER, 3));
             assert_eq!(f.wstring().unwrap(), "alpha");
             assert_eq!(f.u64().unwrap(), 11);
-            let request = Request { serial: 12, peer: "Beta".into(), from: (7, 0), to: (7, 0), category: 0, message: "oi".into() };
+            let request = Request {
+                serial: 12,
+                peer: "Beta".into(),
+                from: (7, 0),
+                to: (7, 0),
+                category: 0,
+                message: "oi".into(),
+            };
             let mut w = Writer::default();
             request.write(&mut w);
             assert_eq!(Request::read(&mut Reader::new(&w.bytes)).unwrap(), request);
-            let message = ChatMessage { game_code: 7, sender: "Fiona@Vindictus".into(), text: "oi".into() };
+            let message = ChatMessage {
+                game_code: 7,
+                sender: "Fiona@Vindictus".into(),
+                text: "oi".into(),
+            };
             let mut w = Writer::default();
             message.write(&mut w);
-            assert_eq!(ChatMessage::read(&mut Reader::new(&w.bytes)).unwrap(), message);
+            assert_eq!(
+                ChatMessage::read(&mut Reader::new(&w.bytes)).unwrap(),
+                message
+            );
             let mut w = Writer::default();
             session_info(&mut w, 9, (7, 0));
             assert_eq!(w.bytes.len(), 8 + 4 * 3 + 1 + 8 + 16 + 16);

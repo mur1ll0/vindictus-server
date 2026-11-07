@@ -92,11 +92,17 @@ fn framework_guild_newbie_messages_match_x86_x64() {
         .find(|c| c["kind"] == "find_newbie_recommend_guild_result" && !c["fields"].is_null())
         .unwrap();
     let typed = bytes(&case["typed_body"]);
-    let Some(wire::Message::FindNewbieRecommendGuildResult(found)) =
-        wire::decode(Kind::FindNewbieRecommendGuildResult, &typed[16..], DEFAULT_MAX_BODY).unwrap()
-    else {
+    let Some(wire::Message::FindNewbieRecommendGuildResult(found)) = wire::decode(
+        Kind::FindNewbieRecommendGuildResult,
+        &typed[16..],
+        DEFAULT_MAX_BODY,
+    )
+    .unwrap() else {
         panic!("no FindNewbieRecommendGuildResultMessage")
     };
     let info = found.info.unwrap();
-    assert_eq!((info.guild_sn, info.member_count, info.is_newbie_recommend), (7, 2, true));
+    assert_eq!(
+        (info.guild_sn, info.member_count, info.is_newbie_recommend),
+        (7, 2, true)
+    );
 }

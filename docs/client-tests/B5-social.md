@@ -1,14 +1,23 @@
 # Roteiro de testes no cliente — B5 social (sussurro, bloqueio, guilda)
 
-Sistemas sociais do servidor Rust (`docs/social-systems.md`). Este roteiro cresce a cada etapa (SO1 sussurro, SO2 bloqueio, G1–G6 guildas); a preparação, a ordem e o relato finais são completados no fechamento do bloco. Precisa de **duas contas e dois clientes** (A e B no jogo ao mesmo tempo).
+Sistemas sociais do servidor Rust (`docs/social-systems.md`): sussurro, bloqueio, guildas (incluindo armazém, recomendação e vagas), ranking e títulos, PvP (duelo, Arena, DeathMatch, GodMatch, party) e o Messenger próprio (amigos, presença, conversa 1:1). Roteiro completo no gate do B5 (07/11/2026). Precisa de **duas contas e dois clientes** (A e B no jogo ao mesmo tempo); as entradas de PvP e Messenger precisam de dois computadores ou de dois clientes na mesma máquina, se ela aguentar.
 
 ## Preparação
-1. Runtime: depois do commit, `COMPOSE_PARALLEL_LIMIT=1 docker compose build` e `docker compose up -d --wait`; `docker compose ps` mostra `game` e `server` saudáveis.
-2. Clientes: `.cache/play-client/start-lab.bat` com `lab169_a` (personagem A) e um segundo cliente com `lab169_b` (personagem B).
-3. Relatórios de queda, se houver: `Documents\Vindictus EU GM\Report Error`.
+1. Runtime: `COMPOSE_PARALLEL_LIMIT=1 docker compose build` e `docker compose up -d --wait`; `docker compose ps` mostra `game` e `server` saudáveis (o gate já deixou as imagens no estado atual).
+2. Segundo computador: o `compose.yaml` publica as portas do jogo (27015, 27003, 27005, 27080, 27090) e a do messenger (47611) só em `127.0.0.1`; para outro computador, publique-as no IP da rede local (decisão de distribuição do operador) e libere-as no firewall.
+3. Clientes: a cópia `.cache/play-client` já tem o `nmcogame.dll` do túnel (original guardado em `nmcogame.dll.nexon`; `pwsh tools/nmcogame/install-lab.ps1 -Restore` volta). Abra pelo launcher (`tools/launcher`, grava o `nmcogame.ini` com o servidor dele) ou pelo `start-lab.bat`; contas `lab169_a` (A) e `lab169_b` (B), com personagem cada.
+4. Painel (Ajustes de jogo → PvP): com só dois jogadores, "Jogadores por time" = 1 em DeathMatch/GodMatch (2 para a entrada de party).
+5. Relatórios de queda, se houver: `Documents\Vindictus EU GM\Report Error`; logs do messenger do cliente em `nmcogame-lab.log` na pasta do jogo.
+
+## Ordem de gameplay
+1. Cidade: SO1 (sussurro) e SO2 (bloqueio); MS2a e MS2/MS3b passos 1–7 (comunidade, amigos, grupos, presença) e 8–9 (conversa 1:1).
+2. Guilda: G1 → G2 → G3 → G4 → G5; G7 (recomendação) e G8 (vagas); armazém G6b → G6e → G6c/G6d → G6f; carruagem.
+3. Ranking: RK1–RK2 e RK3 (títulos).
+4. PvP: PV1 (duelo) → PV2c (Arena, anfitrião) → PV3a (lutas e recompensas) → PV3b (DeathMatch/GodMatch) → registro de party.
+5. Fim: sair do jogo com conversa aberta (MS passo 9), conferir `nmcogame.ini` (MS passo 10) e o messenger com o servidor parado (MS passo 7).
 
 ## Como relatar
-Para cada linha marcada: ID e número da linha (ex.: `SO1-2`), o que apareceu na tela (texto, captura se possível), se o cliente fechou ou travou, o horário aproximado (para comparar com `docker compose logs game`) e o nome do relatório de queda, se houver.
+Para cada linha marcada: ID e número da linha (ex.: `SO1-2`), o que apareceu na tela (texto, captura se possível), se o cliente fechou ou travou, o horário aproximado (para comparar com `docker compose logs game` e com `.cache/verification`) e o nome do relatório de queda, se houver. Para o Messenger, envie também os dois `nmcogame-lab.log`.
 
 ### SO1 — Sussurro
 Pré-condição: A e B no jogo (cidade), cada um num cliente.

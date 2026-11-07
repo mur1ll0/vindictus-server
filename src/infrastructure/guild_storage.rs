@@ -283,7 +283,10 @@ pub async fn query_logs(
         day
     } else {
         let (old, _) = stamps(now - 14 * 86_400);
-        for table in ["game_guild_storage_brief_log", "game_guild_storage_item_log"] {
+        for table in [
+            "game_guild_storage_brief_log",
+            "game_guild_storage_item_log",
+        ] {
             sqlx::query(&format!(
                 "DELETE FROM {table} WHERE guild_id=$1 AND date_stamp=$2"
             ))
@@ -521,7 +524,9 @@ async fn write_report(
             add_brief_log(pool, guild_sn, &name, operation::ITEM, a, p, now).await?;
             add_item_log(pool, guild_sn, &name, add, class, amount, colors, now).await
         }
-        Report::ExtendSlot => add_brief_log(pool, guild_sn, &name, operation::SLOT, 1, 0, now).await,
+        Report::ExtendSlot => {
+            add_brief_log(pool, guild_sn, &name, operation::SLOT, 1, 0, now).await
+        }
     }
 }
 
@@ -1280,7 +1285,16 @@ pub async fn pick_item(
         return Ok(early);
     }
     let name = hub.online_name(guild_sn, member.cid);
-    let result = pick_locked(pool, assets, guild_sn, &member, name.as_deref(), request, ids).await;
+    let result = pick_locked(
+        pool,
+        assets,
+        guild_sn,
+        &member,
+        name.as_deref(),
+        request,
+        ids,
+    )
+    .await;
     hub.end_storage_processing(guild_sn);
     let mut own = result?;
     if own
@@ -1335,9 +1349,15 @@ async fn pick_locked(
         let gold = assets
             .inventory
             .is_gold(&utf16(request.item_class.as_deref().unwrap_or_default()));
-        if let Some(code) =
-            pick_limited(member.rank, gold, 0, request.amount, &storage, limits, today)
-        {
+        if let Some(code) = pick_limited(
+            member.rank,
+            gold,
+            0,
+            request.amount,
+            &storage,
+            limits,
+            today,
+        ) {
             return dialog(code);
         }
         let Some(row) = rows
@@ -1399,8 +1419,8 @@ async fn pick_locked(
     tx.commit().await?;
     let gold = assets.inventory.is_gold(&row.item_class_utf16);
     let class = String::from_utf16_lossy(&units(&row.item_class_utf16));
-    let class_ex = crate::domain::item_attribute::build_class_ex(&class, &attributes)
-        .unwrap_or(class);
+    let class_ex =
+        crate::domain::item_attribute::build_class_ex(&class, &attributes).unwrap_or(class);
     let moved = Report::Move {
         add: false,
         gold,

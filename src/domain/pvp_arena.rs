@@ -108,11 +108,19 @@ pub enum Effect {
         args: Vec<String>,
     },
     /// SystemMessage(System) to the player of a slot.
-    Notice { slot: usize, format: &'static str },
+    Notice {
+        slot: usize,
+        format: &'static str,
+    },
     /// GiveGuildGP(ByPVP) of the slot's guild member.
-    GuildGp { slot: usize, gp: i32 },
+    GuildGp {
+        slot: usize,
+        gp: i32,
+    },
     /// RankBasis "Pvp_" + mode of the slot's guild (IsGuild).
-    GuildRankBasis { slot: usize },
+    GuildRankBasis {
+        slot: usize,
+    },
     /// Play.GameEndConfirm: every player confirms with PvpUnregister, or all leave after 32 s.
     EndConfirm,
 }

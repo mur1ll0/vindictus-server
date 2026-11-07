@@ -156,18 +156,41 @@ async fn pvp_arena_channels_register_bind_and_remove() {
         guild_id: 0,
     };
     hub.register(binder.clone(), entry(), None, rules(), &register(5))
-        .map(|own| assert_eq!(result(&own[0]), (register_state::CANCELED, "GameUI_Heroes_PvpJoinFail_InvalidChannel".to_owned())))
+        .map(|own| {
+            assert_eq!(
+                result(&own[0]),
+                (
+                    register_state::CANCELED,
+                    "GameUI_Heroes_PvpJoinFail_InvalidChannel".to_owned()
+                )
+            )
+        })
         .unwrap();
     let own = hub
-        .register(binder.clone(), entry(), Some("GameUI_Heroes_PvpJoinFail_InMicroPlay"), rules(), &register(0))
+        .register(
+            binder.clone(),
+            entry(),
+            Some("GameUI_Heroes_PvpJoinFail_InMicroPlay"),
+            rules(),
+            &register(0),
+        )
         .unwrap();
     assert_eq!(result(&own[0]).0, register_state::CANCELED);
     let mut no_mode = rules();
     no_mode.config = None;
-    let own = hub.register(binder.clone(), entry(), None, no_mode, &register(0)).unwrap();
-    assert_eq!(result(&own[0]).1, "GameUI_Heroes_PvpJoinFail_InvalidPvpMode");
+    let own = hub
+        .register(binder.clone(), entry(), None, no_mode, &register(0))
+        .unwrap();
+    assert_eq!(
+        result(&own[0]).1,
+        "GameUI_Heroes_PvpJoinFail_InvalidPvpMode"
+    );
     // Level 1 is below LevelLimitMin 40: the Arena takes it as a spectator.
-    assert!(hub.register(binder.clone(), entry(), None, rules(), &register(0)).unwrap().is_empty());
+    assert!(
+        hub.register(binder.clone(), entry(), None, rules(), &register(0))
+            .unwrap()
+            .is_empty()
+    );
     let got = until(&mut rx, MKind::ConnectionRequest.category()).await;
     let results: Vec<(i32, String)> = got
         .iter()
@@ -177,8 +200,14 @@ async fn pvp_arena_channels_register_bind_and_remove() {
     assert_eq!(
         results,
         [
-            (register_state::WAIT, "GameUI_Heroes_PvpJoin_WaitingHost".to_owned()),
-            (register_state::WAIT, "GameUI_Heroes_PvpJoin_WhoisComplete".to_owned()),
+            (
+                register_state::WAIT,
+                "GameUI_Heroes_PvpJoin_WaitingHost".to_owned()
+            ),
+            (
+                register_state::WAIT,
+                "GameUI_Heroes_PvpJoin_WhoisComplete".to_owned()
+            ),
         ]
     );
     let request = got.last().unwrap();
@@ -189,10 +218,18 @@ async fn pvp_arena_channels_register_bind_and_remove() {
         }
         _ => panic!("no ConnectionRequestMessage"),
     }
-    assert_eq!(channels(&hub.channel_list(config.as_ref(), &query).unwrap())[0], "0:1/32");
+    assert_eq!(
+        channels(&hub.channel_list(config.as_ref(), &query).unwrap())[0],
+        "0:1/32"
+    );
     // Registering again while registered is a duplicate (and clears the stale entry).
-    let own = hub.register(binder.clone(), entry(), None, rules(), &register(0)).unwrap();
-    assert_eq!(result(&own[0]).1, "GameUI_Heroes_PvpJoinFail_PlayerDuplicated");
+    let own = hub
+        .register(binder.clone(), entry(), None, rules(), &register(0))
+        .unwrap();
+    assert_eq!(
+        result(&own[0]).1,
+        "GameUI_Heroes_PvpJoinFail_PlayerDuplicated"
+    );
     // Not a PvP host: RegisterServer belongs to a mission.
     assert_eq!(hub.register_server(1, None), None);
     // Level 1 is below LevelLimitMin 40 for a bout (Arena_Register_Level_Fail).
@@ -251,7 +288,8 @@ async fn pvp_arena_bound_player_is_kicked_and_the_channel_empties() {
         name: "Fiona",
         guild_id: 0,
     };
-    hub.register(binder, entry, None, rules(), &register(1)).unwrap();
+    hub.register(binder, entry, None, rules(), &register(1))
+        .unwrap();
     until(&mut rx, MKind::ConnectionRequest.category()).await;
     // The host queues for bout 0: the game's commands go to the host (itself).
     assert!(hub.waiting_queue(1, 0).is_empty());
@@ -259,14 +297,19 @@ async fn pvp_arena_bound_player_is_kicked_and_the_channel_empties() {
         .await
         .iter()
         .filter(|p| p.category == Kind::Command.category())
-        .map(|p| match wire::decode(Kind::Command, &p.body, DEFAULT_MAX_BODY).unwrap() {
-            Some(wire::Message::Command(c)) => (c.command, c.arg.unwrap_or_default()),
-            _ => panic!("no PvpCommandMessage"),
-        })
+        .map(
+            |p| match wire::decode(Kind::Command, &p.body, DEFAULT_MAX_BODY).unwrap() {
+                Some(wire::Message::Command(c)) => (c.command, c.arg.unwrap_or_default()),
+                _ => panic!("no PvpCommandMessage"),
+            },
+        )
         .collect();
     assert_eq!(
         commands[0],
-        (6, "0,GameUI_Heroes_Pvp_Arena_Registerd_Waiting_Queue,Fiona".to_owned())
+        (
+            6,
+            "0,GameUI_Heroes_Pvp_Arena_Registerd_Waiting_Queue,Fiona".to_owned()
+        )
     );
     // An unknown bout is the processor's Unknown, as a ForceDialog.
     assert_eq!(hub.waiting_queue(1, 9).len(), 1);
@@ -283,7 +326,14 @@ async fn pvp_arena_bound_player_is_kicked_and_the_channel_empties() {
 }
 
 fn full_rules() -> Rules {
-    let row = |k: &str, v: &str| ("p04".to_owned(), k.to_owned(), Some(v.to_owned()), None::<String>);
+    let row = |k: &str, v: &str| {
+        (
+            "p04".to_owned(),
+            k.to_owned(),
+            Some(v.to_owned()),
+            None::<String>,
+        )
+    };
     let contents = PvpContents::load(
         &[
             row("GameRule", "GodMatch"),
@@ -313,9 +363,16 @@ async fn pvp_full_matching_pairs_confirms_and_dodges() {
         max_free: 5,
         care_clock: None,
     };
-    vindictus_server::infrastructure::minimum_selection::select(&p, &initial_inventory::key(), &assets, 0, config, Arithmetic::FrameworkX64)
-        .await
-        .unwrap();
+    vindictus_server::infrastructure::minimum_selection::select(
+        &p,
+        &initial_inventory::key(),
+        &assets,
+        0,
+        config,
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
     let owner = initial_inventory::key();
     let party = Arc::new(PartyHub::new(false, false));
     let hub = Arc::new(PvpHub::new(
@@ -348,20 +405,49 @@ async fn pvp_full_matching_pairs_confirms_and_dodges() {
         channel_id: 0,
     };
     let formats = |got: &[OutgoingPacket]| -> Vec<(i32, String)> {
-        got.iter().filter(|p| p.category == Kind::RegisterResult.category()).map(result).collect()
+        got.iter()
+            .filter(|p| p.category == Kind::RegisterResult.category())
+            .map(result)
+            .collect()
     };
-    hub.register(binder.clone(), entry(1, "Fiona"), None, full_rules(), &request).unwrap();
+    hub.register(
+        binder.clone(),
+        entry(1, "Fiona"),
+        None,
+        full_rules(),
+        &request,
+    )
+    .unwrap();
     let got = until(&mut rx1, Kind::RegisterResult.category()).await;
-    assert_eq!(formats(&got), [(register_state::WAIT, "GameUI_Heroes_PvpJoin_WaitingOpponent".to_owned())]);
-    hub.register(binder.clone(), entry(2, "Evie"), None, full_rules(), &request).unwrap();
+    assert_eq!(
+        formats(&got),
+        [(
+            register_state::WAIT,
+            "GameUI_Heroes_PvpJoin_WaitingOpponent".to_owned()
+        )]
+    );
+    hub.register(
+        binder.clone(),
+        entry(2, "Evie"),
+        None,
+        full_rules(),
+        &request,
+    )
+    .unwrap();
     for rx in [&mut rx1, &mut rx2] {
         let mut got = until(rx, Kind::RegisterResult.category()).await;
         got.extend(until(rx, Kind::RegisterResult.category()).await);
         assert_eq!(
             formats(&got),
             [
-                (register_state::WAIT, "GameUI_Heroes_PvpJoin_OpponentFound".to_owned()),
-                (register_state::JOINABLE, "GameUI_Heroes_PvpJoin_DSReady".to_owned()),
+                (
+                    register_state::WAIT,
+                    "GameUI_Heroes_PvpJoin_OpponentFound".to_owned()
+                ),
+                (
+                    register_state::JOINABLE,
+                    "GameUI_Heroes_PvpJoin_DSReady".to_owned()
+                ),
             ]
         );
     }
@@ -369,11 +455,21 @@ async fn pvp_full_matching_pairs_confirms_and_dodges() {
     hub.confirm_join(binder.clone(), 1, full_rules());
     hub.confirm_join(binder.clone(), 2, full_rules());
     let got = until(&mut rx1, MKind::ConnectionRequest.category()).await;
-    assert!(got.iter().any(|p| p.category == MKind::ConnectionRequest.category()));
+    assert!(
+        got.iter()
+            .any(|p| p.category == MKind::ConnectionRequest.category())
+    );
     hub.remove(1);
     hub.remove(2);
     // A waiting player who unregisters is Dodged.
-    hub.register(binder.clone(), entry(1, "Fiona"), None, full_rules(), &request).unwrap();
+    hub.register(
+        binder.clone(),
+        entry(1, "Fiona"),
+        None,
+        full_rules(),
+        &request,
+    )
+    .unwrap();
     until(&mut rx1, Kind::RegisterResult.category()).await;
     hub.unregister(1);
     let got = until(&mut rx1, Kind::RegisterResult.category()).await;
@@ -427,19 +523,36 @@ async fn pvp_party_registration_checks_the_team_and_waits_together() {
         channel_id: 0,
     };
     // The Arena takes one player; a team of TeamSize 1 is too big.
-    let own = hub.register_team(binder.clone(), team(), rules(), &request("p05")).unwrap();
-    assert_eq!(result(&own[0]).1, "GameUI_Heroes_PvpJoinFail_InvalidPartySize");
-    let own = hub.register_team(binder.clone(), team(), full_rules(), &request("p04")).unwrap();
-    assert_eq!(result(&own[0]).1, "GameUI_Heroes_PvpJoinFail_InvalidPartySize");
+    let own = hub
+        .register_team(binder.clone(), team(), rules(), &request("p05"))
+        .unwrap();
+    assert_eq!(
+        result(&own[0]).1,
+        "GameUI_Heroes_PvpJoinFail_InvalidPartySize"
+    );
+    let own = hub
+        .register_team(binder.clone(), team(), full_rules(), &request("p04"))
+        .unwrap();
+    assert_eq!(
+        result(&own[0]).1,
+        "GameUI_Heroes_PvpJoinFail_InvalidPartySize"
+    );
     // TeamSize 2: the party is a full team waiting for an opponent; both are told.
     let mut two = full_rules();
     if let Some(c) = two.config.as_mut() {
         c.team_size = 2;
     }
-    assert!(hub.register_team(binder, team(), two, &request("p04")).unwrap().is_empty());
+    assert!(
+        hub.register_team(binder, team(), two, &request("p04"))
+            .unwrap()
+            .is_empty()
+    );
     for rx in [&mut rx1, &mut rx2] {
         let got = until(rx, Kind::RegisterResult.category()).await;
-        assert_eq!(result(got.last().unwrap()).1, "GameUI_Heroes_PvpJoin_WaitingOpponent");
+        assert_eq!(
+            result(got.last().unwrap()).1,
+            "GameUI_Heroes_PvpJoin_WaitingOpponent"
+        );
     }
     assert!(hub.locks_party(1) && hub.locks_party(2));
     cleanup_game_pool(a, p, s).await;

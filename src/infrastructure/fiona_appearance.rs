@@ -383,7 +383,7 @@ impl Profile {
         if !self.policy.entries().any(|(k, _)| k == "Avatar") {
             return Ok(false);
         }
-        Ok(self.policy.is_enabled(Some("Avatar"))?)
+        self.policy.is_enabled(Some("Avatar"))
     }
     /// FeatureMatrix AvatarHide (HideCostumeProcessor), exported with the appearance features.
     pub(super) fn avatar_hide_enabled(&self) -> Result<bool, Error> {
@@ -391,7 +391,7 @@ impl Profile {
         if !self.policy.entries().any(|(k, _)| k == "AvatarHide") {
             return Ok(false);
         }
-        Ok(self.policy.is_enabled(Some("AvatarHide"))?)
+        self.policy.is_enabled(Some("AvatarHide"))
     }
     pub(super) fn normal_parts(
         &self,

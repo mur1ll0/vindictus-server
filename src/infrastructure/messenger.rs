@@ -4,12 +4,12 @@
 //! on its command line) authenticates the same account; a launcher ticket is spent by the game
 //! login, so the messenger can only find it here. Only the SHA-256 of a passport is kept, for
 //! ten minutes, and nothing is logged.
+use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     sync::{Mutex, PoisonError},
     time::{Duration, Instant},
 };
-use sha2::{Digest, Sha256};
 
 /// How long an accepted login's passport authenticates the messenger.
 const PASSPORT_LIFETIME: Duration = Duration::from_secs(600);
@@ -72,7 +72,10 @@ mod tests {
             nexon_id: "owner".to_owned(),
         };
         p.remember("ticket-1", account.clone(), now);
-        assert_eq!(p.account("ticket-1", now + Duration::from_secs(599)), Some(account));
+        assert_eq!(
+            p.account("ticket-1", now + Duration::from_secs(599)),
+            Some(account)
+        );
         assert_eq!(p.account("ticket-1", now + Duration::from_secs(600)), None);
         assert_eq!(p.account("other", now), None);
     }
@@ -230,17 +233,23 @@ fn answer(ok: bool) -> Answer {
 /// The calls answered without a server-side record: callbacks, Initialize, locale, code page,
 /// LoginAuth with a known passport, LoginMessenger (MessengerReply 0 to the game window) and
 /// an empty friend list. Others fail (benign: the engine treats them as a failed call).
-pub fn handle(session: &mut Session, passports: &Passports, code: u32, envelope: &[u8], now: Instant) -> Answer {
+pub fn handle(
+    session: &mut Session,
+    passports: &Passports,
+    code: u32,
+    envelope: &[u8],
+    now: Instant,
+) -> Answer {
     use crate::protocol::nm;
     match code {
-        code::REGISTER_CALLBACK | code::INITIALIZE | code::SET_LOCALE | code::SET_CODE_PAGE => answer(true),
+        code::REGISTER_CALLBACK | code::INITIALIZE | code::SET_LOCALE | code::SET_CODE_PAGE => {
+            answer(true)
+        }
         code::LOGIN_AUTH => {
-            let passport = nm::open(envelope)
-                .ok()
-                .and_then(|body| {
-                    let mut call = nm::call(&body).ok()?;
-                    call.fields.wstring().ok()
-                });
+            let passport = nm::open(envelope).ok().and_then(|body| {
+                let mut call = nm::call(&body).ok()?;
+                call.fields.wstring().ok()
+            });
             session.account = passport.and_then(|p| passports.account(&p, now));
             answer(session.account.is_some())
         }
@@ -279,7 +288,11 @@ mod service_tests {
 
     fn login_auth(passport: &str) -> Vec<u8> {
         let mut fields = nm::Writer::default();
-        fields.u32(0).wstring(passport, 0x1000).wstring("id", 0x100).wstring("", 0x80);
+        fields
+            .u32(0)
+            .wstring(passport, 0x1000)
+            .wstring("id", 0x100)
+            .wstring("", 0x80);
         let mut body = nm::Writer::default();
         body.object(nm::FUNC, 1, &fields);
         nm::seal_v1(&body.bytes, 7)
@@ -288,12 +301,27 @@ mod service_tests {
     #[test]
     fn frames_round_trip() {
         for f in [
-            Frame::Call { seq: 1, code: 0x110f, envelope: vec![1, 2] },
-            Frame::Reply { seq: 9, ok: true, envelope: vec![] },
-            Frame::Event { target: 0, code: 0x1001, envelope: vec![3] },
+            Frame::Call {
+                seq: 1,
+                code: 0x110f,
+                envelope: vec![1, 2],
+            },
+            Frame::Reply {
+                seq: 9,
+                ok: true,
+                envelope: vec![],
+            },
+            Frame::Event {
+                target: 0,
+                code: 0x1001,
+                envelope: vec![3],
+            },
         ] {
             let bytes = f.encode();
-            assert_eq!(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as usize, bytes.len() - 4);
+            assert_eq!(
+                u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as usize,
+                bytes.len() - 4
+            );
             assert_eq!(Frame::decode(&bytes[4..]), Some(f));
         }
     }
@@ -302,11 +330,36 @@ mod service_tests {
     fn login_needs_a_known_passport_then_replies_and_lists() {
         let passports = Passports::default();
         let now = Instant::now();
-        passports.remember("ticket", Account { nexon_sn: 31, nexon_id: "owner".to_owned() }, now);
+        passports.remember(
+            "ticket",
+            Account {
+                nexon_sn: 31,
+                nexon_id: "owner".to_owned(),
+            },
+            now,
+        );
         let mut s = Session::default();
-        assert!(!handle(&mut s, &passports, code::LOGIN_AUTH, &login_auth("wrong"), now).ok);
+        assert!(
+            !handle(
+                &mut s,
+                &passports,
+                code::LOGIN_AUTH,
+                &login_auth("wrong"),
+                now
+            )
+            .ok
+        );
         assert!(!handle(&mut s, &passports, code::LOGIN_MESSENGER, &[], now).ok);
-        assert!(handle(&mut s, &passports, code::LOGIN_AUTH, &login_auth("ticket"), now).ok);
+        assert!(
+            handle(
+                &mut s,
+                &passports,
+                code::LOGIN_AUTH,
+                &login_auth("ticket"),
+                now
+            )
+            .ok
+        );
         let login = handle(&mut s, &passports, code::LOGIN_MESSENGER, &[], now);
         assert!(login.ok);
         assert_eq!(login.events[0].1, code::EVENT_MESSENGER_REPLY);
@@ -371,14 +424,31 @@ async fn connection(stream: tokio::net::TcpStream, service: &Service) -> std::io
             }
             let mut payload = vec![0u8; len];
             read.read_exact(&mut payload).await?;
-            let Some(Frame::Call { seq, code, envelope }) = Frame::decode(&payload) else {
+            let Some(Frame::Call {
+                seq,
+                code,
+                envelope,
+            }) = Frame::decode(&payload)
+            else {
                 return Err(std::io::ErrorKind::InvalidData.into());
             };
             let a = service.call(&mut session, &context, code, &envelope).await;
             tracing::info!(code, ok = a.ok, "messenger call processed; values omitted");
-            let mut out = Frame::Reply { seq, ok: a.ok, envelope: a.envelope }.encode();
+            let mut out = Frame::Reply {
+                seq,
+                ok: a.ok,
+                envelope: a.envelope,
+            }
+            .encode();
             for (target, code, envelope) in a.events {
-                out.extend(Frame::Event { target, code, envelope }.encode());
+                out.extend(
+                    Frame::Event {
+                        target,
+                        code,
+                        envelope,
+                    }
+                    .encode(),
+                );
             }
             outbox
                 .send(out)
@@ -450,7 +520,11 @@ pub struct Service {
 
 /// The list name of an account: "[server]" + its character (or login).
 pub fn display(p: &super::messenger_friends::Profile) -> String {
-    let name = if p.character.is_empty() { &p.login } else { &p.character };
+    let name = if p.character.is_empty() {
+        &p.login
+    } else {
+        &p.character
+    };
     format!("[{SERVER_NAME}]{name}")
 }
 
@@ -473,8 +547,17 @@ fn view<'a>(
     use crate::protocol::nm::objects::{FriendKey, FriendView, User};
     let id_code = u64::from(p.nexon_sn.unsigned_abs());
     FriendView {
-        user: User { login: &p.login, id_code, nickname: &p.character, online },
-        key: FriendKey { id_code, owner, friend: (owner.0, 0) },
+        user: User {
+            login: &p.login,
+            id_code,
+            nickname: &p.character,
+            online,
+        },
+        key: FriendKey {
+            id_code,
+            owner,
+            friend: (owner.0, 0),
+        },
         display: name,
         memo,
     }
@@ -482,11 +565,22 @@ fn view<'a>(
 
 impl Service {
     pub fn new(passports: std::sync::Arc<Passports>, pool: Option<sqlx::PgPool>) -> Self {
-        Self { passports, pool, hub: MessengerHub::default(), chats: Mutex::default() }
+        Self {
+            passports,
+            pool,
+            hub: MessengerHub::default(),
+            chats: Mutex::default(),
+        }
     }
 
     /// One call: the friend functions with the database, the rest by `handle`.
-    pub async fn call(&self, s: &mut Session, context: &Context, code: u32, envelope: &[u8]) -> Answer {
+    pub async fn call(
+        &self,
+        s: &mut Session,
+        context: &Context,
+        code: u32,
+        envelope: &[u8],
+    ) -> Answer {
         use crate::protocol::nm;
         let body = nm::open(envelope).ok();
         let call = body.as_deref().and_then(|b| nm::call(b).ok());
@@ -498,7 +592,9 @@ impl Service {
         if code == code::GET_GAME_SERVER_NAME {
             if let Some(mut c) = call {
                 let game_code = c.fields.u32().unwrap_or(c.argument);
-                context.game_code.store(game_code, std::sync::atomic::Ordering::Relaxed);
+                context
+                    .game_code
+                    .store(game_code, std::sync::atomic::Ordering::Relaxed);
             }
             let mut results = nm::Writer::default();
             results.wstring(SERVER_NAME, 0x7f);
@@ -539,7 +635,9 @@ impl Service {
 
     async fn my_info(&self, pool: &sqlx::PgPool, me: i32) -> Result<Answer, Error> {
         use crate::protocol::nm::{Writer, objects};
-        let p = super::messenger_friends::profile(pool, me).await?.ok_or(Error::Refused)?;
+        let p = super::messenger_friends::profile(pool, me)
+            .await?
+            .ok_or(Error::Refused)?;
         let mut results = Writer::default();
         let user = objects::User {
             login: &p.login,
@@ -554,7 +652,12 @@ impl Service {
 
     /// The categories (0 first) with their friends, then every friend; requests waiting for an
     /// answer follow as RequestNewFriend events.
-    async fn friend_list(&self, pool: &sqlx::PgPool, me: i32, context: &Context) -> Result<Answer, Error> {
+    async fn friend_list(
+        &self,
+        pool: &sqlx::PgPool,
+        me: i32,
+        context: &Context,
+    ) -> Result<Answer, Error> {
         use super::messenger_friends::{self as db, State};
         use crate::protocol::nm::{self, Writer, objects};
         let mine = context.pair();
@@ -562,11 +665,22 @@ impl Service {
         let all = db::friends(pool, me).await?;
         let shown: Vec<_> = all.iter().filter(|f| f.state == State::Friend).collect();
         let names: Vec<String> = shown.iter().map(|f| display(&f.profile)).collect();
-        let online: Vec<bool> = shown.iter().map(|f| self.hub.is_online(f.profile.nexon_sn)).collect();
+        let online: Vec<bool> = shown
+            .iter()
+            .map(|f| self.hub.is_online(f.profile.nexon_sn))
+            .collect();
         let in_category = |id: i32| -> Vec<objects::FriendView<'_>> {
             (0..shown.len())
                 .filter(|&i| shown[i].category_id == id)
-                .map(|i| view(&shown[i].profile, &names[i], &shown[i].memo, online[i], mine))
+                .map(|i| {
+                    view(
+                        &shown[i].profile,
+                        &names[i],
+                        &shown[i].memo,
+                        online[i],
+                        mine,
+                    )
+                })
                 .collect()
         };
         let mut results = Writer::default();
@@ -577,7 +691,16 @@ impl Service {
         }
         results.u32(shown.len() as u32);
         for i in 0..shown.len() {
-            objects::friend(&mut results, &view(&shown[i].profile, &names[i], &shown[i].memo, online[i], mine));
+            objects::friend(
+                &mut results,
+                &view(
+                    &shown[i].profile,
+                    &names[i],
+                    &shown[i].memo,
+                    online[i],
+                    mine,
+                ),
+            );
         }
         let mut a = ok_with(&results);
         for f in all.iter().filter(|f| f.state == State::Waiting) {
@@ -590,7 +713,8 @@ impl Service {
             };
             let mut fields = Writer::default();
             request.write(&mut fields);
-            a.events.push((0, code::EVENT_REQUEST_NEW_FRIEND, nm::event(&fields)));
+            a.events
+                .push((0, code::EVENT_REQUEST_NEW_FRIEND, nm::event(&fields)));
         }
         Ok(a)
     }
@@ -611,19 +735,20 @@ impl Service {
             Requested::Sent => {
                 let from = db::profile(pool, me).await?.ok_or(Error::Refused)?;
                 let peer = display(&from);
-                self.hub.send_with(target, 0, code::EVENT_REQUEST_NEW_FRIEND, |pair| {
-                    let request = Request {
-                        serial: me.unsigned_abs(),
-                        peer: peer.clone(),
-                        from: pair,
-                        to: pair,
-                        message: call.message.clone(),
-                        ..Request::default()
-                    };
-                    let mut w = nm::Writer::default();
-                    request.write(&mut w);
-                    nm::event(&w)
-                });
+                self.hub
+                    .send_with(target, 0, code::EVENT_REQUEST_NEW_FRIEND, |pair| {
+                        let request = Request {
+                            serial: me.unsigned_abs(),
+                            peer: peer.clone(),
+                            from: pair,
+                            to: pair,
+                            message: call.message.clone(),
+                            ..Request::default()
+                        };
+                        let mut w = nm::Writer::default();
+                        request.write(&mut w);
+                        nm::event(&w)
+                    });
             }
             Requested::Accepted => self.friendship_changed(pool, me, target).await?,
         }
@@ -705,7 +830,13 @@ impl Service {
 
     /// FriendInfoChanged 0x1010 to `to` about `about`, online as the hub sees it (`listed`
     /// false sends it offline, the closest the protocol has to a removal).
-    async fn send_friend(&self, pool: &sqlx::PgPool, to: i32, about: i32, listed: bool) -> Result<(), Error> {
+    async fn send_friend(
+        &self,
+        pool: &sqlx::PgPool,
+        to: i32,
+        about: i32,
+        listed: bool,
+    ) -> Result<(), Error> {
         use crate::protocol::nm::{self, Writer, objects};
         if !self.hub.is_online(to) {
             return Ok(());
@@ -715,12 +846,13 @@ impl Service {
         };
         let online = listed && self.hub.is_online(about);
         let name = display(&p);
-        self.hub.send_with(to, 0, code::EVENT_FRIEND_INFO_CHANGED, |pair| {
-            let mut w = Writer::default();
-            objects::friend(&mut w, &view(&p, &name, "", online, pair));
-            w.u8(0);
-            nm::event(&w)
-        });
+        self.hub
+            .send_with(to, 0, code::EVENT_FRIEND_INFO_CHANGED, |pair| {
+                let mut w = Writer::default();
+                objects::friend(&mut w, &view(&p, &name, "", online, pair));
+                w.u8(0);
+                nm::event(&w)
+            });
         Ok(())
     }
 
@@ -740,7 +872,11 @@ impl Service {
             return;
         };
         for f in friends.iter().filter(|f| f.state == State::Friend) {
-            if self.send_friend(pool, f.profile.nexon_sn, me, true).await.is_err() {
+            if self
+                .send_friend(pool, f.profile.nexon_sn, me, true)
+                .await
+                .is_err()
+            {
                 tracing::info!("messenger presence not sent; values omitted");
             }
         }
@@ -769,7 +905,11 @@ pub const SHORT_NAME: &str = "Vindictus";
 
 impl Chats {
     fn open(&mut self, a: i32, b: i32) -> Option<u32> {
-        let mine = self.sessions.values().filter(|c| c.members.contains(&a)).count();
+        let mine = self
+            .sessions
+            .values()
+            .filter(|c| c.members.contains(&a))
+            .count();
         if self.sessions.len() >= MAX_CHATS || mine >= MAX_CHATS_PER_ACCOUNT {
             return None;
         }
@@ -777,7 +917,13 @@ impl Chats {
         while self.sessions.contains_key(&self.next) {
             self.next = self.next.wrapping_add(1).max(1);
         }
-        self.sessions.insert(self.next, Chat { members: vec![a, b], registered: Vec::new() });
+        self.sessions.insert(
+            self.next,
+            Chat {
+                members: vec![a, b],
+                registered: Vec::new(),
+            },
+        );
         Some(self.next)
     }
     fn members(&self, key: u32, me: i32) -> Option<Vec<i32>> {
@@ -788,7 +934,10 @@ impl Chats {
     }
     /// Marks a member's window registered; the members when all have registered.
     fn register(&mut self, key: u32, me: i32) -> Option<Vec<i32>> {
-        let chat = self.sessions.get_mut(&key).filter(|c| c.members.contains(&me))?;
+        let chat = self
+            .sessions
+            .get_mut(&key)
+            .filter(|c| c.members.contains(&me))?;
         if !chat.registered.contains(&me) {
             chat.registered.push(me);
         }
@@ -816,17 +965,30 @@ impl Service {
     }
 
     /// Session members as objects, built for the receiving connection's (game code, virtual id).
-    async fn chat_members(&self, pool: &sqlx::PgPool, members: &[i32]) -> Result<Vec<super::messenger_friends::Profile>, Error> {
+    async fn chat_members(
+        &self,
+        pool: &sqlx::PgPool,
+        members: &[i32],
+    ) -> Result<Vec<super::messenger_friends::Profile>, Error> {
         let mut profiles = super::messenger_friends::profiles(pool, members).await?;
         profiles.sort_by_key(|p| members.iter().position(|m| *m == p.nexon_sn));
         Ok(profiles)
     }
 
-    fn write_members(w: &mut crate::protocol::nm::Writer, profiles: &[super::messenger_friends::Profile], pair: (u32, u32), hub: &MessengerHub) {
+    fn write_members(
+        w: &mut crate::protocol::nm::Writer,
+        profiles: &[super::messenger_friends::Profile],
+        pair: (u32, u32),
+        hub: &MessengerHub,
+    ) {
         use crate::protocol::nm::objects;
         w.u32(profiles.len() as u32);
         for p in profiles {
-            let name = if p.character.is_empty() { &p.login } else { &p.character };
+            let name = if p.character.is_empty() {
+                &p.login
+            } else {
+                &p.character
+            };
             objects::member(
                 w,
                 &objects::Member {
@@ -855,9 +1017,12 @@ impl Service {
         let key = call.argument;
         match code {
             code::REQUEST_CHAT_SESSION_EX => {
-                let friend = objects::FriendKey::read(&mut call.fields).map_err(|_| Error::Refused)?;
+                let friend =
+                    objects::FriendKey::read(&mut call.fields).map_err(|_| Error::Refused)?;
                 let friend = i32::try_from(friend.id_code).map_err(|_| Error::Refused)?;
-                if db::state(pool, me, friend).await? != Some(State::Friend) || !self.hub.is_online(friend) {
+                if db::state(pool, me, friend).await? != Some(State::Friend)
+                    || !self.hub.is_online(friend)
+                {
                     return Err(Error::Refused);
                 }
                 let key = self.chats().open(me, friend).ok_or(Error::Refused)?;
@@ -910,20 +1075,31 @@ impl Service {
                 Ok(ok_with(&results))
             }
             _ => {
-                let message = objects::ChatMessage::read(&mut call.fields).map_err(|_| Error::Refused)?;
+                let message =
+                    objects::ChatMessage::read(&mut call.fields).map_err(|_| Error::Refused)?;
                 let members = self.chats().members(key, me).ok_or(Error::Refused)?;
                 let me_profile = db::profile(pool, me).await?.ok_or(Error::Refused)?;
-                let name = if me_profile.character.is_empty() { &me_profile.login } else { &me_profile.character };
+                let name = if me_profile.character.is_empty() {
+                    &me_profile.login
+                } else {
+                    &me_profile.character
+                };
                 let sender = format!("{name}@{SHORT_NAME}");
                 let text: String = message.text.chars().take(MAX_CHAT_TEXT).collect();
                 for m in members.iter().filter(|m| **m != me) {
-                    self.hub.send_with(*m, key, code::EVENT_CS_CHAT_MESSAGE_RECEIVED, |pair| {
-                        let mut w = Writer::default();
-                        w.u32(key);
-                        objects::ChatMessage { game_code: pair.0, sender: sender.clone(), text: text.clone() }.write(&mut w);
-                        w.u8(0);
-                        nm::event(&w)
-                    });
+                    self.hub
+                        .send_with(*m, key, code::EVENT_CS_CHAT_MESSAGE_RECEIVED, |pair| {
+                            let mut w = Writer::default();
+                            w.u32(key);
+                            objects::ChatMessage {
+                                game_code: pair.0,
+                                sender: sender.clone(),
+                                text: text.clone(),
+                            }
+                            .write(&mut w);
+                            w.u8(0);
+                            nm::event(&w)
+                        });
                 }
                 Ok(answer(true))
             }
@@ -941,25 +1117,30 @@ impl Service {
         let Ok(Some(p)) = super::messenger_friends::profile(pool, me).await else {
             return;
         };
-        let name = if p.character.is_empty() { p.login.clone() } else { p.character.clone() };
+        let name = if p.character.is_empty() {
+            p.login.clone()
+        } else {
+            p.character.clone()
+        };
         for (key, members) in left {
             for m in members {
-                self.hub.send_with(m, key, code::EVENT_GS_MEMBER_LEAVED, |pair| {
-                    let mut w = Writer::default();
-                    w.u32(key);
-                    objects::member(
-                        &mut w,
-                        &objects::Member {
-                            id_code: u64::from(me.unsigned_abs()),
-                            login: &p.login,
-                            nickname: &p.character,
-                            pair,
-                            display: &name,
-                            online: false,
-                        },
-                    );
-                    nm::event(&w)
-                });
+                self.hub
+                    .send_with(m, key, code::EVENT_GS_MEMBER_LEAVED, |pair| {
+                        let mut w = Writer::default();
+                        w.u32(key);
+                        objects::member(
+                            &mut w,
+                            &objects::Member {
+                                id_code: u64::from(me.unsigned_abs()),
+                                login: &p.login,
+                                nickname: &p.character,
+                                pair,
+                                display: &name,
+                                online: false,
+                            },
+                        );
+                        nm::event(&w)
+                    });
             }
         }
     }
@@ -1004,7 +1185,12 @@ mod listener_tests {
         let service = Service::new(std::sync::Arc::new(Passports::default()), None);
         let server = tokio::spawn(serve(listener, std::sync::Arc::new(service)));
         let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
-        let call = Frame::Call { seq: 5, code: code::INITIALIZE, envelope: Vec::new() }.encode();
+        let call = Frame::Call {
+            seq: 5,
+            code: code::INITIALIZE,
+            envelope: Vec::new(),
+        }
+        .encode();
         stream.write_all(&call).await.unwrap();
         let mut len = [0u8; 4];
         stream.read_exact(&mut len).await.unwrap();
@@ -1045,7 +1231,11 @@ impl MessengerHub {
     ) -> u64 {
         let id = self.next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let mut online = self.online.lock().unwrap_or_else(PoisonError::into_inner);
-        online.entry(nexon_sn).or_default().push(Connection { id, outbox, context });
+        online.entry(nexon_sn).or_default().push(Connection {
+            id,
+            outbox,
+            context,
+        });
         id
     }
     /// Removes a connection; true when the account has no other connection left.
@@ -1069,11 +1259,22 @@ impl MessengerHub {
     /// Pushes an event to a callback target (0 = the game window, else a chat session key) of
     /// every connection of an account, built with that connection's (game code, virtual id); a
     /// full outbox drops it.
-    pub fn send_with(&self, nexon_sn: i32, target: u32, code: u32, build: impl Fn((u32, u32)) -> Vec<u8>) {
+    pub fn send_with(
+        &self,
+        nexon_sn: i32,
+        target: u32,
+        code: u32,
+        build: impl Fn((u32, u32)) -> Vec<u8>,
+    ) {
         let online = self.online.lock().unwrap_or_else(PoisonError::into_inner);
         for c in online.get(&nexon_sn).into_iter().flatten() {
             let envelope = build(c.context.pair());
-            let frame = Frame::Event { target, code, envelope }.encode();
+            let frame = Frame::Event {
+                target,
+                code,
+                envelope,
+            }
+            .encode();
             let _ = c.outbox.try_send(frame);
         }
     }

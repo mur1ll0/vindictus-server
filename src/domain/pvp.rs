@@ -184,7 +184,11 @@ fn boolean(text: &str) -> Result<bool, PvpContentsError> {
 }
 
 impl PvpConfig {
-    fn build(mode: &str, rule: GameRule, values: &BTreeMap<String, String>) -> Result<Self, PvpContentsError> {
+    fn build(
+        mode: &str,
+        rule: GameRule,
+        values: &BTreeMap<String, String>,
+    ) -> Result<Self, PvpContentsError> {
         let properties: &[Property] = match rule {
             GameRule::Arena => &ARENA,
             GameRule::DeathMatch => &DEATH_MATCH,
@@ -196,14 +200,20 @@ impl PvpConfig {
         ];
         let mut resolved: BTreeMap<&str, String> = BTreeMap::new();
         for (name, default, client) in properties {
-            let text = values.get(*name).cloned().unwrap_or_else(|| (*default).to_owned());
+            let text = values
+                .get(*name)
+                .cloned()
+                .unwrap_or_else(|| (*default).to_owned());
             if *client {
                 client_config.push(((*name).to_owned(), text.clone()));
             }
             resolved.insert(name, text);
         }
         let get = |name: &str, default: &str| -> String {
-            resolved.get(name).cloned().unwrap_or_else(|| default.to_owned())
+            resolved
+                .get(name)
+                .cloned()
+                .unwrap_or_else(|| default.to_owned())
         };
         let n = |name: &str, default: &str| int(&get(name, default));
         Ok(Self {
@@ -301,8 +311,18 @@ mod tests {
             row("p05", "MaxSize", "32", None),
             row("p05", "TeamSize", "1", None),
             row("p03", "GameRule", "DeathMatch", Some("DeathMatch")),
-            row("p03", "MatchingSystem", "Full", Some("!PvpStatBaseMatching")),
-            row("p03", "MatchingSystem", "statbase:60", Some("PvpStatBaseMatching")),
+            row(
+                "p03",
+                "MatchingSystem",
+                "Full",
+                Some("!PvpStatBaseMatching"),
+            ),
+            row(
+                "p03",
+                "MatchingSystem",
+                "statbase:60",
+                Some("PvpStatBaseMatching"),
+            ),
             row("p03", "TeamSize", "8", None),
             row("p01", "GameRule", "CTF", None),
             row("p03_dev", "GameRule", "DeathMatch", Some("DevTest")),
@@ -310,19 +330,43 @@ mod tests {
         let on = ["Arena", "DeathMatch", "!PvpStatBaseMatching"];
         let c = PvpContents::load(&rows, &mut |f| Ok(f.is_none_or(|f| on.contains(&f)))).unwrap();
         let arena = c.get("p05").unwrap();
-        assert_eq!((arena.max_size, arena.team_size, arena.game_length), (32, 1, 90));
-        assert_eq!((arena.arena_channel_count, arena.win_signet, arena.is_guild), (3, 3, false));
+        assert_eq!(
+            (arena.max_size, arena.team_size, arena.game_length),
+            (32, 1, 90)
+        );
+        assert_eq!(
+            (arena.arena_channel_count, arena.win_signet, arena.is_guild),
+            (3, 3, false)
+        );
         assert_eq!(arena.matching, Matching::Arena);
         assert_eq!(
-            arena.client_config.iter().map(|(k, _)| k.as_str()).collect::<Vec<_>>(),
+            arena
+                .client_config
+                .iter()
+                .map(|(k, _)| k.as_str())
+                .collect::<Vec<_>>(),
             [
-                "PvpMode", "GameRule", "GameLength", "BSP", "MaxSize", "TeamSize",
-                "WaitBeforeStart", "WaitBetweenRound", "RoundToWin", "PairOfPlayer"
+                "PvpMode",
+                "GameRule",
+                "GameLength",
+                "BSP",
+                "MaxSize",
+                "TeamSize",
+                "WaitBeforeStart",
+                "WaitBetweenRound",
+                "RoundToWin",
+                "PairOfPlayer"
             ]
         );
-        assert_eq!(arena.client_config[2], ("GameLength".to_owned(), "90".to_owned()));
+        assert_eq!(
+            arena.client_config[2],
+            ("GameLength".to_owned(), "90".to_owned())
+        );
         let dm = c.get("p03").unwrap();
-        assert_eq!((dm.matching, dm.team_size, dm.is_guild), (Matching::Full, 8, true));
+        assert_eq!(
+            (dm.matching, dm.team_size, dm.is_guild),
+            (Matching::Full, 8, true)
+        );
         assert_eq!(dm.client_config.len(), 8);
         // CTF is not migrated; a disabled GameRule row drops the mode.
         assert!(c.get("p01").is_none() && c.get("p03_dev").is_none());

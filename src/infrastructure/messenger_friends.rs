@@ -65,7 +65,15 @@ fn utf16_name(raw: Option<Vec<u8>>) -> String {
     raw.and_then(|raw| {
         let (pairs, rest) = raw.as_chunks::<2>();
         rest.is_empty()
-            .then(|| String::from_utf16(&pairs.iter().map(|c| u16::from_le_bytes(*c)).collect::<Vec<_>>()).ok())
+            .then(|| {
+                String::from_utf16(
+                    &pairs
+                        .iter()
+                        .map(|c| u16::from_le_bytes(*c))
+                        .collect::<Vec<_>>(),
+                )
+                .ok()
+            })
             .flatten()
     })
     .unwrap_or_default()
@@ -78,8 +86,10 @@ const PROFILE_SQL: &str = "SELECT u.id,u.name,(SELECT c.name_utf16 FROM game_cha
 
 /// Profiles of accounts (missing accounts are left out).
 pub async fn profiles(pool: &PgPool, ids: &[i32]) -> Result<Vec<Profile>, FriendError> {
-    let rows: Vec<(i32, String, Option<Vec<u8>>)> =
-        sqlx::query_as(PROFILE_SQL).bind(ids).fetch_all(pool).await?;
+    let rows: Vec<(i32, String, Option<Vec<u8>>)> = sqlx::query_as(PROFILE_SQL)
+        .bind(ids)
+        .fetch_all(pool)
+        .await?;
     Ok(rows
         .into_iter()
         .map(|(nexon_sn, login, name)| Profile {
@@ -102,10 +112,12 @@ pub async fn find(pool: &PgPool, name: &str) -> Result<Option<i32>, FriendError>
     if let Ok(Some((_, uid))) = super::minimum_party::character_info_by_name(pool, name).await {
         return Ok(Some(uid));
     }
-    Ok(sqlx::query_scalar("SELECT id FROM game_users WHERE name_key=lower(rtrim($1,' '))")
-        .bind(name)
-        .fetch_optional(pool)
-        .await?)
+    Ok(
+        sqlx::query_scalar("SELECT id FROM game_users WHERE name_key=lower(rtrim($1,' '))")
+            .bind(name)
+            .fetch_optional(pool)
+            .await?,
+    )
 }
 
 pub async fn categories(pool: &PgPool, nexon_sn: i32) -> Result<Vec<Category>, FriendError> {
@@ -115,7 +127,10 @@ pub async fn categories(pool: &PgPool, nexon_sn: i32) -> Result<Vec<Category>, F
     .bind(nexon_sn)
     .fetch_all(pool)
     .await?;
-    Ok(rows.into_iter().map(|(id, name)| Category { id, name }).collect())
+    Ok(rows
+        .into_iter()
+        .map(|(id, name)| Category { id, name })
+        .collect())
 }
 
 pub async fn friends(pool: &PgPool, nexon_sn: i32) -> Result<Vec<Friend>, FriendError> {
@@ -143,12 +158,13 @@ pub async fn friends(pool: &PgPool, nexon_sn: i32) -> Result<Vec<Friend>, Friend
 
 /// The state `owner` keeps for `other`, if any.
 pub async fn state(pool: &PgPool, owner: i32, other: i32) -> Result<Option<State>, FriendError> {
-    let v: Option<i16> =
-        sqlx::query_scalar("SELECT state FROM game_messenger_friends WHERE nexon_sn=$1 AND friend_sn=$2")
-            .bind(owner)
-            .bind(other)
-            .fetch_optional(pool)
-            .await?;
+    let v: Option<i16> = sqlx::query_scalar(
+        "SELECT state FROM game_messenger_friends WHERE nexon_sn=$1 AND friend_sn=$2",
+    )
+    .bind(owner)
+    .bind(other)
+    .fetch_optional(pool)
+    .await?;
     Ok(v.and_then(State::from_db))
 }
 
@@ -181,8 +197,14 @@ pub async fn request(pool: &PgPool, from: i32, to: i32) -> Result<Requested, Fri
     .bind(to)
     .fetch_all(&mut *tx)
     .await?;
-    let mine = rows.iter().find(|r| r.0 == from).and_then(|r| State::from_db(r.2));
-    let theirs = rows.iter().find(|r| r.0 == to).and_then(|r| State::from_db(r.2));
+    let mine = rows
+        .iter()
+        .find(|r| r.0 == from)
+        .and_then(|r| State::from_db(r.2));
+    let theirs = rows
+        .iter()
+        .find(|r| r.0 == to)
+        .and_then(|r| State::from_db(r.2));
     let outcome = match (mine, theirs) {
         (_, Some(State::Blocked)) | (Some(State::Friend | State::Requested), _) => {
             return Err(FriendError::Refused);
@@ -226,7 +248,12 @@ pub async fn request(pool: &PgPool, from: i32, to: i32) -> Result<Requested, Fri
 }
 
 /// ConfirmNewFriend: `owner` answers the request `other` sent.
-pub async fn confirm(pool: &PgPool, owner: i32, other: i32, accept: bool) -> Result<(), FriendError> {
+pub async fn confirm(
+    pool: &PgPool,
+    owner: i32,
+    other: i32,
+    accept: bool,
+) -> Result<(), FriendError> {
     let mut tx = pool.begin().await?;
     let waiting: Option<i16> = sqlx::query_scalar(
         "SELECT state FROM game_messenger_friends WHERE nexon_sn=$1 AND friend_sn=$2 FOR UPDATE",
@@ -245,7 +272,11 @@ pub async fn confirm(pool: &PgPool, owner: i32, other: i32, accept: bool) -> Res
         "DELETE FROM game_messenger_friends \
          WHERE ((nexon_sn=$1 AND friend_sn=$2) OR (nexon_sn=$2 AND friend_sn=$1)) AND state<>3"
     };
-    sqlx::query(sql).bind(owner).bind(other).execute(&mut *tx).await?;
+    sqlx::query(sql)
+        .bind(owner)
+        .bind(other)
+        .execute(&mut *tx)
+        .await?;
     tx.commit().await?;
     Ok(())
 }
@@ -259,11 +290,13 @@ pub async fn remove(pool: &PgPool, owner: i32, other: i32) -> Result<bool, Frien
         .execute(&mut *tx)
         .await?
         .rows_affected();
-    sqlx::query("DELETE FROM game_messenger_friends WHERE nexon_sn=$2 AND friend_sn=$1 AND state<>3")
-        .bind(owner)
-        .bind(other)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "DELETE FROM game_messenger_friends WHERE nexon_sn=$2 AND friend_sn=$1 AND state<>3",
+    )
+    .bind(owner)
+    .bind(other)
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(mine > 0)
 }
@@ -283,17 +316,21 @@ pub async fn block(pool: &PgPool, owner: i32, other: i32, block: bool) -> Result
         .bind(other)
         .execute(&mut *tx)
         .await?;
-        sqlx::query("DELETE FROM game_messenger_friends WHERE nexon_sn=$2 AND friend_sn=$1 AND state<>3")
-            .bind(owner)
-            .bind(other)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query(
+            "DELETE FROM game_messenger_friends WHERE nexon_sn=$2 AND friend_sn=$1 AND state<>3",
+        )
+        .bind(owner)
+        .bind(other)
+        .execute(&mut *tx)
+        .await?;
     } else {
-        sqlx::query("DELETE FROM game_messenger_friends WHERE nexon_sn=$1 AND friend_sn=$2 AND state=3")
-            .bind(owner)
-            .bind(other)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query(
+            "DELETE FROM game_messenger_friends WHERE nexon_sn=$1 AND friend_sn=$2 AND state=3",
+        )
+        .bind(owner)
+        .bind(other)
+        .execute(&mut *tx)
+        .await?;
     }
     tx.commit().await?;
     Ok(())
@@ -324,12 +361,14 @@ pub async fn add_category(pool: &PgPool, owner: i32, name: &str) -> Result<i32, 
     if count >= MAX_CATEGORIES || next > 1000 {
         return Err(FriendError::Refused);
     }
-    sqlx::query("INSERT INTO game_messenger_categories(nexon_sn,category_id,name) VALUES($1,$2,$3)")
-        .bind(owner)
-        .bind(next)
-        .bind(&name)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "INSERT INTO game_messenger_categories(nexon_sn,category_id,name) VALUES($1,$2,$3)",
+    )
+    .bind(owner)
+    .bind(next)
+    .bind(&name)
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(next)
 }
@@ -337,33 +376,43 @@ pub async fn add_category(pool: &PgPool, owner: i32, name: &str) -> Result<i32, 
 /// DeleteCategory: its friends go back to the default category.
 pub async fn delete_category(pool: &PgPool, owner: i32, category: i32) -> Result<(), FriendError> {
     let mut tx = pool.begin().await?;
-    let gone = sqlx::query("DELETE FROM game_messenger_categories WHERE nexon_sn=$1 AND category_id=$2")
-        .bind(owner)
-        .bind(category)
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
+    let gone =
+        sqlx::query("DELETE FROM game_messenger_categories WHERE nexon_sn=$1 AND category_id=$2")
+            .bind(owner)
+            .bind(category)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
     if gone == 0 {
         return Err(FriendError::Refused);
     }
-    sqlx::query("UPDATE game_messenger_friends SET category_id=0 WHERE nexon_sn=$1 AND category_id=$2")
-        .bind(owner)
-        .bind(category)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "UPDATE game_messenger_friends SET category_id=0 WHERE nexon_sn=$1 AND category_id=$2",
+    )
+    .bind(owner)
+    .bind(category)
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(())
 }
 
-pub async fn rename_category(pool: &PgPool, owner: i32, category: i32, name: &str) -> Result<(), FriendError> {
+pub async fn rename_category(
+    pool: &PgPool,
+    owner: i32,
+    category: i32,
+    name: &str,
+) -> Result<(), FriendError> {
     let name = category_name(name)?;
-    let changed = sqlx::query("UPDATE game_messenger_categories SET name=$3 WHERE nexon_sn=$1 AND category_id=$2")
-        .bind(owner)
-        .bind(category)
-        .bind(&name)
-        .execute(pool)
-        .await?
-        .rows_affected();
+    let changed = sqlx::query(
+        "UPDATE game_messenger_categories SET name=$3 WHERE nexon_sn=$1 AND category_id=$2",
+    )
+    .bind(owner)
+    .bind(category)
+    .bind(&name)
+    .execute(pool)
+    .await?
+    .rows_affected();
     if changed == 0 {
         return Err(FriendError::Refused);
     }
@@ -371,7 +420,12 @@ pub async fn rename_category(pool: &PgPool, owner: i32, category: i32, name: &st
 }
 
 /// Add/Move/DeleteFriendFromCategory: a friend belongs to one category (0 = default).
-pub async fn move_friend(pool: &PgPool, owner: i32, friend: i32, category: i32) -> Result<(), FriendError> {
+pub async fn move_friend(
+    pool: &PgPool,
+    owner: i32,
+    friend: i32,
+    category: i32,
+) -> Result<(), FriendError> {
     let changed = sqlx::query(
         "UPDATE game_messenger_friends f SET category_id=$3 WHERE f.nexon_sn=$1 AND f.friend_sn=$2 \
          AND ($3=0 OR EXISTS(SELECT 1 FROM game_messenger_categories c WHERE c.nexon_sn=$1 AND c.category_id=$3))",

@@ -1283,7 +1283,11 @@ impl Connection {
                     .is_some_and(|p| p != super::pvp_match::Proxy::Waiting) =>
             {
                 // InGame: IsInPvp → PvpChat(IsTeamChat = !isFakeTownChat).
-                runtime.pvp.chat(cid, chat.message.as_deref().unwrap_or(""), !chat.is_fake_town_chat);
+                runtime.pvp.chat(
+                    cid,
+                    chat.message.as_deref().unwrap_or(""),
+                    !chat.is_fake_town_chat,
+                );
                 tracing::info!("pvp chat processed; values omitted");
                 Vec::new()
             }
@@ -2773,7 +2777,12 @@ impl Connection {
         let reply = |m: Message| -> Option<crate::domain::map_partition::OutgoingPacket> {
             wire::packet(&m, DEFAULT_MAX_BODY)
                 .ok()
-                .map(|(category, body)| crate::domain::map_partition::OutgoingPacket { category, body })
+                .map(
+                    |(category, body)| crate::domain::map_partition::OutgoingPacket {
+                        category,
+                        body,
+                    },
+                )
         };
         match (message, self.guild) {
             (Message::FindNewbieRecommendGuild(_), super::guild::State::OutGuild) => {
@@ -2781,19 +2790,28 @@ impl Connection {
                     .await
                     .map_err(|_| RuntimeError::Operation)?;
                 if let Some(info) = found
-                    && let Some(p) = reply(Message::FindNewbieRecommendGuildResult(wire::FindResult { info: Some(info) }))
+                    && let Some(p) =
+                        reply(Message::FindNewbieRecommendGuildResult(wire::FindResult {
+                            info: Some(info),
+                        }))
                 {
                     runtime.party.deliver(cid, vec![p]);
                 }
             }
             (Message::RequestNewbieRecommendGuild(request), super::guild::State::OutGuild) => {
-                let name: Vec<u8> = sqlx::query_scalar("SELECT name_utf16 FROM game_character_info WHERE id=$1")
-                    .bind(cid)
-                    .fetch_one(pool)
-                    .await
-                    .map_err(|_| RuntimeError::Operation)?;
+                let name: Vec<u8> =
+                    sqlx::query_scalar("SELECT name_utf16 FROM game_character_info WHERE id=$1")
+                        .bind(cid)
+                        .fetch_one(pool)
+                        .await
+                        .map_err(|_| RuntimeError::Operation)?;
                 let name = String::from_utf16_lossy(
-                    &name.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect::<Vec<_>>(),
+                    &name
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
+                        .map(|c| u16::from_le_bytes(*c))
+                        .collect::<Vec<_>>(),
                 );
                 // ShipID: BattleServiceProxy.PartyID.
                 let ship_id = match runtime.party.role(cid) {
@@ -2813,12 +2831,17 @@ impl Connection {
                 .await
                 .map_err(|_| RuntimeError::Operation)?;
             }
-            (Message::DirectPurchaseGuildItem(request), super::guild::State::InGuild { guild_sn }) => {
+            (
+                Message::DirectPurchaseGuildItem(request),
+                super::guild::State::InGuild { guild_sn },
+            ) => {
                 let item_class = request.item_class.clone().unwrap_or_default();
                 let master = super::guild::membership(pool, cid)
                     .await
                     .map_err(|_| RuntimeError::Operation)?
-                    .is_some_and(|(sn, r)| sn == guild_sn && r == crate::protocol::guild::rank::MASTER);
+                    .is_some_and(|(sn, r)| {
+                        sn == guild_sn && r == crate::protocol::guild::rank::MASTER
+                    });
                 let result = if master {
                     let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
                     let assets = minimum.assets.current();
@@ -2842,16 +2865,21 @@ impl Connection {
                 } else {
                     wire::purchase_result::IS_NOT_MASTER
                 };
-                if let Some(p) = reply(Message::DirectPurchaseGuildItemResult(wire::PurchaseResult {
-                    item_class: Some(item_class),
-                    result,
-                })) {
+                if let Some(p) = reply(Message::DirectPurchaseGuildItemResult(
+                    wire::PurchaseResult {
+                        item_class: Some(item_class),
+                        result,
+                    },
+                )) {
                     runtime.party.deliver(cid, vec![p]);
                 }
             }
             _ => {
                 // Another state (or a server message): the proxy ignores it.
-                tracing::info!(category, "guild newbie message ignored in this state; values omitted");
+                tracing::info!(
+                    category,
+                    "guild newbie message ignored in this state; values omitted"
+                );
                 return Ok(());
             }
         }
@@ -5964,7 +5992,9 @@ impl Connection {
                 DEFAULT_MAX_BODY,
             )
             .map_err(|_| RuntimeError::Message)?;
-            return self.guild_newbie_message(runtime, pool, category, body, message).await;
+            return self
+                .guild_newbie_message(runtime, pool, category, body, message)
+                .await;
         }
         // Guild storage messages: unregistered, so only their GUID envelope is theirs.
         if let Some(kind) = crate::protocol::guild_storage::ingress_kind(category, body) {

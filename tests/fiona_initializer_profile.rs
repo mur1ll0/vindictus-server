@@ -140,7 +140,7 @@ fn default_skills_follow_constraint_passed_for_the_profile_class() {
     let p = read(&v).unwrap();
     assert_eq!(p.skills().len(), 1);
     assert_eq!(p.preset_ids(), [18]);
-    v["character_class"] = json!(10);
+    v["character_class"] = json!(28);
     assert!(read(&v).is_err());
 }
 #[test]

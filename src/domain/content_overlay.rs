@@ -211,20 +211,15 @@ impl Overlay {
         let default_ok = self
             .cash_default
             .is_none_or(|v| (1..=1_000_000).contains(&v));
-        let tuning_ok = self
-            .features
-            .iter()
-            .all(|(k, v)| match guild_setting(k) {
+        let tuning_ok =
+            self.features.iter().all(|(k, v)| match guild_setting(k) {
                 Some(s) => (0..=s.max).contains(v),
                 None => TUNABLE_FEATURES.contains(&k.as_str()) && (0..=MAX_RATE).contains(v),
-            })
-            && self.quest_drops.iter().all(|(k, [min, max])| {
+            }) && self.quest_drops.iter().all(|(k, [min, max])| {
                 text(k, 128) && (0..=*max).contains(min) && *max <= MAX_DROP_COUNT
-            })
-            && self.enhance_ratios.iter().all(|(k, r)| {
+            }) && self.enhance_ratios.iter().all(|(k, r)| {
                 text(k, 128) && enhance_target(k).is_some() && (0.0..=1.0).contains(r)
-            })
-            && self
+            }) && self
                 .enchant_ratios
                 .iter()
                 .all(|(k, [min, max])| text(k, 128) && (0..=*max).contains(min) && *max <= 100);
@@ -382,9 +377,16 @@ mod tests {
         assert_eq!(feature_value("ExpRate_Combat", 150), "150");
         assert!(guild_setting("ExpRate_Combat").is_none());
         // Every guild value fits the client copy's feature bound (content_edits.py).
-        assert!(GUILD_SETTINGS.iter().all(|s| (1..=MAX_GOLD_PRICE).contains(&s.max)));
+        assert!(
+            GUILD_SETTINGS
+                .iter()
+                .all(|s| (1..=MAX_GOLD_PRICE).contains(&s.max))
+        );
         assert_eq!(feature_value("GuildStoargeSlotFree", 1), "1");
-        assert_eq!(feature_value("GuildStorageSlotGoldPrice", 30_000_000), "30000000");
+        assert_eq!(
+            feature_value("GuildStorageSlotGoldPrice", 30_000_000),
+            "30000000"
+        );
     }
 
     #[test]

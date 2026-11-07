@@ -178,13 +178,13 @@ impl Rules {
         // The panel's PvP knobs: PvpTeamSize_<mode> (> 0) and PvpNotGuild_<mode>.
         let mut config = assets.npc_pvp(mode).cloned();
         if let (Some(c), Some(p)) = (config.as_mut(), policy) {
-            let size = p
-                .get_integer(&format!("PvpTeamSize_{mode}"))
-                .unwrap_or(0);
+            let size = p.get_integer(&format!("PvpTeamSize_{mode}")).unwrap_or(0);
             if size > 0 {
                 c.team_size = size;
             }
-            if p.is_enabled(Some(&format!("PvpNotGuild_{mode}"))).unwrap_or(false) {
+            if p.is_enabled(Some(&format!("PvpNotGuild_{mode}")))
+                .unwrap_or(false)
+            {
                 c.is_guild = false;
             }
         }
@@ -1063,10 +1063,13 @@ fn add_to_team(state: &mut State, play_id: i64, cid: i64, team: i32) -> bool {
         play.host = Some(cid);
     }
     if let Some(a) = play.arena.as_mut() {
-        a.add_player(slot, arena::Member {
-            cid,
-            name: name.clone(),
-        });
+        a.add_player(
+            slot,
+            arena::Member {
+                cid,
+                name: name.clone(),
+            },
+        );
     }
     if let Some(t) = play.team.as_mut() {
         t.add_player(slot, team, arena::Member { cid, name });
@@ -1220,7 +1223,11 @@ impl PvpHub {
                     Effect::Notice { slot, format } => {
                         if let (Some(cid), Ok(p)) = (
                             at(slot),
-                            super::minimum_shop::system_message(super::minimum_shop::SYSTEM, format, &[]),
+                            super::minimum_shop::system_message(
+                                super::minimum_shop::SYSTEM,
+                                format,
+                                &[],
+                            ),
                         ) {
                             out.push((cid, p));
                         }
@@ -1359,7 +1366,10 @@ impl PvpHub {
                         Err(_) => Err(fail()),
                     }
                 }
-                Job::GuildGp { gp } => match (&binder.guild_levels, super::guild::membership(&binder.pool, w.cid).await) {
+                Job::GuildGp { gp } => match (
+                    &binder.guild_levels,
+                    super::guild::membership(&binder.pool, w.cid).await,
+                ) {
                     (Some(levels), Ok(Some((guild_sn, _)))) => super::guild::give_gp(
                         &binder.pool,
                         &self.party,
@@ -1497,10 +1507,16 @@ impl PvpHub {
                 Some(play) if play.host == Some(cid) => {
                     let now = now_ms();
                     if let Some(a) = play.arena.as_mut() {
-                        Some((play_id, a.report(report.event, report.subject, report.object, now)))
+                        Some((
+                            play_id,
+                            a.report(report.event, report.subject, report.object, now),
+                        ))
                     } else {
                         play.team.as_mut().map(|t| {
-                            (play_id, t.report(report.event, report.subject, report.object, now))
+                            (
+                                play_id,
+                                t.report(report.event, report.subject, report.object, now),
+                            )
                         })
                     }
                 }
@@ -1518,15 +1534,33 @@ impl PvpHub {
         let args = [team.len().to_string(), size.to_string()];
         team.iter()
             .filter_map(|c| {
-                register_result(mode, register_state::MAKE, false, false, "GameUI_Heroes_PvpJoin_MakePartyMembers", &args)
-                    .ok()
-                    .map(|p| (*c, p))
+                register_result(
+                    mode,
+                    register_state::MAKE,
+                    false,
+                    false,
+                    "GameUI_Heroes_PvpJoin_MakePartyMembers",
+                    &args,
+                )
+                .ok()
+                .map(|p| (*c, p))
             })
             .collect()
     }
-    fn team_message(mode: &str, team: &[i64], state: i32, pending: bool, format: &str, args: &[String]) -> Vec<(i64, OutgoingPacket)> {
+    fn team_message(
+        mode: &str,
+        team: &[i64],
+        state: i32,
+        pending: bool,
+        format: &str,
+        args: &[String],
+    ) -> Vec<(i64, OutgoingPacket)> {
         team.iter()
-            .filter_map(|c| register_result(mode, state, pending, false, format, args).ok().map(|p| (*c, p)))
+            .filter_map(|c| {
+                register_result(mode, state, pending, false, format, args)
+                    .ok()
+                    .map(|p| (*c, p))
+            })
             .collect()
     }
 
@@ -1540,7 +1574,11 @@ impl PvpHub {
         let mut out = Vec::new();
         {
             let mut state = self.lock();
-            let guilds: HashMap<i64, i32> = state.players.iter().map(|(c, p)| (*c, p.guild_id)).collect();
+            let guilds: HashMap<i64, i32> = state
+                .players
+                .iter()
+                .map(|(c, p)| (*c, p.guild_id))
+                .collect();
             let full = state.full.entry(mode.to_owned()).or_default();
             full.config = Some(config.clone());
             Self::add_making(full, mode, config, team, &guilds, &mut out);
@@ -1549,13 +1587,24 @@ impl PvpHub {
     }
 
     /// AddMakingParty: a full (or guild) team waits; else it joins a making team with room.
-    fn add_making(full: &mut Full, mode: &str, config: &PvpConfig, team: Vec<i64>, guilds: &HashMap<i64, i32>, out: &mut Vec<(i64, OutgoingPacket)>) {
+    fn add_making(
+        full: &mut Full,
+        mode: &str,
+        config: &PvpConfig,
+        team: Vec<i64>,
+        guilds: &HashMap<i64, i32>,
+        out: &mut Vec<(i64, OutgoingPacket)>,
+    ) {
         let size = usize::try_from(config.team_size).unwrap_or(0);
         if config.is_guild || team.len() == size {
             Self::add_waiting(full, mode, config, team, guilds, out);
             return;
         }
-        if let Some(i) = full.making.iter().position(|m| m.len() + team.len() <= size) {
+        if let Some(i) = full
+            .making
+            .iter()
+            .position(|m| m.len() + team.len() <= size)
+        {
             full.making[i].extend(team);
             if full.making[i].len() == size {
                 let ready = full.making.remove(i);
@@ -1571,7 +1620,14 @@ impl PvpHub {
 
     /// AddWaitingParty: the first waiting team (another guild in a guild mode) is the opponent;
     /// without a DS the game is joinable at once (DSReady).
-    fn add_waiting(full: &mut Full, mode: &str, config: &PvpConfig, team: Vec<i64>, guilds: &HashMap<i64, i32>, out: &mut Vec<(i64, OutgoingPacket)>) {
+    fn add_waiting(
+        full: &mut Full,
+        mode: &str,
+        config: &PvpConfig,
+        team: Vec<i64>,
+        guilds: &HashMap<i64, i32>,
+        out: &mut Vec<(i64, OutgoingPacket)>,
+    ) {
         let guild = |t: &[i64]| t.first().and_then(|c| guilds.get(c)).copied().unwrap_or(0);
         let opponent = full
             .waiting
@@ -1579,17 +1635,42 @@ impl PvpHub {
             .position(|w| !config.is_guild || guild(w) != guild(&team));
         match opponent {
             None => {
-                out.extend(Self::team_message(mode, &team, register_state::WAIT, false, "GameUI_Heroes_PvpJoin_WaitingOpponent", &[]));
+                out.extend(Self::team_message(
+                    mode,
+                    &team,
+                    register_state::WAIT,
+                    false,
+                    "GameUI_Heroes_PvpJoin_WaitingOpponent",
+                    &[],
+                ));
                 full.waiting.push(team);
             }
             Some(i) => {
                 let a = full.waiting.remove(i);
                 for t in [&a, &team] {
-                    out.extend(Self::team_message(mode, t, register_state::WAIT, false, "GameUI_Heroes_PvpJoin_OpponentFound", &[]));
-                    out.extend(Self::team_message(mode, t, register_state::JOINABLE, true, "GameUI_Heroes_PvpJoin_DSReady", &[]));
+                    out.extend(Self::team_message(
+                        mode,
+                        t,
+                        register_state::WAIT,
+                        false,
+                        "GameUI_Heroes_PvpJoin_OpponentFound",
+                        &[],
+                    ));
+                    out.extend(Self::team_message(
+                        mode,
+                        t,
+                        register_state::JOINABLE,
+                        true,
+                        "GameUI_Heroes_PvpJoin_DSReady",
+                        &[],
+                    ));
                 }
                 let pending = a.iter().chain(team.iter()).copied().collect();
-                full.starting.push(Starting { a, b: team, pending });
+                full.starting.push(Starting {
+                    a,
+                    b: team,
+                    pending,
+                });
             }
         }
     }
@@ -1600,10 +1681,19 @@ impl PvpHub {
         let mut out = Vec::new();
         {
             let mut state = self.lock();
-            let Some(mode) = state.players.get(&cid).filter(|p| p.play.is_none()).map(|p| p.mode.clone()) else {
+            let Some(mode) = state
+                .players
+                .get(&cid)
+                .filter(|p| p.play.is_none())
+                .map(|p| p.mode.clone())
+            else {
                 return;
             };
-            let guilds: HashMap<i64, i32> = state.players.iter().map(|(c, p)| (*c, p.guild_id)).collect();
+            let guilds: HashMap<i64, i32> = state
+                .players
+                .iter()
+                .map(|(c, p)| (*c, p.guild_id))
+                .collect();
             if let Some(full) = state.full.get_mut(&mode) {
                 let config = full.config.clone();
                 Self::drop_member(full, cid, &mode, config.as_ref(), &guilds, &mut out);
@@ -1612,9 +1702,23 @@ impl PvpHub {
         self.deliver(out);
     }
 
-    fn drop_member(full: &mut Full, cid: i64, mode: &str, config: Option<&PvpConfig>, guilds: &HashMap<i64, i32>, out: &mut Vec<(i64, OutgoingPacket)>) {
+    fn drop_member(
+        full: &mut Full,
+        cid: i64,
+        mode: &str,
+        config: Option<&PvpConfig>,
+        guilds: &HashMap<i64, i32>,
+        out: &mut Vec<(i64, OutgoingPacket)>,
+    ) {
         let dodged = |out: &mut Vec<(i64, OutgoingPacket)>| {
-            out.extend(Self::team_message(mode, &[cid], register_state::CANCELED, true, "GameUI_Heroes_PvpJoinFail_Dodged", &[]));
+            out.extend(Self::team_message(
+                mode,
+                &[cid],
+                register_state::CANCELED,
+                true,
+                "GameUI_Heroes_PvpJoinFail_Dodged",
+                &[],
+            ));
         };
         for team in full.making.iter_mut().chain(full.waiting.iter_mut()) {
             if let Some(pos) = team.iter().position(|c| *c == cid) {
@@ -1624,11 +1728,26 @@ impl PvpHub {
         }
         full.making.retain(|t| !t.is_empty());
         full.waiting.retain(|t| !t.is_empty());
-        if let Some(i) = full.starting.iter().position(|g| g.a.contains(&cid) || g.b.contains(&cid)) {
+        if let Some(i) = full
+            .starting
+            .iter()
+            .position(|g| g.a.contains(&cid) || g.b.contains(&cid))
+        {
             let g = full.starting.remove(i);
-            let (own, other) = if g.a.contains(&cid) { (g.a, g.b) } else { (g.b, g.a) };
+            let (own, other) = if g.a.contains(&cid) {
+                (g.a, g.b)
+            } else {
+                (g.b, g.a)
+            };
             dodged(out);
-            out.extend(Self::team_message(mode, &other, register_state::WAIT, false, "GameUI_Heroes_PvpJoinFail_OpponentDodged", &[String::new()]));
+            out.extend(Self::team_message(
+                mode,
+                &other,
+                register_state::WAIT,
+                false,
+                "GameUI_Heroes_PvpJoinFail_OpponentDodged",
+                &[String::new()],
+            ));
             if let Some(config) = config {
                 Self::add_making(full, mode, config, other, guilds, out);
                 let rest: Vec<i64> = own.into_iter().filter(|c| *c != cid).collect();
@@ -1648,10 +1767,18 @@ impl PvpHub {
         let mut binds = Vec::new();
         {
             let mut state = self.lock();
-            let Some(mode) = state.players.get(&cid).map(|p| p.mode.clone()) else { return };
-            let Some(config) = rules.config.clone() else { return };
-            let Some(full) = state.full.get_mut(&mode) else { return };
-            let Some(i) = full.starting.iter().position(|g| g.pending.contains(&cid)) else { return };
+            let Some(mode) = state.players.get(&cid).map(|p| p.mode.clone()) else {
+                return;
+            };
+            let Some(config) = rules.config.clone() else {
+                return;
+            };
+            let Some(full) = state.full.get_mut(&mode) else {
+                return;
+            };
+            let Some(i) = full.starting.iter().position(|g| g.pending.contains(&cid)) else {
+                return;
+            };
             full.starting[i].pending.remove(&cid);
             if !full.starting[i].pending.is_empty() {
                 return;
@@ -1716,7 +1843,12 @@ impl PvpHub {
     fn host_changed(self: &Arc<Self>, play_id: i64) {
         let players: Vec<i64> = {
             let mut state = self.lock();
-            let members: Vec<i64> = state.players.iter().filter(|(_, p)| p.play == Some(play_id)).map(|(c, _)| *c).collect();
+            let members: Vec<i64> = state
+                .players
+                .iter()
+                .filter(|(_, p)| p.play == Some(play_id))
+                .map(|(c, _)| *c)
+                .collect();
             for c in &members {
                 if let Some(p) = state.players.get_mut(c) {
                     p.stage = Stage::WaitingHostInfo;
@@ -1743,7 +1875,11 @@ impl PvpHub {
                 Some((_, play)) if play.end_confirm.is_some() => {
                     let set = play.end_confirm.get_or_insert_with(Default::default);
                     set.remove(&cid);
-                    Some(if set.is_empty() { play.slots.iter().flatten().copied().collect() } else { Vec::new() })
+                    Some(if set.is_empty() {
+                        play.slots.iter().flatten().copied().collect()
+                    } else {
+                        Vec::new()
+                    })
                 }
                 _ => None,
             }
@@ -1761,7 +1897,9 @@ impl PvpHub {
     /// PvpGivePanalty of the host: the player gets no team-game reward.
     pub fn penalty(self: &Arc<Self>, cid: i64, index: i32) {
         let mut state = self.lock();
-        let Some((play_id, _)) = Self::seat(&state, cid) else { return };
+        let Some((play_id, _)) = Self::seat(&state, cid) else {
+            return;
+        };
         if let Some(play) = state.plays.get_mut(&play_id)
             && play.host == Some(cid)
             && let (Some(t), Ok(slot)) = (play.team.as_mut(), usize::try_from(index))
@@ -1780,7 +1918,8 @@ impl PvpHub {
             let Some((play_id, slot)) = Self::seat(&state, cid) else {
                 return;
             };
-            let (Some(play), Some(sender)) = (state.plays.get(&play_id), state.players.get(&cid)) else {
+            let (Some(play), Some(sender)) = (state.plays.get(&play_id), state.players.get(&cid))
+            else {
                 return;
             };
             let targets: Vec<i64> = match (&play.team, team_chat) {
@@ -1795,13 +1934,17 @@ impl PvpHub {
                 }
                 _ => play.slots.iter().flatten().copied().collect(),
             };
-            let chat = super::minimum_mission::packet(&mwire::Message::PartyChat(mwire::PartyChat {
-                sender_name: Some(sender.name.clone()),
-                message: Some(message.to_owned()),
-                is_fake_town_chat: !team_chat,
-            }));
+            let chat =
+                super::minimum_mission::packet(&mwire::Message::PartyChat(mwire::PartyChat {
+                    sender_name: Some(sender.name.clone()),
+                    message: Some(message.to_owned()),
+                    is_fake_town_chat: !team_chat,
+                }));
             match chat {
-                Ok(p) => targets.into_iter().map(|c| (c, p.clone())).collect::<Vec<_>>(),
+                Ok(p) => targets
+                    .into_iter()
+                    .map(|c| (c, p.clone()))
+                    .collect::<Vec<_>>(),
                 Err(_) => return,
             }
         };
@@ -1832,9 +1975,17 @@ impl PvpHub {
         request: &wire::Register,
     ) -> Result<Vec<OutgoingPacket>, MinimumError> {
         let mode = request.pvp_mode.clone().unwrap_or_default();
-        let canceled = |format: &str, args: &[String]| -> Result<Vec<OutgoingPacket>, MinimumError> {
-            Ok(vec![register_result(&mode, register_state::CANCELED, true, false, format, args)?])
-        };
+        let canceled =
+            |format: &str, args: &[String]| -> Result<Vec<OutgoingPacket>, MinimumError> {
+                Ok(vec![register_result(
+                    &mode,
+                    register_state::CANCELED,
+                    true,
+                    false,
+                    format,
+                    args,
+                )?])
+            };
         let Some(config) = rules.config.clone() else {
             return canceled("GameUI_Heroes_PvpJoinFail_InvalidPvpMode", &[]);
         };
@@ -1851,10 +2002,16 @@ impl PvpHub {
         }
         for m in &members {
             if config.level_min != -1 && m.level < config.level_min {
-                return canceled("GameUI_Heroes_PvpJoinFail_LevelConstraint_Min", &[config.level_min.to_string()]);
+                return canceled(
+                    "GameUI_Heroes_PvpJoinFail_LevelConstraint_Min",
+                    &[config.level_min.to_string()],
+                );
             }
             if config.level_max != -1 && m.level > config.level_max {
-                return canceled("GameUI_Heroes_PvpJoinFail_LevelConstraint_Max", &[config.level_max.to_string()]);
+                return canceled(
+                    "GameUI_Heroes_PvpJoinFail_LevelConstraint_Max",
+                    &[config.level_max.to_string()],
+                );
             }
         }
         let size = usize::try_from(config.team_size).unwrap_or(0);
@@ -1862,7 +2019,10 @@ impl PvpHub {
             Matching::Full if config.is_guild => {
                 let guild = members.first().map_or(0, |m| m.guild_id);
                 if members.len() != size {
-                    return canceled("GameUI_Heroes_PvpJoinFail_InvalidPartySize", &[config.team_size.to_string()]);
+                    return canceled(
+                        "GameUI_Heroes_PvpJoinFail_InvalidPartySize",
+                        &[config.team_size.to_string()],
+                    );
                 }
                 if guild == 0 || members.iter().any(|m| m.guild_id != guild) {
                     return canceled("GameUI_Heroes_PvpJoinFail_InvalidGuildTeam", &[]);
@@ -1870,10 +2030,18 @@ impl PvpHub {
             }
             Matching::Full => {
                 if members.len() > size {
-                    return canceled("GameUI_Heroes_PvpJoinFail_InvalidPartySize", &[config.team_size.to_string()]);
+                    return canceled(
+                        "GameUI_Heroes_PvpJoinFail_InvalidPartySize",
+                        &[config.team_size.to_string()],
+                    );
                 }
             }
-            Matching::Arena => return canceled("GameUI_Heroes_PvpJoinFail_InvalidPartySize", &["1".to_owned()]),
+            Matching::Arena => {
+                return canceled(
+                    "GameUI_Heroes_PvpJoinFail_InvalidPartySize",
+                    &["1".to_owned()],
+                );
+            }
             _ => return canceled("GameUI_Heroes_PvpJoinFail_InvalidPvpMode", &[]),
         }
         {

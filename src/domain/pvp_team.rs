@@ -303,7 +303,8 @@ impl TeamGame {
                 self.god_alive = [true; 2];
             }
         }
-        let won = self.score[0] >= self.rules.round_to_win || self.score[1] >= self.rules.round_to_win;
+        let won =
+            self.score[0] >= self.rules.round_to_win || self.score[1] >= self.rules.round_to_win;
         if !won {
             if self.rules.rule == Rule::DeathMatch {
                 self.change_state(TeamState::WaitingRoom, now_ms);
@@ -429,14 +430,20 @@ impl TeamGame {
         if self.state != TeamState::InGame || self.rewarded {
             return out;
         }
-        let slot = |v: i32| usize::try_from(v).ok().filter(|s| self.members.contains_key(s));
+        let slot = |v: i32| {
+            usize::try_from(v)
+                .ok()
+                .filter(|s| self.members.contains_key(s))
+        };
         match event {
             report::KILL => {
                 let (Some(subj), Some(obj)) = (slot(subject), slot(object)) else {
                     return out;
                 };
                 let (subj_team, obj_team) = (self.team_of(subj), self.team_of(obj));
-                let Some(obj_side) = side(obj_team) else { return out };
+                let Some(obj_side) = side(obj_team) else {
+                    return out;
+                };
                 match self.rules.rule {
                     Rule::DeathMatch => {
                         if self.stats.get(&obj).is_some_and(|s| s.dead) {
@@ -474,7 +481,9 @@ impl TeamGame {
             }
             report::REVIVE if self.rules.rule == Rule::DeathMatch => {
                 let Some(obj) = slot(object) else { return out };
-                let Some(obj_side) = side(self.team_of(obj)) else { return out };
+                let Some(obj_side) = side(self.team_of(obj)) else {
+                    return out;
+                };
                 if let Some(st) = self.stats.get_mut(&obj)
                     && st.dead
                 {
@@ -554,8 +563,22 @@ mod tests {
     }
     fn game(rule: Rule) -> TeamGame {
         let mut g = TeamGame::new(rules(rule), 0);
-        g.add_player(0, RED, Member { cid: 10, name: "Ann".to_owned() });
-        g.add_player(1, BLUE, Member { cid: 20, name: "Bob".to_owned() });
+        g.add_player(
+            0,
+            RED,
+            Member {
+                cid: 10,
+                name: "Ann".to_owned(),
+            },
+        );
+        g.add_player(
+            1,
+            BLUE,
+            Member {
+                cid: 20,
+                name: "Bob".to_owned(),
+            },
+        );
         g
     }
     fn commands(out: &[Effect]) -> Vec<i32> {
@@ -572,7 +595,10 @@ mod tests {
         let mut g = game(Rule::DeathMatch);
         assert_eq!(
             g.on_player_ready(true),
-            vec![Effect::Schedule { delay_ms: 10_000, timer: Timer::Team(TeamTimer::AllReady) }]
+            vec![Effect::Schedule {
+                delay_ms: 10_000,
+                timer: Timer::Team(TeamTimer::AllReady)
+            }]
         );
         let out = g.timer(TeamTimer::AllReady, 10_000);
         assert_eq!(commands(&out), [cmd::ALL_PLAYER_READY]);
@@ -602,13 +628,25 @@ mod tests {
         // The red god dies: blue wins its only round (RoundToWin 1) after MinClearTime.
         let out = g.report(report::GOD_KILL, 1, RED, 500_000);
         assert!(out.contains(&Effect::Reward { slot: 0, count: 2 }));
-        assert!(!out.iter().any(|e| matches!(e, Effect::Reward { slot: 1, .. })));
-        assert!(out.contains(&Effect::Notice { slot: 1, format: "GameUI_Heroes_PvPReward_Panalty" }));
+        assert!(
+            !out.iter()
+                .any(|e| matches!(e, Effect::Reward { slot: 1, .. }))
+        );
+        assert!(out.contains(&Effect::Notice {
+            slot: 1,
+            format: "GameUI_Heroes_PvPReward_Panalty"
+        }));
         // A team left empty ends the game after the removal.
         let mut g = game(Rule::GodMatch);
         g.timer(TeamTimer::StartGame, 0);
         let out = g.remove_player(1, 1000);
-        assert_eq!(out, vec![Effect::Schedule { delay_ms: 0, timer: Timer::Team(TeamTimer::EndGame) }]);
+        assert_eq!(
+            out,
+            vec![Effect::Schedule {
+                delay_ms: 0,
+                timer: Timer::Team(TeamTimer::EndGame)
+            }]
+        );
         let out = g.timer(TeamTimer::EndGame, 1000);
         assert!(out.contains(&Effect::Reward { slot: 0, count: 2 }));
     }
