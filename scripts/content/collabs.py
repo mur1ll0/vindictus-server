@@ -109,9 +109,12 @@ def costume_bodies(costume: bytes) -> dict[tuple[str, str], set[str]]:
     return {k: groups.get((k[0], label), set()) for k, label in labels.items()}
 
 
-def unlock_masks(db, costume: bytes | None) -> dict[str, int]:
+def unlock_masks(db, costume: bytes | None, classes: tuple[int, ...] | None = None) -> dict[str, int]:
     """Collab equipment -> ClassRestriction admitting every ported class whose body the piece has a
-    model for (accessories: every ported class); only items whose mask grows."""
+    model for (accessories: every ported class); only items whose mask grows. `classes` limits the ported
+    classes to a client version's (scripts/client/class_layers.py: 0-9 and its new classes)."""
+    class_bodies = {c: body for c, body in CLASS_BODIES.items() if classes is None or c in classes}
+    ported = sum(1 << c for c in class_bodies)
     columns = {r[1] for r in db.execute('PRAGMA main.table_info([ItemClassInfo])')}
     if not {'ItemClass', 'Category', 'ClassRestriction'} <= columns:
         return {}
@@ -126,12 +129,12 @@ def unlock_masks(db, costume: bytes | None) -> dict[str, int]:
             continue
         section = COSTUME_SECTIONS.get(category.removeprefix('AVATAR_'))
         if section is None:
-            allowed = PORTED
+            allowed = ported
         elif bodies is None:
             continue
         else:
             kinds = bodies.get((section, str(costume_types.get(item))), set())
-            allowed = sum(1 << c for c, body in CLASS_BODIES.items() if body in kinds)
+            allowed = sum(1 << c for c, body in class_bodies.items() if body in kinds)
         if mask | allowed != mask:
             out[item] = max(out.get(item, 0), mask | allowed)
     return out

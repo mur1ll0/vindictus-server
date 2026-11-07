@@ -16,6 +16,7 @@ import sys
 from contextlib import closing
 from pathlib import Path
 
+import class_layers
 from prepare_lab_client import PreparationError, reject_original
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'content'))
@@ -329,9 +330,21 @@ def manifest_files(manifests: list[Path], prefixes: tuple[str, ...], what: str) 
     return sorted((path, file, sha) for path, (file, sha) in files.items())
 
 
-def class_asset_files(assets: Path = ASSETS) -> list[tuple[str, Path, str]]:
+def class_manifests(assets: Path = ASSETS, classes: tuple[str, ...] | None = None) -> list[Path]:
+    """class-assets.json of each staged class (classes/<name>/), only the layer's when `classes` is given."""
+    return [m for m in sorted((assets / 'classes').glob('*/' + CLASS_MANIFEST))
+            if classes is None or m.parent.name in classes]
+
+
+def layer_imports(classes: tuple[str, ...] | None = None) -> list[Path]:
+    """Imported NA classes (class_imports), only the layer's when `classes` is given."""
+    return [p for p in class_imports.load_imports(content_additions.CLASS_IMPORTS)
+            if classes is None or class_imports.read_meta(p)['name'] in classes]
+
+
+def class_asset_files(assets: Path = ASSETS, classes: tuple[str, ...] | None = None) -> list[tuple[str, Path, str]]:
     """(game path, staged file, SHA-256) of every NA class staged by scripts/client/stage_na_class.py."""
-    return manifest_files(sorted((assets / 'classes').glob('*/' + CLASS_MANIFEST)), CLASS_PREFIXES, 'class')
+    return manifest_files(class_manifests(assets, classes), CLASS_PREFIXES, 'class')
 
 
 COLLAB_MANIFEST = 'collab-assets.json'
@@ -346,11 +359,14 @@ def collab_asset_files(assets: Path = ASSETS) -> list[tuple[str, Path, str]]:
     return manifest_files(sorted((assets / 'collabs').glob('*/' + COLLAB_MANIFEST)), COLLAB_PREFIXES, 'collab')
 
 
-def class_weapon_costumes(assets: Path = ASSETS, imports: Path = content_additions.CLASS_IMPORTS) -> list[dict]:
+def class_weapon_costumes(assets: Path = ASSETS, imports: Path = content_additions.CLASS_IMPORTS,
+                          classes: tuple[str, ...] | None = None) -> list[dict]:
     """Model entries of each staged imported class's weapon script, renumbered into the lab entity's
     script (class_costumes.LAB_WEAPON_ENTITY), the same numbers class_imports gives its items."""
     out = []
     for path in class_imports.load_imports(imports):
+        if classes is not None and class_imports.read_meta(path)['name'] not in classes:
+            continue
         info = class_imports.read_meta(path)
         script = assets / 'classes' / info['name'] / 'scripts' / f'weapon_{info["weapon"]}.txt'
         if (assets / 'classes' / info['name'] / CLASS_MANIFEST).is_file() and script.is_file():
@@ -358,10 +374,10 @@ def class_weapon_costumes(assets: Path = ASSETS, imports: Path = content_additio
     return out
 
 
-def class_merges(assets: Path = ASSETS) -> list[tuple[str, Path, tuple[str, ...]]]:
+def class_merges(assets: Path = ASSETS, classes: tuple[str, ...] | None = None) -> list[tuple[str, Path, tuple[str, ...]]]:
     """(game path, NA copy, class names) of each shared 1.69 script a staged class adds lines to."""
     merges = []
-    for manifest in sorted((assets / 'classes').glob('*/' + CLASS_MANIFEST)):
+    for manifest in class_manifests(assets, classes):
         root = manifest.parent.resolve()
         data = json.loads(manifest.read_text(encoding='utf-8'))
         for record in data.get('merge', []):
@@ -524,12 +540,23 @@ def apply_loose_fixes(client_copy: Path, apply_changes: bool, fixes: dict = LOOS
     return changed
 
 
-ORIGINAL_FIXES = {'models/player/_anim/female/delia/pc_delia_town_motion.mdl':
-                  lambda data, read: mdl_anim.town_jump_on_back(data, read(mdl_anim.TOWN_JUMP_DONOR)),
-                  UI_ELEMENTS: lambda data, read: ui_elements_with_classes(data),
-                  SELECT_DIALOG: lambda data, read: select_dialog_with_classes(data),
-                  GRID_DIALOG: lambda data, read: grid_dialog_with_classes(data),
-                  CREATION_SCENE: lambda data, read: creation_scene_with_classes(data)}
+# The Delia's fix belongs to her layer (v2, class_layers) and the others to the Miri's (v3). Without a layer
+# (`classes` None, the lab copy) every fix runs once an imported class is staged, as before the layers.
+DELIA_FIXES = {'models/player/_anim/female/delia/pc_delia_town_motion.mdl':
+               lambda data, read: mdl_anim.town_jump_on_back(data, read(mdl_anim.TOWN_JUMP_DONOR))}
+MIRI_FIXES = {UI_ELEMENTS: lambda data, read: ui_elements_with_classes(data),
+              SELECT_DIALOG: lambda data, read: select_dialog_with_classes(data),
+              GRID_DIALOG: lambda data, read: grid_dialog_with_classes(data),
+              CREATION_SCENE: lambda data, read: creation_scene_with_classes(data)}
+ORIGINAL_FIXES = {**DELIA_FIXES, **MIRI_FIXES}
+
+
+def layer_fixes(classes: tuple[str, ...] | None, class_files: list) -> dict:
+    """ORIGINAL_FIXES of a class layer: the Delia's with her, the Miri's with her staged files."""
+    if classes is None:
+        return ORIGINAL_FIXES if class_files else {}
+    return {**(DELIA_FIXES if 'delia' in classes else {}),
+            **(MIRI_FIXES if 'miri' in classes and class_files else {})}
 
 
 def fixed_packs(plain: bytes, client_copy: Path, fixes: dict = ORIGINAL_FIXES) -> dict[Path, dict[str, object]]:
@@ -625,7 +652,8 @@ def class_packs(client_copy: Path, plan: list, ks: bytes, apply_changes: bool) -
 
 
 def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_changes: bool, assets: Path = ASSETS,
-              overrides: dict | None = None, collab_texts: dict | None = None) -> dict:
+              overrides: dict | None = None, collab_texts: dict | None = None,
+              classes: tuple[str, ...] | None = None, numbering: list[dict] | None = None) -> dict:
     """Rebuilds the English text packs (item text) and the scripts pack (player_costume.txt entries) from their
     backups, adds packs for the items' asset files and points the HFS index at them (docs/future/
     game-launcher.md, L0-e to L0-g). Without items, the original packs and index come back."""
@@ -637,10 +665,10 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     index = client_copy / INDEX
     texts = [(client_copy / 'hfs' / (hfs.pack_name(f) + '.hfs'), f.rsplit('/', 1)[1]) for f in TEXT_FOLDERS]
     scripts = client_copy / 'hfs' / (hfs.pack_name(SCRIPTS_FOLDER) + '.hfs')
-    merges = class_merges(assets)
+    merges = class_merges(assets, classes)
     original_index = backup_dir / index.name if (backup_dir / index.name).exists() else index
     merged = merge_packs(hfs.decode_index(original_index.read_bytes()), merges, client_copy) if merges else {}
-    class_files = class_asset_files(assets)
+    class_files = class_asset_files(assets, classes)
     # Replacement models of base items (item editor): staged class files are swapped, 1.69 files
     # rewritten inside their pack and new files packed after the classes.
     replacements = replacement_files(overrides, assets)
@@ -648,7 +676,8 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
         hfs.decode_index(original_index.read_bytes()), replacements, class_files, client_copy)
     injected = injected_packs(hfs.decode_index(original_index.read_bytes()), class_files, client_copy)
     injected_paths = {path for pack in injected.values() for path, _, _ in pack}
-    fixed = fixed_packs(hfs.decode_index(original_index.read_bytes()), client_copy) if class_files else {}
+    fixes = layer_fixes(classes, class_files)
+    fixed = fixed_packs(hfs.decode_index(original_index.read_bytes()), client_copy, fixes) if fixes else {}
     for pack, files in replaced.items():
         for name, fix in files.items():
             if name in fixed.get(pack, {}):
@@ -672,12 +701,14 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     previously_added = json.loads(added_list.read_text(encoding='utf-8')) if added_list.exists() else []
     entries = content_additions.text_entries(items, overrides)
     costumes = [c for item in items for c in item.get('costumes', [])]
-    costumes += class_weapon_costumes(assets)
-    class_tokens = class_imports.class_text(assets / 'classes', class_imports.load_imports(content_additions.CLASS_IMPORTS))
-    class_names = [class_imports.read_meta(p)['name'] for p in class_imports.load_imports(content_additions.CLASS_IMPORTS)]
+    costumes += class_weapon_costumes(assets, classes=classes)
+    imports = layer_imports(classes)
+    class_tokens = class_imports.class_text(assets / 'classes', imports)
+    class_names = [class_imports.read_meta(p)['name'] for p in imports]
     # Collab texts (collabs.py): English where the EU text has no line or a Korean one.
     collab_texts = collab_texts or {}
     if (not items and not entries and not collab_texts and not class_files and not collab_files and not merges and not class_tokens and not replacements
+            and not fixes
             and not any(b.exists() for b in originals.values()) and not previously_added):
         return {'hfs': 'unchanged: no added items'}
     if apply_changes:
@@ -741,7 +772,7 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
                 for file, needles in sources:
                     na = file.read_bytes()
                     if file_name == 'player_costume.txt':
-                        remap = class_costumes.costume_remap(na, plain, class_costumes.lab_taken(items), needles)
+                        remap = class_costumes.costume_remap(na, plain, class_costumes.lab_taken(items if numbering is None else numbering), needles)
                         na = class_costumes.rename(na, remap)
                         merge_report['renumbered'] = {f'{s}/{k}': v for (s, k), v in sorted(remap.items())}
                     plain, report = kv_merge.merge(plain, na, needles)
@@ -791,7 +822,7 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
         for path in stale:
             path.unlink(missing_ok=True)
         added_list.write_text(json.dumps(added), encoding='utf-8')
-    return {'hfs': 'applied' if items or entries or class_files or collab_files or merges or class_tokens or replacements else 'restored',
+    return {'hfs': 'applied' if items or entries or class_files or collab_files or merges or class_tokens or replacements or fixes else 'restored',
             'text_tokens': len(entries),
             'model_replacements': {'files': len(replacements), 'new': len(replacement_new),
                                    'packs_rewritten': len(replaced)},
@@ -803,12 +834,19 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
 
 
 def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDITIONS, edits: dict | None = None,
-          items: list[dict] | None = None, keystream: Path | None = None, collab_texts: dict | None = None) -> dict:
+          items: list[dict] | None = None, keystream: Path | None = None, collab_texts: dict | None = None,
+          classes: tuple[str, ...] | None = None, exclude_items: tuple[str, ...] = ()) -> dict:
+    """`classes`: the class layer of a client version (class_layers; None = every staged class, the lab copy).
+    `exclude_items`: added items (item_additions.json or the panel's) left out of the copy, e.g. the item
+    editor's test items in the distributed versions; their costume numbers stay taken, so an imported
+    class keeps the numbers the server gives it (class_costumes)."""
     database = reject_original(client_copy / 'sql/heroes.db3')
     if not database.is_file():
         raise PreparationError('The client copy must contain sql/heroes.db3.')
     rows = json.loads(additions.read_text(encoding='utf-8')).get('ShopInfo', [])
-    categories = json.loads(additions.read_text(encoding='utf-8')).get('SubCategoryInfo', [])
+    categories = [r for r in json.loads(additions.read_text(encoding='utf-8')).get('SubCategoryInfo', [])
+                  if classes is None or r.get('class') is None or r['class'] in classes]
+    ported = None if classes is None else tuple(range(10)) + class_layers.indices(classes)
     edits = content_edits.EMPTY if edits is None else edits
     backup = database.with_name('heroes.db3.pre-lab-additions')
     # What the last run wrote for the item editor (added classes and overridden base classes).
@@ -832,18 +870,21 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
                 'shop_rows_missing': len(missing_rows(db, rows)), 'shop_rows': len(rows),
                 'edits_version': edits.get('version', 0), 'changed': current != target,
                 'category_rows_changed': current_categories != target_category_rows if current_categories else False}
-        items = content_additions.load(edits=edits) if items is None else items
+        numbering = content_additions.load(edits=edits) if items is None else items
+        items = [i for i in numbering if i['ItemClass'] not in exclude_items]
+        plan['excluded_items'] = sorted({i['ItemClass'] for i in numbering} - {i['ItemClass'] for i in items})
         # Collab outfits wearable by every class (collabs.py), as on the server: chosen from the copy
         # before any lab change (an applied unlock must stay an override, or the next run restores it).
         if backup.exists():
             with closing(sqlite3.connect(backup.resolve().as_uri() + '?mode=ro', uri=True)) as original_db:
-                overrides = content_additions.with_collab_unlocks(original_db, content_additions.load_overrides(edits))
+                overrides = content_additions.with_collab_unlocks(original_db, content_additions.load_overrides(edits),
+                                                                  classes=ported)
         else:
-            overrides = content_additions.with_collab_unlocks(db, content_additions.load_overrides(edits))
+            overrides = content_additions.with_collab_unlocks(db, content_additions.load_overrides(edits), classes=ported)
         previous = json.loads(written.read_text(encoding='utf-8')) if written.exists() else {}
         plan['items'] = len(items)
         plan['item_overrides'] = len(overrides)
-        imports = class_imports.load_imports(content_additions.CLASS_IMPORTS)
+        imports = layer_imports(classes)
         plan['class_imports'] = [p.stem for p in imports]
         if apply_changes and (items or overrides or imports) and not backup.exists():
             with closing(sqlite3.connect(backup)) as copy:
@@ -861,7 +902,7 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
                     # item editor's rows on top.
                     if imports or previous.get('imported'):
                         plan['class_rows'] = class_imports.apply_client(db, original, imports,
-                                                                        content_additions.class_remap(imports, items))
+                                                                        content_additions.class_remap(imports, numbering))
                     plan['item_rows'] = content_additions.apply_client(db, items, overrides, original, previous)
             finally:
                 if original is not None:
@@ -890,7 +931,8 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
         plan['loose_fixes'] = apply_loose_fixes(client_copy, apply_changes)
     keystream = client_copy / 'hfs-keystream.bin' if keystream is None else keystream
     plan.update(apply_hfs(client_copy, items, keystream, apply_changes, overrides=overrides,
-                          collab_texts=collabs.texts() if collab_texts is None else collab_texts))
+                          collab_texts=collabs.texts() if collab_texts is None else collab_texts,
+                          classes=classes, numbering=numbering))
     return plan
 
 
@@ -900,9 +942,14 @@ def main() -> int:
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--edits', type=Path, default=content_edits.EDITS,
                         help='published panel edits (content-edits-export); missing = none')
+    parser.add_argument('--classes', type=class_layers.parse, default=None,
+                        help='class layer of a client version (none|delia|delia,miri); default: every staged class')
+    parser.add_argument('--exclude-item', action='append', default=[], metavar='ITEMCLASS',
+                        help='added item left out of the copy (repeatable)')
     args = parser.parse_args()
     try:
-        print(json.dumps(apply(args.client_copy, args.apply, edits=content_edits.load(args.edits))))
+        print(json.dumps(apply(args.client_copy, args.apply, edits=content_edits.load(args.edits),
+                               classes=args.classes, exclude_items=tuple(args.exclude_item))))
     except (PreparationError, ValueError) as error:
         print(json.dumps({'applied': False, 'error': str(error)}))
         return 2

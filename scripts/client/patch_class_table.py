@@ -19,6 +19,7 @@ import os
 import struct
 from pathlib import Path
 
+import class_layers
 from prepare_lab_client import PreparationError, reject_original
 
 SECTION = b'.hcls\0\0\0'
@@ -28,8 +29,13 @@ CLASSES = (('Lethita', 1), ('Fiona', 2), ('Evy', 2), ('Kalok', 3), ('Kay', 1), (
            ('Lynn', 2), ('Arisha', 2), ('Hagie', 1), ('Delia', 2), ('Miri', 2), ('Grimden', 4), ('Miul', 2),
            ('Bel', 2), ('Lethor', 2), ('Kael', 1), ('Tessa', 2), ('Danah', 2), ('Letty', 2), ('Latiya', 2),
            ('Czern', 2), ('Achel', 1), ('Sou', 1), ('Sanyaa', 2), ('Neamhain', 2), ('Calia', 2), ('Lumielle', 2))
-# Classes the accessors accept: the ten of the 1.69 client, Delia and Miri.
+# Classes the accessors accept: the ten of the 1.69 client, Delia and Miri (every class layer).
 ACTIVE_CLASSES = 12
+
+
+def active_classes(classes: tuple[str, ...] = class_layers.LAYERS) -> int:
+    """Accessor bound of a class layer (class_layers): 11 with the Delia, 12 with the Miri too."""
+    return 10 + len(class_layers.checked(classes, allow_none=False))
 PAIRS, NAMES, STRINGS = 0, 0x100, 0x180
 
 # Per DLL: (VA, opcode prefix, original table VA, field) for pair loads, (VA, original bound,
@@ -105,7 +111,7 @@ def section_body(base: int, rva: int, relocs: bytes) -> tuple[bytes, int]:
     return bytes(body), reloc_at
 
 
-def patched_bytes(data: bytes, spec: dict) -> tuple[bytes, bool]:
+def patched_bytes(data: bytes, spec: dict, active: int = ACTIVE_CLASSES) -> tuple[bytes, bool]:
     """Return the patched image and whether it was already patched."""
     image = Image(data)
     existing = [s for s in image.sections() if s[0] == SECTION]
@@ -118,7 +124,7 @@ def patched_bytes(data: bytes, spec: dict) -> tuple[bytes, bool]:
         _, _, vaddr, _, _ = existing[0]
         table = image.base + vaddr
         expected = [bytes.fromhex(p) + struct.pack('<I', table + f) for _, _, f, _, p in sites]
-        expected += [bytes((0x83, 0xf8, ACTIVE_CLASSES + delta)) for _, _, delta in spec['bounds']]
+        expected += [bytes((0x83, 0xf8, active + delta)) for _, _, delta in spec['bounds']]
         found = [bytes(image.data[image.offset(va):image.offset(va) + 7]) for va, *_ in sites]
         found += [bytes(image.data[image.offset(va):image.offset(va) + 3]) for va, _, _ in spec['bounds']]
         if found != expected:
@@ -151,18 +157,19 @@ def patched_bytes(data: bytes, spec: dict) -> tuple[bytes, bool]:
         o = image.offset(va)
         image.data[o:o + 7] = bytes.fromhex(prefix) + struct.pack('<I', table + field)
     for va, _, delta in spec['bounds']:
-        image.data[image.offset(va) + 2] = ACTIVE_CLASSES + delta
+        image.data[image.offset(va) + 2] = active + delta
     return bytes(image.data), False
 
 
-def patch(client_copy: Path, apply: bool = False) -> dict:
-    plan = {'mode': 'apply' if apply else 'dry-run', 'active_classes': ACTIVE_CLASSES, 'dlls': []}
+def patch(client_copy: Path, apply: bool = False, classes: tuple[str, ...] = class_layers.LAYERS) -> dict:
+    active = active_classes(classes)
+    plan = {'mode': 'apply' if apply else 'dry-run', 'active_classes': active, 'classes': list(classes), 'dlls': []}
     for name, spec in SPECS.items():
         dll = reject_original(client_copy / 'bin' / name)
         if not dll.is_file():
             raise PreparationError(f'The client copy must contain bin/{name}.')
         data = dll.read_bytes()
-        image, already = patched_bytes(data, spec)
+        image, already = patched_bytes(data, spec, active)
         backup = dll.with_name(f'{name}.{digest(data)[:16]}.pre-hcls.bak')
         plan['dlls'].append({'dll': str(dll), 'already_patched': already, 'before_sha256': digest(data),
                              'after_sha256': digest(image), 'backup': None if already else str(backup)})
@@ -179,10 +186,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--client-copy', type=Path, required=True)
     parser.add_argument('--apply', action='store_true')
+    class_layers.add_argument(parser, allow_none=False)
     args = parser.parse_args()
     try:
-        print(json.dumps(patch(args.client_copy, args.apply)))
-    except PreparationError as error:
+        print(json.dumps(patch(args.client_copy, args.apply, args.classes)))
+    except (PreparationError, ValueError) as error:
         print(json.dumps({'patched': False, 'error': str(error)}))
         return 2
     return 0

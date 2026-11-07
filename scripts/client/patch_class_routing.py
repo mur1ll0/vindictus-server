@@ -22,6 +22,7 @@ Requires the `.hcls` patch (patch_class_table.py), whose relocation directory mo
 """
 from __future__ import annotations
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -33,6 +34,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent / '.deps'))
 import capstone  # noqa: E402
 
+import class_layers  # noqa: E402
 from patch_class_table import Image, align, digest  # noqa: E402
 from patch_engine_class_flags import CLASS_FLAGS, DELIA_FLAG  # noqa: E402
 from prepare_lab_client import PreparationError, reject_original  # noqa: E402
@@ -835,6 +837,37 @@ def check_classes(classes: tuple[ExtraClass, ...]) -> None:
 
 
 DELIA_PRECACHE = precache_models(EXTRA_CLASSES[0])
+# Class layers (class_layers, docs/future/game-launcher.md 4.7): v2 routes the Delia only, v3 both. The
+# Miri-only groups (FLAMEBREATH, CHAIN, CUSTOM_EFFECT, FLAMEBREATH_LEAVE, SUMMON_PARENT, SUMMON_FOLLOW, her
+# guard and the Dragon Knight status effect) run only when she is in EXTRA_CLASSES. Each layer starts from its
+# own .hcls copy (patch_class_table.active_classes: bound 11 or 12).
+ALL_EXTRA_CLASSES = EXTRA_CLASSES
+ALL_GUARD_CLASSES = GUARD_CLASSES
+ALL_STANDING_CONDITIONS = STANDING_CONDITIONS
+EXPECTED_BY_LAYER = {('delia',): {'client.dll': 'a9591d3a44a2b538', 'server.dll': 'af43431e78666783'},
+                     ('delia', 'miri'): EXPECTED}
+
+
+def has_class(index: int) -> bool:
+    return any(c.index == index for c in EXTRA_CLASSES)
+
+
+@contextlib.contextmanager
+def class_layer(classes: tuple[str, ...] = class_layers.LAYERS):
+    """EXTRA_CLASSES, LAST, GUARD_CLASSES, STANDING_CONDITIONS and EXPECTED of a class layer while inside."""
+    global EXTRA_CLASSES, LAST, GUARD_CLASSES, STANDING_CONDITIONS, EXPECTED
+    keys = class_layers.checked(classes, allow_none=False)
+    saved = EXTRA_CLASSES, LAST, GUARD_CLASSES, STANDING_CONDITIONS, EXPECTED
+    wanted = class_layers.indices(keys)
+    EXTRA_CLASSES = tuple(c for c in ALL_EXTRA_CLASSES if c.index in wanted)
+    LAST = max(c.index for c in EXTRA_CLASSES)
+    GUARD_CLASSES = tuple(c for c in ALL_GUARD_CLASSES if c in wanted)
+    STANDING_CONDITIONS = {c: v for c, v in ALL_STANDING_CONDITIONS.items() if c in wanted}
+    EXPECTED = EXPECTED_BY_LAYER[keys]
+    try:
+        yield keys
+    finally:
+        EXTRA_CLASSES, LAST, GUARD_CLASSES, STANDING_CONDITIONS, EXPECTED = saved
 MATCH_LOOKUP = bytes.fromhex('0fbf4424248d0cc5000000002bc88d1c8e8d5424108d7b20')
 MATCH_PICK = bytes.fromhex('8b6c241083c5fc')
 md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
@@ -1976,7 +2009,7 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
         'candidate_actions', 'damage_rates', 'add_def', 'skill_delia_strong_attack_week', 'skill_delia_strong_attack_hit',
         'ENABLE_STACK_CHARGE_SMASH_STATUS_EFFECT', 'DISABLE_STACK_CHARGE_SMASH_STATUS_EFFECT',
         'ENABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', 'DISABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', 'PURGE_ALL_ARMOR', '',
-        DRAGON_KNIGHT_TYPE,
+        *((DRAGON_KNIGHT_TYPE,) if has_class(MIRI) else ()),
         *(commands_of or {}))}
     L.pad()
     registrar = L.here()
@@ -2286,9 +2319,10 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
         ('skill_delia_strong_attack', 0xA0, [k['dtor'], sda_load, base2, base3, base4, sda_hurt, base6]),
         ('damage_modify_to_action', 0x100, [k['dtor'], dma_load, base2, base3, dma_hit, base5, base6]),
         ('restore_equipment_def', 0x98, [k['dtor'], red_load, base2, base3, base4, base5, base6]),
-        # the Miri's Dragon Knight (FLAMEBREATH): the status effect only has to exist; the think reads it
-        (DRAGON_KNIGHT_TYPE, 0x98, [k['dtor'], noop_load, base2, base3, base4, base5, base6]),
     ]
+    if has_class(MIRI):
+        # the Miri's Dragon Knight (FLAMEBREATH): the status effect only has to exist; the think reads it
+        types.append((DRAGON_KNIGHT_TYPE, 0x98, [k['dtor'], noop_load, base2, base3, base4, base5, base6]))
     factories = {}
     for name, size, slots in types:
         factories[name] = factory(size, vtable_of(slots))
@@ -2934,10 +2968,10 @@ def class_conditions(image: Image, layout: Layout, edits: list, relocs: set[int]
     bodies = {index: body for index in DELIA_MECHANICS}
     report = {'think': hex(body), 'base': hex(base)}
     chain_tick = None
-    if name in CHAIN and CHAIN[name]['think'] == think:
+    if name in CHAIN and CHAIN[name]['think'] == think and all(has_class(c) for c in CHAIN_CLASSES):
         report['chain'] = chain(image, layout, name)
         chain_tick = int(report['chain']['tick'], 16)
-    if flame is None and name in FLAMEBREATH:
+    if flame is None and name in FLAMEBREATH and has_class(FLAMEBREATH_CLASS):
         flame = flamebreath(image, layout, name, int(report['chain']['in_town'], 16) if 'chain' in report else None)
     if flame is not None:
         report['flamebreath'] = flame
@@ -3899,7 +3933,7 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         report['conditions'] = conditions(layout, edits, *CONDITIONS[name])
     effects = None
     flame = None
-    if name in FLAMEBREATH and name == 'server.dll':
+    if name in FLAMEBREATH and name == 'server.dll' and has_class(FLAMEBREATH_CLASS):
         flame = flamebreath(image, layout, name)
     if name in DELIA_EFFECTS:
         effects = delia_effects(image, layout, edits, relocs, DELIA_EFFECTS[name],
@@ -3913,7 +3947,7 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
                                 forfeit=int(effects['forfeit'], 16) if effects else None, effects=effects)
     if name in CLIENT_GUARD:
         report['guard'] = client_guard(image, layout, edits, relocs, *CLIENT_GUARD[name])
-    if name in CUSTOM_EFFECT:
+    if name in CUSTOM_EFFECT and has_class(MIRI):
         report['custom_effect'] = custom_effect(image, layout, edits, relocs, name)
     if name in ITEM_MASK:
         report['item_mask'] = item_mask(layout, edits, *ITEM_MASK[name])
@@ -3929,7 +3963,7 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         hide = report['class_conditions'].get('flamebreath', {}).get('hide')
         if name in FLAMEBREATH_LEAVE and hide:
             report['flamebreath_leave'] = flamebreath_leave(image, layout, edits, relocs, name, int(hide, 16))
-    if name in SUMMON_PARENT:
+    if name in SUMMON_PARENT and has_class(FLAMEBREATH_CLASS):
         report['summon_parent'] = summon_parent(image, layout, edits, name)
     if name in ENTITY_SLOTS:
         report['entity_slots'] = entity_slots(image, layout, edits, relocs, *ENTITY_SLOTS[name])
@@ -3989,8 +4023,14 @@ def _text_contains(self: Image, va: int) -> bool:
 Image.text_contains = _text_contains
 
 
-def patch(client_copy: Path, apply: bool = False, fallback: str | None = None) -> dict:
-    plan = {'mode': 'apply' if apply else 'dry-run', 'pet': PET, 'dlls': []}
+def patch(client_copy: Path, apply: bool = False, fallback: str | None = None,
+          classes: tuple[str, ...] = class_layers.LAYERS) -> dict:
+    with class_layer(classes) as keys:
+        return _patch(client_copy, apply, fallback, keys)
+
+
+def _patch(client_copy: Path, apply: bool, fallback: str | None, keys: tuple[str, ...]) -> dict:
+    plan = {'mode': 'apply' if apply else 'dry-run', 'pet': PET, 'classes': list(keys), 'dlls': []}
     for name, prefix in EXPECTED.items():
         dll = reject_original(client_copy / 'bin' / name)
         data = dll.read_bytes()
@@ -4018,10 +4058,11 @@ def main() -> int:
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--fallback-entity', choices=FALLBACK_ENTITIES,
                         help='diagnostic: entity for a class without its own (default: the base player)')
+    class_layers.add_argument(parser, allow_none=False)
     args = parser.parse_args()
     try:
-        print(json.dumps(patch(args.client_copy, args.apply, args.fallback_entity), indent=1))
-    except PreparationError as error:
+        print(json.dumps(patch(args.client_copy, args.apply, args.fallback_entity, args.classes), indent=1))
+    except (PreparationError, ValueError) as error:
         print(json.dumps({'patched': False, 'error': str(error)}))
         return 2
     return 0

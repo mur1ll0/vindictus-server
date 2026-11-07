@@ -122,7 +122,7 @@ class ApplyLabHfsTest(unittest.TestCase):
                           'sound/voice/pc/miri_hi.wav': b'RIFF', 'scripts/player_action_state_miri.txt': b'"x" {}'})
         limit, lab.CLASS_PART_LIMIT = lab.CLASS_PART_LIMIT, 100
         # the fake client has none of the 1.69 files ORIGINAL_FIXES rewrites
-        fixed, lab.fixed_packs = lab.fixed_packs, lambda plain, client: {}
+        fixed, lab.fixed_packs = lab.fixed_packs, lambda plain, client, fixes=None: {}
         self.addCleanup(setattr, lab, 'fixed_packs', fixed)
         try:
             plan = self.run_apply([])
@@ -261,6 +261,41 @@ class ApplyLabHfsTest(unittest.TestCase):
         self.run_apply([])
         self.assertEqual({p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}, self.original)
 
+    def test_class_layers_and_excluded_items(self):
+        import json
+        import apply_lab_content_additions as lab
+        self.assertEqual(lab.layer_fixes(None, []), {})
+        self.assertIs(lab.layer_fixes(None, ['file']), lab.ORIGINAL_FIXES)
+        self.assertEqual(lab.layer_fixes((), ['file']), {})
+        self.assertEqual(set(lab.layer_fixes(('delia',), ['file'])), set(lab.DELIA_FIXES))
+        self.assertEqual(set(lab.layer_fixes(('delia', 'miri'), [])), set(lab.DELIA_FIXES))
+        self.assertEqual(set(lab.layer_fixes(('delia', 'miri'), ['file'])), set(lab.ORIGINAL_FIXES))
+        self.assertEqual(list(lab.ORIGINAL_FIXES)[0], 'models/player/_anim/female/delia/pc_delia_town_motion.mdl')
+        root = self.assets / 'classes/miri'
+        (root / 'merge/scripts').mkdir(parents=True)
+        na = COSTUME.replace(b'"hair"', b'"miri"\r\n{\r\n\t"default"\t"11"\r\n}\r\n"hair"').replace(
+            b'\t"16"', b'\t"9100"\r\n\t{\r\n\t\t"label"\t"9100"\r\n\t\t"normal"\t"models/player/miri/in.mdl"\r\n\t}\r\n\t"16"')
+        (root / 'merge/scripts/player_costume.txt').write_bytes(na)
+        (root / 'class-assets.json').write_text(json.dumps({'files': [], 'merge': [
+            {'path': 'scripts/player_costume.txt', 'needles': ['miri']}]}), encoding='utf-8')
+        ks = Path(self.temp.name) / 'ks.bin'
+        scripts = self.client / 'hfs' / (hfs.pack_name(SCRIPTS_FOLDER) + '.hfs')
+        # A layer without the Miri ignores her staged files.
+        plan = apply_hfs(self.client, ITEMS, ks, True, self.assets, classes=())
+        self.assertEqual((plan['class_merges']['files'], plan['original_fixes']), (0, []))
+        self.assertNotIn(b'"miri"', hfs.comp_unwrap(hfs.read_pack(scripts.read_bytes(), KS)[0].data))
+        # An excluded item leaves the copy and its number stays taken: the Miri's 9100 still moves to 9000.
+        # (the fake client has none of the 1.69 files the fixes rewrite: only the chosen fixes are checked)
+        chosen = []
+        fixed, lab.fixed_packs = lab.fixed_packs, lambda plain, client, fixes=None: chosen.append(set(fixes)) or {}
+        self.addCleanup(setattr, lab, 'fixed_packs', fixed)
+        plan = apply_hfs(self.client, [], ks, True, self.assets, classes=('delia', 'miri'), numbering=ITEMS)
+        text = hfs.comp_unwrap(hfs.read_pack(scripts.read_bytes(), KS)[0].data)
+        self.assertEqual(plan['class_merges']['renumbered'], {'inner_armor/9100': '9000'})
+        self.assertEqual(chosen, [set(lab.DELIA_FIXES)])  # merges only: no staged Miri file
+        self.assertNotIn(b'"9100"', text)
+        self.assertIn(b'"9000"\r\n\t{\r\n\t\t"label"\t"9000"', text)
+
     def write_kit(self, assets: str, files: dict[str, bytes], model: str = UPPER) -> dict:
         import json
         root = self.assets / assets
@@ -296,7 +331,7 @@ class ApplyLabHfsTest(unittest.TestCase):
         import apply_lab_content_additions as lab
         model = 'models/armor/pytonshock/pc_female_pytonshock_upper.mdl'
         self.stage_class({model: b'IDST-na'})
-        fixed, lab.fixed_packs = lab.fixed_packs, lambda plain, client: {}
+        fixed, lab.fixed_packs = lab.fixed_packs, lambda plain, client, fixes=None: {}
         self.addCleanup(setattr, lab, 'fixed_packs', fixed)
         overrides = {'pytonshock_upper': self.write_kit('kit_na', {model: b'IDST-pushed'}, model)}
         plan = self.apply_overrides(overrides)

@@ -299,14 +299,14 @@ def class_remap(imports: list[pathlib.Path], items: list[dict]) -> dict:
 
 
 def with_collab_unlocks(db: sqlite3.Connection, overrides: dict[str, dict],
-                        costume: bytes | None = None) -> dict[str, dict]:
+                        costume: bytes | None = None, classes: tuple[int, ...] | None = None) -> dict[str, dict]:
     """The overrides plus the collab outfits made wearable by the ported classes whose body has
     their model (collabs.unlock_masks over the 1.69 player_costume.txt), unless the panel's own
-    override sets ClassRestriction."""
+    override sets ClassRestriction. `classes` limits the ported classes (a client version's layer)."""
     if costume is None and BASE_COSTUME.is_file():
         costume = BASE_COSTUME.read_bytes()
     out = {name: dict(o) for name, o in overrides.items()}
-    for name, mask in collabs.unlock_masks(db, costume).items():
+    for name, mask in collabs.unlock_masks(db, costume, classes).items():
         o = out.setdefault(name, {})
         tables = {t: dict(c) for t, c in o.get('set', {}).items()}
         tables.setdefault('ItemClassInfo', {}).setdefault('ClassRestriction', mask)

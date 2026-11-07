@@ -22,6 +22,7 @@ import struct
 import sys
 from pathlib import Path
 
+import class_layers
 from patch_class_table import Image, align, digest
 from prepare_lab_client import PreparationError, reject_original
 
@@ -32,17 +33,23 @@ OLD_TAIL = bytes.fromhex('f7c20001000074068881a0010000f7c20002000074068881a10100
 # Item byte of each extra class (padding after UseInQuest +0x1cc), by class number.
 CLASS_FLAGS = {10: 0x1CD, 11: 0x1CE}
 DELIA_FLAG = CLASS_FLAGS[10]
+
+
+def flags_of(classes: tuple[str, ...] = class_layers.LAYERS) -> dict[int, int]:
+    """CLASS_FLAGS of a class layer (class_layers): v2 sets the Delia's byte only."""
+    wanted = class_layers.indices(class_layers.checked(classes, allow_none=False))
+    return {number: flag for number, flag in CLASS_FLAGS.items() if number in wanted}
 EXIT = 0x42245116
 OLD_EXIT = bytes.fromhex('7474')  # je 0x4224518c (mask 0)
 SECTION = b'.hflg\0\0\0'
 CODE = 0x60000020  # code, execute, read
 
 
-def stub() -> bytes:
+def stub(flags: dict[int, int] = CLASS_FLAGS) -> bytes:
     """Bits 8 and 9 as the original tail, then each extra class's byte; ret 4. al is 1 (0x42245118)."""
     code = bytes.fromhex('f7c200010000' '7406' '8881a0010000'    # bit 8 -> [ecx+0x1a0]
                          'f7c200020000' '7406' '8881a1010000')   # bit 9 -> [ecx+0x1a1]
-    for number, flag in sorted(CLASS_FLAGS.items()):
+    for number, flag in sorted(flags.items()):
         code += bytes.fromhex('f7c2') + struct.pack('<I', 1 << number)  # test edx, 1 << class
         code += bytes.fromhex('0f9581') + struct.pack('<I', flag)       # setne [ecx + flag]
     return code + bytes.fromhex('c20400')
@@ -54,7 +61,7 @@ def new_tail(stub_va: int) -> bytes:
     return (jump + bytes.fromhex('c20400')).ljust(len(OLD_TAIL), b'\xcc')
 
 
-def plan(data: bytes) -> tuple[bytes, dict]:
+def plan(data: bytes, flags: dict[int, int] = CLASS_FLAGS) -> tuple[bytes, dict]:
     image = Image(data)
     if any(s[0] == SECTION for s in image.sections()):
         raise PreparationError('engine.dll already has the .hflg section; start from the original.')
@@ -64,7 +71,7 @@ def plan(data: bytes) -> tuple[bytes, dict]:
             raise PreparationError(f'Unexpected bytes at {va:#x}; nothing is patched.')
     if image.table + 40 * (image.count + 1) > min(s[4] for s in image.sections()):
         raise PreparationError('No room for another section header.')
-    body = stub()
+    body = stub(flags)
     rva = align(max(v + max(vs, rs) for _, vs, v, rs, _ in image.sections()), image.section_align)
     raw = align(len(image.data), image.file_align)
     image.data += b'\0' * (raw - len(image.data)) + body + b'\0' * (align(len(body), image.file_align) - len(body))
@@ -84,7 +91,7 @@ def plan(data: bytes) -> tuple[bytes, dict]:
         image.data[o:o + len(new)] = new
     return bytes(image.data), {
         'tail': hex(TAIL), 'stub': hex(stub_va), 'ret': hex(ret), 'exit': f'{EXIT:#x} -> {ret:#x}',
-        'flags': '+0x198..+0x1a1 (classes 0-9), ' + ', '.join(f'{f:#x} (class {c})' for c, f in sorted(CLASS_FLAGS.items()))}
+        'flags': '+0x198..+0x1a1 (classes 0-9), ' + ', '.join(f'{f:#x} (class {c})' for c, f in sorted(flags.items()))}
 
 
 def original(dll: Path) -> bytes:
@@ -98,11 +105,11 @@ def original(dll: Path) -> bytes:
     raise PreparationError(f'engine.dll: expected {EXPECTED}… or its backup, found {digest(data)[:16]}.')
 
 
-def patch(client_copy: Path, apply: bool = False) -> dict:
+def patch(client_copy: Path, apply: bool = False, classes: tuple[str, ...] = class_layers.LAYERS) -> dict:
     dll = reject_original(client_copy / 'bin' / 'engine.dll')
     current = dll.read_bytes()
     data = original(dll)
-    image, report = plan(data)
+    image, report = plan(data, flags_of(classes))
     backup = dll.with_name(f'engine.dll.{digest(data)[:16]}.pre-classflags.bak')
     result = {'mode': 'apply' if apply else 'dry-run', 'dll': str(dll), 'before_sha256': digest(current),
               'original_sha256': digest(data), 'after_sha256': digest(image), 'backup': str(backup), **report}
@@ -119,10 +126,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--client-copy', type=Path, required=True)
     parser.add_argument('--apply', action='store_true')
+    class_layers.add_argument(parser, allow_none=False)
     args = parser.parse_args()
     try:
-        print(json.dumps(patch(args.client_copy, args.apply), indent=1))
-    except PreparationError as error:
+        print(json.dumps(patch(args.client_copy, args.apply, args.classes), indent=1))
+    except (PreparationError, ValueError) as error:
         print(json.dumps({'patched': False, 'error': str(error)}))
         return 2
     return 0

@@ -102,6 +102,11 @@ class Outfits(unittest.TestCase):
         self.assertEqual(collabs.PORTED, 4095)
         # Without the costume file only the accessories open up.
         self.assertEqual(collabs.unlock_masks(self.db(), None), {'necklace_cash_fairytail_ignil': collabs.PORTED})
+        # A client version without the new classes (scripts/client/class_layers.py, v1) admits classes 0-9 only.
+        # Here the masks already admit classes 0-10: only the Miri's bit grew, so v1 and v2 change nothing.
+        self.assertEqual(collabs.unlock_masks(self.db(), COSTUME, tuple(range(10))), {})
+        self.assertEqual(collabs.unlock_masks(self.db(), COSTUME, tuple(range(11))), {})
+        self.assertEqual(collabs.unlock_masks(self.db(), COSTUME, tuple(range(12))), collabs.unlock_masks(self.db(), COSTUME))
 
     def test_unlock_overrides_keep_the_panel_value(self):
         import content_additions

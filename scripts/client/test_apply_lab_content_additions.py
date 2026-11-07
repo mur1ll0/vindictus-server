@@ -111,6 +111,30 @@ class ApplyLabContentAdditionsTest(unittest.TestCase):
         with self.assertRaises(PreparationError):
             a.fixed_packs(hfs.assemble_index(hfs.INDEX_MAGIC + bytes(16), packs, []), Path('copy'), fixes)
 
+    def test_class_layers_keep_only_their_marketplace_tabs_and_excluded_items_stay_out(self):
+        with closing(sqlite3.connect(self.db)) as db:
+            db.execute('CREATE TABLE SubCategoryInfo(MainCategoryName TEXT, Name TEXT, Feature TEXT)')
+            db.executemany('INSERT INTO SubCategoryInfo VALUES(?,?,?)',
+                           [('WEAPON', 'BASTARDSWORD', 'Delia'), ('ETC', 'ETC_ETC', None)])
+            db.commit()
+        self.additions.write_text(json.dumps({'ShopInfo': [ROW], 'SubCategoryInfo': [
+            {'MainCategoryName': 'WEAPON', 'Name': 'BASTARDSWORD', 'Feature': None, 'class': 'delia'},
+            {'MainCategoryName': 'WEAPON', 'Name': 'DRAKER', 'Feature': None, 'class': 'miri'}]}), encoding='utf-8')
+
+        def tabs():
+            with closing(sqlite3.connect(self.db)) as db:
+                return list(db.execute('SELECT MainCategoryName, Name, Feature FROM SubCategoryInfo ORDER BY rowid'))
+
+        item = {'ItemClass': 'test_inner', 'template': 'old_inner'}
+        plan = apply(self.root, True, self.additions, items=[item], classes=(), exclude_items=('test_inner',))
+        self.assertEqual(plan['excluded_items'], ['test_inner'])
+        self.assertEqual(plan['items'], 0)
+        self.assertEqual(tabs(), [('WEAPON', 'BASTARDSWORD', 'Delia'), ('ETC', 'ETC_ETC', None)])
+        apply(self.root, True, self.additions, items=[], classes=('delia',))
+        self.assertEqual(tabs(), [('WEAPON', 'BASTARDSWORD', None), ('ETC', 'ETC_ETC', None)])
+        apply(self.root, True, self.additions, items=[])
+        self.assertEqual(tabs(), [('WEAPON', 'BASTARDSWORD', None), ('WEAPON', 'DRAKER', None), ('ETC', 'ETC_ETC', None)])
+
     def test_dry_run_changes_nothing_and_apply_is_idempotent(self):
         self.assertEqual(apply(self.root, False, self.additions, items=[])['shop_rows_missing'], 1)
         self.assertEqual(self.count(), 0)
