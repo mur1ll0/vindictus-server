@@ -155,6 +155,27 @@ Layouts read so far [C]:
 - Unknown: the engine's game code and virtualId values (vt+0x84 / vt+0x8c of the interface at 0x4286ad5c), the
   confirm code values and most unnamed fields (zeros are accepted).
 
+### 2.5 Chat sessions (MS4, targeted decompilation; switch 0x42374100, session list 0x42e67a78) [C unless I]
+
+- The engine only opens 1:1 sessions with a friend: 0xa00b RequestChatSessionEx (key, u32 0) → reply bSuccess,
+  u32 r1, u32 r2 (key = r2 or r1). 0xa00c, 0xc006 and 0xc008 have no callers.
+- The invited user gets 0xa001 GSSessionCreated on the game window (u32 key, SessionInfo, u32 n, n × member, u8, u8);
+  the engine checks SessionInfo +0x10 = its game code and hands it to client.dll, which adds the session [I]. The
+  session ctor (0x42359e70) calls 0xc003 GetSessionInfo(key) then 0xc001 GSRegisterCallback (callArg key, hWnd,
+  0x8001). There is no accept step.
+- 0xa002..0xa008 and 0xa101 are routed by the leading u32 key (unknown keys are dropped). 0xa002 Established =
+  0xa001 with one trailing u8 (members to the listener); 0xa006/0xa007 = SessionMemberInfo; 0xa004 Closed removes
+  the session before the lookup (the client never hears it).
+- CNMSessionInfo wire: u32 key, u32 gameCode, u32 virtualId, u8, u32, u32, u64, u64, u32 ×4 (+0x40 = 3 switches the
+  sender name to a virtual user). CNMSessionMemberInfo: u64 IDCode, wstr(0x40), wstr(0x40), u32, u32, wstr(0x40)
+  title name, u32, obj AvatarFullInfo.
+- 0xc101 CSSendChatMessage: callArg key, obj CNMChatMessage (sender "%s@%s" = my name + 0x800f GetGameShortName,
+  text ≤ 0x3ff; game code left 0). Reply bSuccess. 0xa101 = u32 key, ChatMessage (receivers drop it unless its
+  game code is theirs; "_SYSTEM_"/"_NOTICE_" senders show as notices), u8 (unused).
+- 0xc002 WantClose: key, u8 → reply bSuccess + u8. 0xc003 reply: SessionInfo, u32 n, members. 0xc005 reply: u32 n,
+  members. 0x800f GetGameShortName: call u32 0, u32 gameCode → bSuccess, wstr(0x80).
+- Unknown: whether client.dll echoes the sender's own message, the trailing u8s, SessionInfo +0x18..+0x3c.
+
 ## 3. Event path (messenger → game) [C]
 
 - NMCOGame::RegisterCallbackMessage (vtbl 0x42737d4c slot 2 = 0x42360040), called by engine init 0x421cb340

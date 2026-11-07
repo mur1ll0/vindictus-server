@@ -200,4 +200,7 @@ Pré-condição: servidor reconstruído (porta 47611 publicada); o `nmcogame.dll
 5. [ ] A cria um grupo, renomeia, move B para ele, apaga o grupo (B volta para "Amigos").
 6. [ ] A remove B → some da lista de A; B vê A offline.
 7. [ ] Com o servidor parado, o jogo abre normal (messenger desligado).
+8. [ ] (MS4) Com A e B amigos e online, A abre conversa com B (menu do amigo / bate-papo) → B recebe a janela de conversa; os dois trocam mensagens e cada um vê a do outro com o nome do personagem. Anote se quem envia vê a própria mensagem.
+9. [ ] (MS4) B fecha a janela → A vê B sair da conversa; A sai do jogo com conversa aberta → B vê A sair.
+10. [ ] (MS5) Abrindo pelo launcher, aparece `nmcogame.ini` na pasta do jogo com o endereço do servidor do launcher e a porta 47611.
 Relato: o que apareceu em cada passo e os dois `nmcogame-lab.log`.

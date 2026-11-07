@@ -419,6 +419,7 @@ fn on_play() {
         Ok(api) => api,
         Err(e) => return message(&e, Tone::Error),
     };
+    let server = ST.with(|s| s.borrow().config.server_base()).unwrap_or_default();
     set_busy(true);
     message("Abrindo o jogo…", Tone::Normal);
     let window = ctl().window;
@@ -427,6 +428,7 @@ fn on_play() {
             .ticket(&session)
             .map_err(|e| (e == ApiError::SessionEnded, e.message()))
             .and_then(|ticket| {
+                game::write_messenger_ini(&folder, &server);
                 if as_admin {
                     start_elevated(&folder, ticket.as_str())
                 } else {

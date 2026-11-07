@@ -31,8 +31,9 @@ Base: `docs/messenger-protocol.md` (MS1) e `protocol::nm` (MS3a). Sem sessão de
 
 ## Chat em grupo (MS4)
 
-- Sessões de chat (0xa00b/0xa00c) e envio 0xc101: o servidor cria a sessão, convida (0xa001/0xa002 aos membros) e repassa CSChatMessageReceived 0xa101 com CNMChatMessage aos participantes.
+- Implementado (07/11): o engine só abre conversa 1:1 com um amigo (0xa00b; `docs/messenger-protocol.md` §2.5). O servidor (`messenger::Chats`) cria a sessão (amigo aceito e online; até 32 por conta, 4096 no total), responde a chave e manda 0xa001 à janela do jogo do amigo; cada lado registra a janela da sessão (0xc001, que a DLL responde localmente e também repassa ao servidor) e, com os dois registrados, recebe 0xa002. 0xc003/0xc005 devolvem a sessão e os membros; 0xc101 vira 0xa101 aos outros membros com o código de jogo de cada um e o remetente definido pelo servidor (`personagem@Vindictus`, sem confiar no cliente); 0xc002 e a última conexão caindo tiram o membro (0xa007 aos outros).
+- A confirmar no cliente: se a própria mensagem aparece para quem envia (o servidor não a devolve) e se o cliente adiciona a sessão ao receber 0xa001.
 
 ## Distribuição (MS5)
 
-- O launcher instala o `nmcogame.dll` do laboratório e o `nmcogame.ini` com o endereço público do servidor; `install-lab.ps1` cobre a cópia local.
+- Implementado (07/11): a cópia do cliente (`.cache/play-client`) leva o `nmcogame.dll` do túnel (`install-lab.ps1`), e o launcher grava `nmcogame.ini` (`[messenger]`, `address=<host do servidor do launcher>:47611`) na pasta do jogo ao clicar em Jogar (`tools/launcher/src/game.rs`). Para outro computador, a porta 47611 precisa ser publicada fora do loopback junto com as demais portas do jogo (decisão de distribuição do operador; o compose publica todas em 127.0.0.1).

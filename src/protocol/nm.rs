@@ -476,6 +476,76 @@ pub mod objects {
         }
     }
 
+    /// CNMSessionInfo: session key, the receiver's (game code, virtual id); the rest zero
+    /// (+0x40 = 3 would switch the sender name to a virtual user).
+    pub fn session_info(w: &mut Writer, key: u32, owner: (u32, u32)) {
+        let mut b = Writer::default();
+        b.u32(key).u32(owner.0).u32(owner.1).u8(0).u32(0).u32(0).u64(0).u64(0);
+        b.u32(0).u32(0).u32(0).u32(0);
+        w.object(SESSION, 1, &b);
+    }
+
+    /// A chat session member.
+    pub struct Member<'a> {
+        pub id_code: u64,
+        pub login: &'a str,
+        pub nickname: &'a str,
+        /// (game code, virtual id), passed to the client with the member.
+        pub pair: (u32, u32),
+        /// The name the session title shows.
+        pub display: &'a str,
+        pub online: bool,
+    }
+
+    /// CNMSessionMemberInfo.
+    pub fn member(w: &mut Writer, m: &Member<'_>) {
+        let mut b = Writer::default();
+        b.u64(m.id_code);
+        text(&mut b, m.login, 0x40);
+        text(&mut b, m.nickname, 0x40);
+        b.u32(m.pair.0).u32(m.pair.1);
+        text(&mut b, m.display, 0x40);
+        b.u32(if m.online { ONLINE } else { 0 });
+        avatar_full(&mut b);
+        w.object(SESSION_MEMBER, 1, &b);
+    }
+
+    /// CNMChatMessage: the receivers drop it unless `game_code` is theirs.
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    pub struct ChatMessage {
+        pub game_code: u32,
+        /// "name@game short name".
+        pub sender: String,
+        pub text: String,
+    }
+    impl ChatMessage {
+        pub fn write(&self, w: &mut Writer) {
+            let mut b = Writer::default();
+            b.u32(self.game_code).u32(0);
+            avatar_item(&mut b);
+            text(&mut b, &self.sender, 0x40);
+            text(&mut b, "", 0x100);
+            text(&mut b, "", 0x100);
+            text(&mut b, &self.text, 0x400);
+            b.u32(0);
+            w.object(CHAT_MESSAGE, 1, &b);
+        }
+        pub fn read(r: &mut Reader<'_>) -> Result<Self, NmError> {
+            let (word, _, _, mut b) = r.object()?;
+            if word != CHAT_MESSAGE {
+                return Err(NmError::Object);
+            }
+            let game_code = b.u32()?;
+            b.u32()?;
+            b.object()?;
+            let sender = b.wstring()?;
+            b.wstring()?;
+            b.wstring()?;
+            let text = b.wstring()?;
+            Ok(Self { game_code, sender, text })
+        }
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -504,6 +574,13 @@ pub mod objects {
             let mut w = Writer::default();
             request.write(&mut w);
             assert_eq!(Request::read(&mut Reader::new(&w.bytes)).unwrap(), request);
+            let message = ChatMessage { game_code: 7, sender: "Fiona@Vindictus".into(), text: "oi".into() };
+            let mut w = Writer::default();
+            message.write(&mut w);
+            assert_eq!(ChatMessage::read(&mut Reader::new(&w.bytes)).unwrap(), message);
+            let mut w = Writer::default();
+            session_info(&mut w, 9, (7, 0));
+            assert_eq!(w.bytes.len(), 8 + 4 * 3 + 1 + 8 + 16 + 16);
         }
     }
 }

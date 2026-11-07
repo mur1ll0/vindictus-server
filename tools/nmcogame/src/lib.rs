@@ -127,6 +127,10 @@ pub fn dispatch(code: u32, envelope: &[u8]) -> Option<Vec<u8>> {
         if matches!(code, 0x1002 | 0xc001 | 0xb001) {
             tunnel::register(code, &call_words(envelope));
         }
+        if code == 0xc001 {
+            // The server marks the member's session window registered (then 0xa002 follows).
+            let _ = tunnel::call(code, envelope);
+        }
         return answer(code);
     }
     match tunnel::call(code, envelope) {

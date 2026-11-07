@@ -183,6 +183,19 @@ pub mod code {
     pub const DELETE_CATEGORY: u32 = 0x4102;
     pub const CHANGE_CATEGORY_NAME: u32 = 0x4103;
     pub const GET_GAME_SERVER_NAME: u32 = 0x8011;
+    pub const GET_GAME_SHORT_NAME: u32 = 0x800f;
+    pub const REQUEST_CHAT_SESSION_EX: u32 = 0xa00b;
+    pub const GS_REGISTER_CALLBACK: u32 = 0xc001;
+    pub const GS_WANT_CLOSE: u32 = 0xc002;
+    pub const GS_GET_SESSION_INFO: u32 = 0xc003;
+    pub const GS_GET_MEMBER_LIST: u32 = 0xc005;
+    pub const CS_SEND_CHAT_MESSAGE: u32 = 0xc101;
+    /// Chat session events: created (to the invited's game window), established, member left,
+    /// message received (to the session's window).
+    pub const EVENT_GS_SESSION_CREATED: u32 = 0xa001;
+    pub const EVENT_GS_SESSION_ESTABLISHED: u32 = 0xa002;
+    pub const EVENT_GS_MEMBER_LEAVED: u32 = 0xa007;
+    pub const EVENT_CS_CHAT_MESSAGE_RECEIVED: u32 = 0xa101;
     /// Event MessengerReply.
     pub const EVENT_MESSENGER_REPLY: u32 = 0x1001;
     /// Event RequestNewFriend (CNMRequestNewFriendData).
@@ -381,6 +394,9 @@ async fn connection(stream: tokio::net::TcpStream, service: &Service) -> std::io
                     joined = None;
                     if service.hub.leave(sn, id) {
                         service.presence(sn).await;
+                        if let Some(pool) = service.pool.as_ref() {
+                            service.chat_left(pool, None, sn).await;
+                        }
                     }
                 }
                 _ => {}
@@ -392,6 +408,9 @@ async fn connection(stream: tokio::net::TcpStream, service: &Service) -> std::io
         && service.hub.leave(sn, id)
     {
         service.presence(sn).await;
+        if let Some(pool) = service.pool.as_ref() {
+            service.chat_left(pool, None, sn).await;
+        }
     }
     drop(outbox);
     let _ = writer.await;
@@ -426,6 +445,7 @@ pub struct Service {
     pub passports: std::sync::Arc<Passports>,
     pub pool: Option<sqlx::PgPool>,
     pub hub: MessengerHub,
+    chats: Mutex<Chats>,
 }
 
 /// The list name of an account: "[server]" + its character (or login).
@@ -462,7 +482,7 @@ fn view<'a>(
 
 impl Service {
     pub fn new(passports: std::sync::Arc<Passports>, pool: Option<sqlx::PgPool>) -> Self {
-        Self { passports, pool, hub: MessengerHub::default() }
+        Self { passports, pool, hub: MessengerHub::default(), chats: Mutex::default() }
     }
 
     /// One call: the friend functions with the database, the rest by `handle`.
@@ -470,6 +490,11 @@ impl Service {
         use crate::protocol::nm;
         let body = nm::open(envelope).ok();
         let call = body.as_deref().and_then(|b| nm::call(b).ok());
+        if code == code::GET_GAME_SHORT_NAME {
+            let mut results = nm::Writer::default();
+            results.wstring(SHORT_NAME, 0x7f);
+            return ok_with(&results);
+        }
         if code == code::GET_GAME_SERVER_NAME {
             if let Some(mut c) = call {
                 let game_code = c.fields.u32().unwrap_or(c.argument);
@@ -498,6 +523,12 @@ impl Service {
             | code::ADD_CATEGORY
             | code::DELETE_CATEGORY
             | code::CHANGE_CATEGORY_NAME => self.edit(pool, me, code, &mut c.fields).await,
+            code::REQUEST_CHAT_SESSION_EX
+            | code::GS_REGISTER_CALLBACK
+            | code::GS_WANT_CLOSE
+            | code::GS_GET_SESSION_INFO
+            | code::GS_GET_MEMBER_LIST
+            | code::CS_SEND_CHAT_MESSAGE => self.chat_call(pool, me, context, code, &mut c).await,
             _ => return handle(s, &self.passports, code, envelope, Instant::now()),
         };
         outcome.unwrap_or_else(|_| {
@@ -580,7 +611,7 @@ impl Service {
             Requested::Sent => {
                 let from = db::profile(pool, me).await?.ok_or(Error::Refused)?;
                 let peer = display(&from);
-                self.hub.send_with(target, code::EVENT_REQUEST_NEW_FRIEND, |pair| {
+                self.hub.send_with(target, 0, code::EVENT_REQUEST_NEW_FRIEND, |pair| {
                     let request = Request {
                         serial: me.unsigned_abs(),
                         peer: peer.clone(),
@@ -684,7 +715,7 @@ impl Service {
         };
         let online = listed && self.hub.is_online(about);
         let name = display(&p);
-        self.hub.send_with(to, code::EVENT_FRIEND_INFO_CHANGED, |pair| {
+        self.hub.send_with(to, 0, code::EVENT_FRIEND_INFO_CHANGED, |pair| {
             let mut w = Writer::default();
             objects::friend(&mut w, &view(&p, &name, "", online, pair));
             w.u8(0);
@@ -713,6 +744,251 @@ impl Service {
                 tracing::info!("messenger presence not sent; values omitted");
             }
         }
+    }
+}
+
+/// Open chat sessions (B5 MS4; docs/messenger-protocol.md §2.5). The engine only opens 1:1
+/// sessions with a friend (RequestChatSessionEx 0xa00b).
+#[derive(Default)]
+pub struct Chats {
+    next: u32,
+    sessions: HashMap<u32, Chat>,
+}
+struct Chat {
+    members: Vec<i32>,
+    registered: Vec<i32>,
+}
+/// Open sessions on the server.
+const MAX_CHATS: usize = 4096;
+/// Open sessions per account.
+const MAX_CHATS_PER_ACCOUNT: usize = 32;
+/// Chat text kept (CNMChatMessage text is char[0x400]).
+const MAX_CHAT_TEXT: usize = 0x3ff;
+/// The game short name (GetGameShortName 0x800f); chat senders are "name@short name".
+pub const SHORT_NAME: &str = "Vindictus";
+
+impl Chats {
+    fn open(&mut self, a: i32, b: i32) -> Option<u32> {
+        let mine = self.sessions.values().filter(|c| c.members.contains(&a)).count();
+        if self.sessions.len() >= MAX_CHATS || mine >= MAX_CHATS_PER_ACCOUNT {
+            return None;
+        }
+        self.next = self.next.wrapping_add(1).max(1);
+        while self.sessions.contains_key(&self.next) {
+            self.next = self.next.wrapping_add(1).max(1);
+        }
+        self.sessions.insert(self.next, Chat { members: vec![a, b], registered: Vec::new() });
+        Some(self.next)
+    }
+    fn members(&self, key: u32, me: i32) -> Option<Vec<i32>> {
+        self.sessions
+            .get(&key)
+            .filter(|c| c.members.contains(&me))
+            .map(|c| c.members.clone())
+    }
+    /// Marks a member's window registered; the members when all have registered.
+    fn register(&mut self, key: u32, me: i32) -> Option<Vec<i32>> {
+        let chat = self.sessions.get_mut(&key).filter(|c| c.members.contains(&me))?;
+        if !chat.registered.contains(&me) {
+            chat.registered.push(me);
+        }
+        (chat.registered.len() == chat.members.len()).then(|| chat.members.clone())
+    }
+    /// Removes a member from one session (or all with None): (key, members left) per session.
+    fn leave(&mut self, key: Option<u32>, me: i32) -> Vec<(u32, Vec<i32>)> {
+        let mut left = Vec::new();
+        for (k, chat) in self.sessions.iter_mut() {
+            if key.is_some_and(|key| key != *k) || !chat.members.contains(&me) {
+                continue;
+            }
+            chat.members.retain(|m| *m != me);
+            chat.registered.retain(|m| *m != me);
+            left.push((*k, chat.members.clone()));
+        }
+        self.sessions.retain(|_, c| !c.members.is_empty());
+        left
+    }
+}
+
+impl Service {
+    fn chats(&self) -> std::sync::MutexGuard<'_, Chats> {
+        self.chats.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Session members as objects, built for the receiving connection's (game code, virtual id).
+    async fn chat_members(&self, pool: &sqlx::PgPool, members: &[i32]) -> Result<Vec<super::messenger_friends::Profile>, Error> {
+        let mut profiles = super::messenger_friends::profiles(pool, members).await?;
+        profiles.sort_by_key(|p| members.iter().position(|m| *m == p.nexon_sn));
+        Ok(profiles)
+    }
+
+    fn write_members(w: &mut crate::protocol::nm::Writer, profiles: &[super::messenger_friends::Profile], pair: (u32, u32), hub: &MessengerHub) {
+        use crate::protocol::nm::objects;
+        w.u32(profiles.len() as u32);
+        for p in profiles {
+            let name = if p.character.is_empty() { &p.login } else { &p.character };
+            objects::member(
+                w,
+                &objects::Member {
+                    id_code: u64::from(p.nexon_sn.unsigned_abs()),
+                    login: &p.login,
+                    nickname: &p.character,
+                    pair,
+                    display: name,
+                    online: hub.is_online(p.nexon_sn),
+                },
+            );
+        }
+    }
+
+    /// The chat calls of a logged-in account.
+    async fn chat_call(
+        &self,
+        pool: &sqlx::PgPool,
+        me: i32,
+        context: &Context,
+        code: u32,
+        call: &mut crate::protocol::nm::Call<'_>,
+    ) -> Result<Answer, Error> {
+        use super::messenger_friends::{self as db, State};
+        use crate::protocol::nm::{self, Writer, objects};
+        let key = call.argument;
+        match code {
+            code::REQUEST_CHAT_SESSION_EX => {
+                let friend = objects::FriendKey::read(&mut call.fields).map_err(|_| Error::Refused)?;
+                let friend = i32::try_from(friend.id_code).map_err(|_| Error::Refused)?;
+                if db::state(pool, me, friend).await? != Some(State::Friend) || !self.hub.is_online(friend) {
+                    return Err(Error::Refused);
+                }
+                let key = self.chats().open(me, friend).ok_or(Error::Refused)?;
+                let profiles = self.chat_members(pool, &[me, friend]).await?;
+                let hub = &self.hub;
+                hub.send_with(friend, 0, code::EVENT_GS_SESSION_CREATED, |pair| {
+                    let mut w = Writer::default();
+                    w.u32(key);
+                    objects::session_info(&mut w, key, pair);
+                    Self::write_members(&mut w, &profiles, pair, hub);
+                    w.u8(0).u8(0);
+                    nm::event(&w)
+                });
+                let mut results = Writer::default();
+                results.u32(key).u32(key);
+                Ok(ok_with(&results))
+            }
+            code::GS_REGISTER_CALLBACK => {
+                let all = self.chats().register(key, me);
+                if let Some(members) = all {
+                    let profiles = self.chat_members(pool, &members).await?;
+                    let hub = &self.hub;
+                    for m in &members {
+                        hub.send_with(*m, key, code::EVENT_GS_SESSION_ESTABLISHED, |pair| {
+                            let mut w = Writer::default();
+                            w.u32(key);
+                            objects::session_info(&mut w, key, pair);
+                            Self::write_members(&mut w, &profiles, pair, hub);
+                            w.u8(0);
+                            nm::event(&w)
+                        });
+                    }
+                }
+                Ok(answer(self.chats().members(key, me).is_some()))
+            }
+            code::GS_GET_SESSION_INFO | code::GS_GET_MEMBER_LIST => {
+                let members = self.chats().members(key, me).ok_or(Error::Refused)?;
+                let profiles = self.chat_members(pool, &members).await?;
+                let mut results = Writer::default();
+                if code == code::GS_GET_SESSION_INFO {
+                    objects::session_info(&mut results, key, context.pair());
+                }
+                Self::write_members(&mut results, &profiles, context.pair(), &self.hub);
+                Ok(ok_with(&results))
+            }
+            code::GS_WANT_CLOSE => {
+                self.chat_left(pool, Some(key), me).await;
+                let mut results = Writer::default();
+                results.u8(0);
+                Ok(ok_with(&results))
+            }
+            _ => {
+                let message = objects::ChatMessage::read(&mut call.fields).map_err(|_| Error::Refused)?;
+                let members = self.chats().members(key, me).ok_or(Error::Refused)?;
+                let me_profile = db::profile(pool, me).await?.ok_or(Error::Refused)?;
+                let name = if me_profile.character.is_empty() { &me_profile.login } else { &me_profile.character };
+                let sender = format!("{name}@{SHORT_NAME}");
+                let text: String = message.text.chars().take(MAX_CHAT_TEXT).collect();
+                for m in members.iter().filter(|m| **m != me) {
+                    self.hub.send_with(*m, key, code::EVENT_CS_CHAT_MESSAGE_RECEIVED, |pair| {
+                        let mut w = Writer::default();
+                        w.u32(key);
+                        objects::ChatMessage { game_code: pair.0, sender: sender.clone(), text: text.clone() }.write(&mut w);
+                        w.u8(0);
+                        nm::event(&w)
+                    });
+                }
+                Ok(answer(true))
+            }
+        }
+    }
+
+    /// A member leaves one session (or all of them when its last connection closes): the others
+    /// get MemberLeaved 0xa007.
+    pub async fn chat_left(&self, pool: &sqlx::PgPool, key: Option<u32>, me: i32) {
+        use crate::protocol::nm::{self, Writer, objects};
+        let left = self.chats().leave(key, me);
+        if left.is_empty() {
+            return;
+        }
+        let Ok(Some(p)) = super::messenger_friends::profile(pool, me).await else {
+            return;
+        };
+        let name = if p.character.is_empty() { p.login.clone() } else { p.character.clone() };
+        for (key, members) in left {
+            for m in members {
+                self.hub.send_with(m, key, code::EVENT_GS_MEMBER_LEAVED, |pair| {
+                    let mut w = Writer::default();
+                    w.u32(key);
+                    objects::member(
+                        &mut w,
+                        &objects::Member {
+                            id_code: u64::from(me.unsigned_abs()),
+                            login: &p.login,
+                            nickname: &p.character,
+                            pair,
+                            display: &name,
+                            online: false,
+                        },
+                    );
+                    nm::event(&w)
+                });
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod chat_tests {
+    use super::*;
+
+    #[test]
+    fn chats_open_register_and_leave() {
+        let mut c = Chats::default();
+        let key = c.open(1, 2).unwrap();
+        assert_eq!(c.members(key, 1), Some(vec![1, 2]));
+        assert_eq!(c.members(key, 3), None);
+        assert_eq!(c.register(key, 1), None);
+        assert_eq!(c.register(key, 3), None);
+        assert_eq!(c.register(key, 2), Some(vec![1, 2]));
+        let other = c.open(1, 3).unwrap();
+        assert_ne!(key, other);
+        assert_eq!(c.leave(Some(key), 2), vec![(key, vec![1])]);
+        let mut all = c.leave(None, 1);
+        all.sort();
+        assert_eq!(all, vec![(key, vec![]), (other, vec![3])]);
+        assert_eq!(c.members(key, 1), None);
+        for _ in 0..MAX_CHATS_PER_ACCOUNT {
+            c.open(5, 6).unwrap();
+        }
+        assert_eq!(c.open(5, 7), None);
     }
 }
 
@@ -790,13 +1066,14 @@ impl MessengerHub {
         let online = self.online.lock().unwrap_or_else(PoisonError::into_inner);
         online.contains_key(&nexon_sn)
     }
-    /// Pushes an event to the game window (target 0) of every connection of an account, built
-    /// with that connection's (game code, virtual id); a full outbox drops it.
-    pub fn send_with(&self, nexon_sn: i32, code: u32, build: impl Fn((u32, u32)) -> Vec<u8>) {
+    /// Pushes an event to a callback target (0 = the game window, else a chat session key) of
+    /// every connection of an account, built with that connection's (game code, virtual id); a
+    /// full outbox drops it.
+    pub fn send_with(&self, nexon_sn: i32, target: u32, code: u32, build: impl Fn((u32, u32)) -> Vec<u8>) {
         let online = self.online.lock().unwrap_or_else(PoisonError::into_inner);
         for c in online.get(&nexon_sn).into_iter().flatten() {
             let envelope = build(c.context.pair());
-            let frame = Frame::Event { target: 0, code, envelope }.encode();
+            let frame = Frame::Event { target, code, envelope }.encode();
             let _ = c.outbox.try_send(frame);
         }
     }
