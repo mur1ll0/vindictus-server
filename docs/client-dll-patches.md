@@ -13,7 +13,7 @@ Vale para `bin/client.dll`, `bin/server.dll` e `bin/engine.dll` da cópia `.cach
 
 | DLL | Original 1.69 (SHA-256, tamanho) | Cadeia de patches (ordem) | Atual (02/11/2026) |
 |---|---|---|---|
-| `client.dll` | `b284ba719047556b`, 14.719.200 | `patch_shop_list_limit.py` → `314272ec…` → `patch_class_table.py` → `0a0b866d…` → `patch_class_routing.py` → `c0b5d416…` → `patch_client_launcher_login.py` | `0b7d0248d17a34c2`, 17.589.248 |
+| `client.dll` | `b284ba719047556b`, 14.719.200 | `patch_shop_list_limit.py` → `314272ec…` → `patch_class_table.py` → `0a0b866d…` → `patch_class_routing.py` → `c0b5d416…` → `patch_client_launcher_login.py` | `59b60e7a1fd5cc74`, 17.589.248 |
 | `server.dll` | `d7727e182f6cdec1`, 16.311.216 | `patch_class_table.py` → `c85a56d5…` → `patch_class_routing.py` | `5f0429365ee0ccd1`, 19.028.480 |
 | `engine.dll` | `a3add9742f7fa03c`, 11.237.760 | `patch_engine_class_flags.py` → `51ea90e7…` → `patch_engine_iocp_sign.py` | `df6c70d2d66f52ed`, 11.238.400 |
 
