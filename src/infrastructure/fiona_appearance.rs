@@ -376,6 +376,23 @@ impl Profile {
         }
         Ok(projection)
     }
+    /// FeatureMatrix Avatar of the appearance profile (Gear.GetAvatarPart); the catalog policy
+    /// does not carry the key.
+    pub(super) fn avatar_enabled(&self) -> Result<bool, Error> {
+        // FeatureMatrix.IsEnable of a key the matrix lacks is false.
+        if !self.policy.entries().any(|(k, _)| k == "Avatar") {
+            return Ok(false);
+        }
+        Ok(self.policy.is_enabled(Some("Avatar"))?)
+    }
+    /// FeatureMatrix AvatarHide (HideCostumeProcessor), exported with the appearance features.
+    pub(super) fn avatar_hide_enabled(&self) -> Result<bool, Error> {
+        // FeatureMatrix.IsEnable of a key the matrix lacks is false.
+        if !self.policy.entries().any(|(k, _)| k == "AvatarHide") {
+            return Ok(false);
+        }
+        Ok(self.policy.is_enabled(Some("AvatarHide"))?)
+    }
     pub(super) fn normal_parts(
         &self,
         catalog: &Catalog,

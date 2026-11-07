@@ -3843,3 +3843,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-cosmeticos.md` AV1 (sem mudança).
 - Commits: (este)
 - Pendente / próxima ação: sessão de cliente AV1.
+
+## 2026-11-07 — B5 cosméticos: visual do avatar e esconder/mostrar
+- Feito: o operador equipava mas o visual não mudava. O `game` gravava o traje da parte 4 com a peça normal: `minimum_equipment` lia `Avatar` da política do catálogo, que não tem a chave (`is_enabled` falso). Agora `fiona_appearance::avatar_enabled`/`avatar_hide_enabled` leem o perfil de aparência (chave ausente = desligada, como `FeatureMatrix.IsEnable`); `AvatarHide` entra na exportação da aparência. Esconder/mostrar migrado do `HideCostumeProcessor`: parte 54–58 → `ExtraKey.HideAvatarHelm…Boots` (15–19) numa linha base tipo 2 (`minimum_costume::set_extra`, também usado pelo capacete), a carga pula avatares escondidos e `refresh_gear` reenvia equipamento, atributos e `CostumeUpdate`; o `lobby_costume` já levava as chaves 15–19 ao `AvatarHideInfo`.
+- Verificação: `cargo test --test equipped_gear` 3/3; PostgreSQL `minimum_equipment` 10/10 (`--ignored`, inclui o capacete com a regra da chave ausente); Python `test_export_fiona_appearance` OK; aparência reexportada (`Avatar`, `AvatarHide` 2.01.05). Logs `.cache/verification/avatar4-*.log`.
+- Cliente: `docs/client-tests/B5-cosmeticos.md` AV1 (esconder/mostrar).
+- Commits: (este)
+- Pendente / próxima ação: sessão de cliente AV1.

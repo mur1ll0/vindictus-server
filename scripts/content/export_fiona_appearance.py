@@ -30,7 +30,7 @@ def read_package(database,config,implementation,gear_sources):
   # measured Framework profiles, so HeroesContentsLoader retains the bool value.
   if type(v)is not int or v not in(0,1):raise ValueError('EquipPartInfo BIT storage profile')
   return v==1
- wanted={'CurrentVer','LanguageTag','AvatarSlotBonus','Avatar','E3_Event_2010','Event_PAX_2011_enUS','ItemPriceInfoInItemSlot','ItemPriceInfoInService'}
+ wanted={'CurrentVer','LanguageTag','AvatarSlotBonus','Avatar','AvatarHide','E3_Event_2010','Event_PAX_2011_enUS','ItemPriceInfoInItemSlot','ItemPriceInfoInService'}
  def feature(v):
   if v is not None and(not isinstance(v,str)or not v.isascii()or len(v)>512):raise ValueError('Appearance feature bound')
   wanted.update(reward.feature_atoms(v));return v

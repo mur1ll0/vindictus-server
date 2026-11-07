@@ -157,7 +157,16 @@ pub(super) async fn load(
         .policy
         .is_enabled(Some("StoryTabInInventory"))?;
     // Gear.GetAvatarPart answers -1 without the Avatar feature: no avatar look then.
-    let avatar_on = assets.catalog.policy.is_enabled(Some("Avatar"))?;
+    let avatar_on = assets.appearance.avatar_enabled()?;
+    // CostumeInfo.AvatarHideInfo: base rows ExtraKey.HideAvatarHelm..Boots (15-19) == 1 hide the
+    // avatar of parts 54-58.
+    let hidden: Vec<i16> = sqlx::query_scalar(
+        "SELECT costume_key FROM game_costumes WHERE cid=$1 AND is_base AND costume_type=2 AND costume_key BETWEEN 15 AND 19 AND costume_sn=1",
+    )
+    .bind(cid)
+    .fetch_all(&mut **tx)
+    .await?;
+    let hidden: Vec<i16> = hidden.into_iter().map(|k| k - 15 + 54).collect();
     let parts = assets.appearance.normal_parts(&assets.catalog)?;
     for row in rows {
         // StorageSetting.EquippableItemStorage: Bag, Cash (100) and Story (103 with
@@ -227,6 +236,7 @@ pub(super) async fn load(
             looks: if avatar_on
                 && row.part > i16::from(equipped_gear::AVATAR_OFFSET)
                 && row.part < 100
+                && !hidden.contains(&row.part)
             {
                 avatar_looks(&m.extra_data, profile, assets, &parts)
             } else {
