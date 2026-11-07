@@ -3899,3 +3899,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: entrada RK4 em `docs/client-tests/B5-social.md`; pendente (Docker não reconstruído).
 - Commits: d5d65b3
 - Pendente / próxima ação: rebuild do Docker e sessão de cliente pelo roteiro `docs/client-tests/B5-social.md` (inclui RK4).
+
+## 2026-11-07 — L4: D-L6 (só ticket do launcher no jogo) e decisão das versões em camadas
+- Feito: D-L6: campo opcional `typed_login` no perfil privado (`src/infrastructure/lab_runtime_config.rs`, padrão desligado); `lab_frontend.rs` só aceita login de conta digitado ou nome da lista permitida com ele ligado; ticket do launcher segue igual. `scripts/dev/prepare-lab-frontend-profile.ps1 -TypedLogin` grava o campo. Perfil de teste (`tests/support/lab_frontend_common.rs`) com o modo ligado; teste novo em `tests/lab_runtime_config.rs`. Decisão do operador (07/11): versões do cliente em camadas reconstruídas a partir do original (v1 = 1.69 + tudo que não é classe nova, inclusive `nmcogame.dll` do Messenger; v2 = + Delia; v3 = + Miri), com os scripts de patch e conteúdo aprendendo subconjuntos de classes e a v3 conferida byte a byte com a cópia atual. Inventário das camadas em andamento (`.cache/verification/client-versions/`).
+- Verificação: `cargo test --test lab_runtime_config` 5 OK; `cargo clippy --all-targets -D warnings -A clippy::assertions_on_constants` exit 0; PostgreSQL filtrado (`--ignored admin_panel lab_frontend`, test-postgres descartável, removido) 12 OK. Docker não reconstruído (entra no fechamento do grupo L1).
+- Cliente: não necessário agora; depois do rebuild, o nome digitado é recusado sem `typed_login` (o operador regenera o perfil com `-TypedLogin` se quiser o modo de laboratório).
+- Commits: (este commit)
+- Pendente / próxima ação: inventário das camadas; subconjunto de classes nos scripts de patch e de conteúdo; receita `build_client_version.py`; L1.

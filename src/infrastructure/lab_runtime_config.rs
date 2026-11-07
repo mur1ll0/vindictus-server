@@ -47,6 +47,11 @@ struct RawConfig {
     civil_offset_seconds: i32,
     ping_pong: bool,
     allowed_passports: Vec<PrivateText>,
+    /// D-L6 (operator decision 2026-11-03): the game accepts only launcher tickets. Typing an
+    /// account login (or an allowlisted name) in the client's ID field is a development mode of
+    /// this private profile; absent means off.
+    #[serde(default)]
+    typed_login: bool,
 }
 /// Not Debug/Serialize: startup diagnostics cannot disclose the allowlist.
 pub struct LabRuntimeConfig {
@@ -56,6 +61,7 @@ pub struct LabRuntimeConfig {
     civil_offset_seconds: i32,
     ping_pong: bool,
     passports: Vec<Zeroizing<String>>,
+    typed_login: bool,
 }
 fn hash_bytes(value: &str) -> Result<[u8; 32], RuntimeConfigError> {
     if value.len() != 64 || !value.bytes().all(|v| v.is_ascii_hexdigit()) {
@@ -229,6 +235,7 @@ impl LabRuntimeConfig {
             civil_offset_seconds: raw.civil_offset_seconds,
             ping_pong: raw.ping_pong,
             passports,
+            typed_login: raw.typed_login,
         })
     }
     /// Exact source ASCII casing is verified; truncation/identity alone is not allowlist membership.
@@ -258,5 +265,10 @@ impl LabRuntimeConfig {
     }
     pub fn ping_pong(&self) -> bool {
         self.ping_pong
+    }
+    /// Development mode: a typed account login or allowlisted name logs in without a launcher
+    /// ticket (D-L6).
+    pub fn typed_login(&self) -> bool {
+        self.typed_login
     }
 }

@@ -4,7 +4,8 @@ param(
  [Parameter(Mandatory)][ValidateSet('invariant','en-US','zh-TW','zh-CN')][string]$Culture,
  [Parameter(Mandatory)][int]$ServiceId,
  [Parameter(Mandatory)][byte]$ChannelCode,
- [Parameter(Mandatory)][switch]$AllowlistStdin
+ [Parameter(Mandatory)][switch]$AllowlistStdin,
+ [switch]$TypedLogin
 )
 $ErrorActionPreference='Stop'
 $project=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
@@ -39,7 +40,7 @@ foreach($principal in @($sid,$system)){$acl.AddAccessRule([Security.AccessContro
 $actual=[IO.FileSystemAclExtensions]::GetAccessControl([IO.DirectoryInfo]::new($private))
 $rules=@($actual.GetAccessRules($true,$false,[Security.Principal.SecurityIdentifier]))
 if(-not$actual.AreAccessRulesProtected-or$rules.Count-ne2-or@($rules|Where-Object{$_.IdentityReference-ne$sid-and$_.IdentityReference-ne$system}).Count-ne0){throw 'Private ACL verification failed'}
-$config=[ordered]@{format_version=1;bind='127.0.0.1:27015';framework_architecture=$Architecture;ascii_culture=$Culture;content_database_sha256=$policy.manifest.database_sha256;original_config_sha256=$hash;region=$policy.manifest.region;override_region=$policy.manifest.override_region;game_code=$policy.manifest.game_code;server_code=$policy.manifest.server_code;current_version=($policy.features|Where-Object { $_.key -ceq 'CurrentVer' }).value;service_id=$ServiceId;channel_code=$ChannelCode;civil_offset_seconds=28800;ping_pong=$false;allowed_passports=$list}
+$config=[ordered]@{format_version=1;bind='127.0.0.1:27015';framework_architecture=$Architecture;ascii_culture=$Culture;content_database_sha256=$policy.manifest.database_sha256;original_config_sha256=$hash;region=$policy.manifest.region;override_region=$policy.manifest.override_region;game_code=$policy.manifest.game_code;server_code=$policy.manifest.server_code;current_version=($policy.features|Where-Object { $_.key -ceq 'CurrentVer' }).value;service_id=$ServiceId;channel_code=$ChannelCode;civil_offset_seconds=28800;ping_pong=$false;allowed_passports=$list;typed_login=[bool]$TypedLogin}
 $output=Join-Path $private ('runtime-'+[Guid]::NewGuid().ToString('N')+'.json')
 $stream=[IO.File]::Open($output,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
 try {$bytes=[Text.Encoding]::UTF8.GetBytes(($config|ConvertTo-Json -Depth 4)+"`n");$stream.Write($bytes);[Array]::Clear($bytes)}finally{$stream.Dispose()}

@@ -73,7 +73,7 @@ pub fn content(values: &[(&str, Option<&str>)]) -> RewardPolicyPackage {
     read_policy(serde_json::to_vec(&v).unwrap().as_slice()).unwrap()
 }
 pub fn profile(p: &RewardPolicyPackage, ping: bool) -> LabRuntimeConfig {
-    let v = json!({"format_version":1,"bind":"127.0.0.1:27015","framework_architecture":"x64","ascii_culture":"invariant","content_database_sha256":"a".repeat(64),"original_config_sha256":"b".repeat(64),"region":"SYNTHETIC","override_region":null,"game_code":1,"server_code":1,"current_version":"3.09.00","service_id":42,"channel_code":0,"civil_offset_seconds":28800,"ping_pong":ping,"allowed_passports":[PASSPORT]});
+    let v = json!({"format_version":1,"bind":"127.0.0.1:27015","framework_architecture":"x64","ascii_culture":"invariant","content_database_sha256":"a".repeat(64),"original_config_sha256":"b".repeat(64),"region":"SYNTHETIC","override_region":null,"game_code":1,"server_code":1,"current_version":"3.09.00","service_id":42,"channel_code":0,"civil_offset_seconds":28800,"ping_pong":ping,"allowed_passports":[PASSPORT],"typed_login":true});
     LabRuntimeConfig::read(serde_json::to_vec(&v).unwrap().as_slice(), p).unwrap()
 }
 pub fn runtime() -> Arc<Runtime> {

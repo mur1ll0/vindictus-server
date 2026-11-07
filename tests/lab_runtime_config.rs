@@ -67,6 +67,17 @@ fn allowlist_requires_exact_full_passport_with_verified_ascii_case_and_explicit_
     assert_eq!(c.scope().channel_code(), 0);
 }
 #[test]
+fn typed_login_is_a_development_mode_off_unless_the_profile_says_so() {
+    // D-L6: only launcher tickets log in; typing a login is opt-in in the private profile.
+    let p = package();
+    assert!(!parse(&config(), &p).unwrap().typed_login());
+    let mut v = config();
+    v["typed_login"] = json!(true);
+    assert!(parse(&v, &p).unwrap().typed_login());
+    v["typed_login"] = json!("yes");
+    assert!(parse(&v, &p).is_err());
+}
+#[test]
 fn config_refuses_nonloopback_missing_unknown_ambiguous_and_oversized_inputs_without_private_errors()
  {
     let p = package();

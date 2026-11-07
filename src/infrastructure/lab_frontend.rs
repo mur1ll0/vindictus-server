@@ -769,6 +769,9 @@ impl Connection {
         let ticket = message
             .passport
             .and_then(crate::domain::admin::LauncherTicket::parse);
+        // D-L6 (operator decision 2026-11-03): without the profile's development mode, a typed
+        // login or allowlisted name is refused; only a launcher ticket logs in.
+        let typed_login = runtime.profile.typed_login();
         let account_game = match (&ticket, message.passport) {
             (Some(ticket), _) => {
                 super::game_links::redeem_launcher_ticket(pool, &ticket.digest(), self.peer)
@@ -777,6 +780,7 @@ impl Connection {
                     .flatten()
                     .map(Zeroizing::new)
             }
+            (None, Some(_)) if !typed_login => None,
             (None, Some(passport)) => match crate::domain::Username::parse(passport) {
                 Ok(name) => super::game_links::game_name_for_login(pool, name.normalized())
                     .await
@@ -792,6 +796,7 @@ impl Connection {
             .map_or(message.passport, |g| Some(g.as_str()));
         let admitted = account_game.is_some()
             || (ticket.is_none()
+                && typed_login
                 && runtime.profile.permits(passport)
                 && match unclaimed_name_key(passport, runtime.profile.identity_options()) {
                     Some(key) => {
