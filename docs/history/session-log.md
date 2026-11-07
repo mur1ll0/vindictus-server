@@ -3913,3 +3913,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário (o pacote restaurado volta aos efeitos originais da Arisha).
 - Commits: (este commit)
 - Pendente / próxima ação: decisões do operador (itens de teste na v1, `config_material.txt`); subconjunto de classes nos scripts; receita `build_client_version.py` com os passos à mão viraram scripts (`Mss32.dll` do `.z03`, filme e `.dds` da grade).
+
+## 2026-11-07 — Versões do cliente: decisões sobre itens de teste e vídeo
+- Feito: decisões do operador registradas em `docs/future/game-launcher.md` 4.3 item 6: os itens de teste do editor de itens (`fiona_inner_lab`, `fiona_inner_fringe`, `fiona_inner_zero`, `evy_inner_zero`, pacotes e textos) ficam fora das versões, as edições publicadas pelo painel entram; `bin/config_material.txt` não é distribuído (hipótese: a engine cria pela detecção do hardware; conferir na instalação limpa do L3). Exclusões e arquivos do jogador acrescentados a partir do inventário.
+- Verificação: não necessária (documentação).
+- Cliente: não necessário.
+- Commits: (este commit)
+- Pendente / próxima ação: subconjunto de classes nos scripts de patch e de conteúdo (parâmetro de camada, v3 byte a byte igual à cópia atual); scripts para os passos à mão (`Mss32.dll` do `.z03`, filme e `.dds` da grade da Delia); receita `build_client_version.py`; L1.
