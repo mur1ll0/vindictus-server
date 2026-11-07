@@ -3927,3 +3927,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário (cobertura no roteiro do launcher LV1–LV3).
 - Commits: (este)
 - Pendente / próxima ação: etapa 2 (Mss32 e filme da Delia em script) e etapa 3 (receita).
+
+## 2026-11-07 — Versões do cliente, etapa 2: passos manuais viram scripts
+- Feito: `scripts/client/recover_mss32.py` (cabeçalho local de `en-EU\Mss32.dll` em `Vindictus.z03`, offset 1544037482; confere assinatura, método, tamanhos, CRC32 b67c7f6c e SHA-256 `f2099aaa…`; só lê o volume). `scripts/client/apply_delia_creation_movie.py` (filme `CreateCharacterDialog.gfx` e as três `.dds` do pacote `RENOMEADo_9FB527B3…`; seis trocas de mesmo tamanho dos passos C3-14, C3-15 e C3-17: `0xe425`, `0xe45b`, `0xe464`, `0xf381`, `0xf3ca`, `0xd680`; origem `d9f2dd66…` → `ac5543b0…`, igual ao `.pre-classes.bak` da cópia; imagens `04084564…`, `04642050…`, `9a73326f…`).
+- Verificação: `test_client_loose_files.py` 4 testes (`.cache/verification/client-versions/tests-step2.log`), contra o volume e o pacote originais.
+- Cliente: não necessário.
+- Commits: (este)
+- Pendente / próxima ação: etapa 3 (receita `build_client_version.py` e conferência).
