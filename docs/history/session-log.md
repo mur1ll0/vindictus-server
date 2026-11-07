@@ -3864,3 +3864,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário.
 - Commits: ver "feat: messenger passport registry (B5 MS3b)".
 - Pendente / próxima ação: MS3b parte 2 — ouvinte TCP do túnel (quadros Call/Reply/Event), LoginAuth/LoginMessenger/GetMyInfo/GetFriendList, migração dos amigos e categorias, pedidos e presença (`docs/messenger-design.md`); depois MS2 (DLL túnel).
+
+## 2026-11-07 — MS3b (parte 2) quadros do túnel e chamadas básicas do Messenger (B5)
+- Feito: `messenger::Frame` (Call/Reply/Event com prefixo de comprimento), `messenger::handle` (RegisterCallback/Initialize/SetLocale/SetCodePage ok; LoginAuth com o passport registrado; LoginMessenger com evento MessengerReply 0 à janela do jogo; LogoutMessenger; GetFriendList vazia; o resto falha).
+- Verificação: `cargo test --lib -- messenger` 3 passed.
+- Cliente: não necessário.
+- Commits: ver "feat: messenger tunnel frames and basic calls (B5 MS3b)".
+- Pendente / próxima ação: ouvinte TCP (`messenger_bind` nos assets, porta publicada no compose, spawn no main), amigos/categorias com migração, pedidos e presença; depois MS2 (DLL túnel).
