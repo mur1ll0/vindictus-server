@@ -43,8 +43,11 @@ if (-not $SkipCopy) {
     if (-not (Test-Path (Join-Path $original 'bin/client.dll'))) { throw "Original 1.69 EU não encontrado em $original." }
     Write-Host "Copiando o 1.69 EU original para $inputs (log: $logs\import-robocopy.log)…"
     $target = Join-Path $inputs 'Vindictus1.69EN/Vindictus EU/en-EU'
-    # /E sem /MIR: nunca apaga nada; a origem só é lida.
-    & robocopy $original $target /E /COPY:DT /DCOPY:T /R:1 /W:1 /NP /NFL /NDL /LOG:"$logs\import-robocopy.log" | Out-Null
+    # /E sem /MIR: nunca apaga nada; a origem só é lida. As pastas que a receita exclui ficam fora
+    # (o hfs_extracted do original sozinho tem 136 mil arquivos e ≈ 17 GB).
+    & robocopy $original $target /E /COPY:DT /DCOPY:T /R:1 /W:1 /NP /NFL /NDL `
+        /XD hfs_extracted lab-backup passport downloads DownloadLists __pycache__ `
+        /LOG:"$logs\import-robocopy.log" | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "robocopy falhou ($LASTEXITCODE); veja $logs\import-robocopy.log." }
 
     Write-Host 'Copiando as evidências da receita…'
@@ -62,6 +65,12 @@ if (-not $SkipCopy) {
         $read = $in.Read($buffer, 0, $buffer.Length)
         [System.IO.File]::WriteAllBytes($slice, $buffer[0..($read - 1)])
     } finally { $in.Dispose() }
+    # A base do NA em claro (classes importadas, como a Miri): a receita a lê em .cache/na-db.
+    $na = Join-Path $root '.cache/na-db/heroes-plain.db3'
+    if (Test-Path $na) {
+        New-Item -ItemType Directory -Force (Join-Path $server 'inputs/na-db') | Out-Null
+        Copy-Item -LiteralPath $na -Destination (Join-Path $server 'inputs/na-db/heroes-plain.db3') -Force
+    }
     $nmcogame = Join-Path $root 'tools/nmcogame/target/i686-win7-windows-msvc/release/nmcogame.dll'
     if (-not (Test-Path $nmcogame)) { throw 'Falta a nmcogame.dll: rode tools/nmcogame/build.ps1.' }
     Copy-Item -LiteralPath $nmcogame -Destination (Join-Path $server 'inputs/nmcogame.dll') -Force

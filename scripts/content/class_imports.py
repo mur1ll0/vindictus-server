@@ -601,6 +601,10 @@ def shared_rows(db: sqlite3.Connection, info: dict, table: str, key: str, na_res
 def na_restrictions(imported_path: Path, table: str = 'ItemClassInfo', key: str = 'ItemClass') -> dict:
     with closing(sqlite3.connect(f'file:{imported_path}?mode=ro', uri=True)) as imported:
         source = imported.execute('SELECT source FROM [_class]').fetchone()[0]
+    # The import records the host's absolute path; elsewhere (the client builder container, another
+    # machine) the project's own copy of the NA database stands in for it.
+    if not Path(source).is_file() and NA_DATABASE.is_file():
+        source = NA_DATABASE
     with closing(sqlite3.connect(f'file:{source}?mode=ro', uri=True)) as na:
         if not {key, 'ClassRestriction'} <= set(columns(na, table)):
             return {}

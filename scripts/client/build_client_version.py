@@ -313,6 +313,12 @@ def refresh(out: Path, original: Path = ORIGINAL, keystream: Path = KEYSTREAM, e
         raise PreparationError('The keystream differs from the recorded one.')
     edits = content_edits.EDITS if edits is None else edits
     started = time.time()
+    # The content step changes heroes.db3 in place, and SQLite lays the pages out by the file it starts from:
+    # starting again from the build's own backup (the database before the content step) gives the same bytes
+    # for the same edits, so an unchanged content never shows up as a changed file in the draft.
+    database, backup = out / 'sql/heroes.db3', out / 'sql/heroes.db3.pre-lab-additions'
+    if backup.is_file():
+        shutil.copyfile(backup, database)
     with tempfile.TemporaryDirectory(prefix=f'client-refresh-v{version}-', dir=out.parent) as tmp:
         content = apply_content(out, classes, original, keystream, edits, bool(state.get('keep_test_items')), Path(tmp))
     return {'version': version, 'classes': list(classes), 'out': str(out), 'git': git_state(),

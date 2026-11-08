@@ -4011,3 +4011,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: roteiro `docs/client-tests/L-launcher.md` LV11 (atualização obrigatória no outro PC), LV12 (versão por arquivo pelo painel), LV13 (importação única e gerar pelo conteúdo); pendentes.
 - Commits: (este)
 - Pendente / próxima ação: operador roda `scripts/dev/import-client-base.ps1` (≈ 29 GB; D: com 37 GB livres), publica o launcher 0.4.0 (`package-launcher.ps1 -PublicHost <ip>`) e segue LV11–LV13; depois o gate L6.
+
+## 2026-11-08 — Cliente no servidor: importação única
+- Feito: `scripts/dev/import-client-base.ps1` roda: o robocopy deixa de fora `hfs_extracted`, `lab-backup`, `passport`, `downloads`, `DownloadLists` e `__pycache__` (a primeira cópia trouxe ≈ 30 GB e encheu o D:); a base do NA em claro vai para `inputs/na-db`, montada no `client-builder` (compose.yaml). `class_imports.na_restrictions` cai para `NA_DATABASE` quando o caminho gravado no `miri.db3` é do Windows. `build_client_version.refresh` restaura o `heroes.db3` do backup `heroes.db3.pre-lab-additions` antes de aplicar o conteúdo. `.dockerignore` sem `scripts/client/.deps` (capstone do Windows quebrava a importação no contêiner; já no 8b1a4f8). O `target/` (≈ 196 GB) foi apagado com autorização do operador. `game-launcher.md` 4.10 com os limites.
+- Verificação: seed no contêiner ok (base 5, 1 arquivo no rascunho: `sql/heroes.db3`); tarefas de conteúdo 2 e 3 feitas (3: 1 h 14 min). `heroes.db3` igual à v5 tabela a tabela e no esquema (0 tabelas diferentes), mas os bytes mudam a cada execução (SQLite 3.40 do contêiner × 3.50 do Windows; cabeçalho e ≈ 7,8 mil páginas de 1 KB diferentes). Testes da receita Python passam.
+- Cliente: não necessário (LV11–LV13 continuam pendentes).
+- Commits: ver o commit "fix: client base import" desta data.
+- Pendente / próxima ação: publicar o rascunho como v6 pelo painel, publicar o launcher 0.4.0 e rodar LV11–LV13. Seguimento: tornar o `heroes.db3` determinístico ou comparar por conteúdo e acelerar o passo de conteúdo no contêiner.

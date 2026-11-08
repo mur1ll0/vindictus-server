@@ -202,6 +202,8 @@ services:
       # The recipe's private inputs, already server data (the panel's item editor writes the assets).
       - ./.cache/private-assets:/app/recipe/.cache/private-assets:ro
       - ./.cache/private-content:/app/recipe/.cache/private-content:ro
+      # The NA database in clear (imported classes), copied by the import.
+      - ${CLIENT_SERVER_DIR:-./.cache/client-server}/inputs/na-db:/app/recipe/.cache/na-db:ro
     cpus: 2
     depends_on:
       postgres:
