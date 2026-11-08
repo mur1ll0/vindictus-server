@@ -12,7 +12,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use vindictus_client_dist::manifest::{
-    FORMAT, FileEntry, Manifest, ObjectRef, Transform, VersionPointer,
+    Delta, FORMAT, FileEntry, Manifest, ObjectRef, Transform, VersionPointer,
 };
 use vindictus_client_dist::{DistError, codec, layout, paths, rules, sha256_hex, sign};
 
@@ -157,6 +157,107 @@ pub struct PublishReport {
     pub levels: BTreeMap<i32, usize>,
     pub by_transform: BTreeMap<String, (usize, u64, u64)>,
     pub seconds: u64,
+    /// Deltas from the previous version written for this one, and their bytes.
+    pub deltas: usize,
+    pub delta_bytes: u64,
+    /// Changed files that got no delta (too large, the index, or a delta not worth it).
+    pub changed_without_delta: usize,
+    /// Download to update from the previous version: deltas where there are, whole objects elsewhere.
+    pub update_download_bytes: Option<u64>,
+}
+
+/// The previous version's manifest, checked against the key.
+fn read_manifest(
+    store: &Path,
+    version: u32,
+    key: &ed25519_dalek::VerifyingKey,
+) -> Result<Manifest, StoreError> {
+    let name = layout::manifest(version);
+    let bytes = fs::read(store.join(&name))?;
+    sign::verify(
+        key,
+        &bytes,
+        &fs::read(store.join(layout::signature(&name)))?,
+        "manifest",
+    )?;
+    Ok(Manifest::parse(&bytes)?)
+}
+
+struct DeltaPlan {
+    deltas: Vec<Delta>,
+    bytes: u64,
+    changed_without_delta: usize,
+    update_download_bytes: u64,
+}
+
+/// Deltas from `previous` for the files that changed at the same path (docs/future/game-launcher.md 4.3
+/// item 4): old and new up to codec::DELTA_MAX_FILE, not the HFS index (its zlib changes everywhere), kept
+/// only below codec::DELTA_KEEP_PERCENT of the object. The old form comes from the store's object.
+fn plan_deltas(
+    store: &Path,
+    tree: &Path,
+    previous: &Manifest,
+    files: &[FileEntry],
+    keystream: &[u8; codec::KEYSTREAM_SIZE],
+) -> Result<DeltaPlan, StoreError> {
+    let before: HashMap<&str, &FileEntry> = previous
+        .files
+        .iter()
+        .map(|f| (f.path.as_str(), f))
+        .collect();
+    let had: std::collections::HashSet<&str> =
+        previous.files.iter().map(|f| f.sha256.as_str()).collect();
+    let mut plan = DeltaPlan {
+        deltas: Vec::new(),
+        bytes: 0,
+        changed_without_delta: 0,
+        update_download_bytes: 0,
+    };
+    let mut counted = std::collections::HashSet::new();
+    for file in files {
+        if had.contains(file.sha256.as_str())
+            || file.preserve
+            || !counted.insert(file.sha256.as_str())
+        {
+            continue;
+        }
+        let old = before.get(file.path.as_str()).filter(|old| {
+            old.size <= codec::DELTA_MAX_FILE
+                && file.size <= codec::DELTA_MAX_FILE
+                && !file.path.eq_ignore_ascii_case(rules::HFS_INDEX)
+        });
+        let Some(old) = old else {
+            plan.changed_without_delta += usize::from(before.contains_key(file.path.as_str()));
+            plan.update_download_bytes += file.object_size;
+            continue;
+        };
+        let old_form = codec::decompress(
+            &fs::read(store.join(layout::object(&old.sha256)))?,
+            old.size,
+        )?;
+        let mut new_form = fs::read(tree.join(&file.path))?;
+        codec::apply(file.transform, keystream, 0, &mut new_form);
+        let delta = codec::delta(&old_form, &new_form)?;
+        if !codec::delta_worth(delta.len() as u64, file.object_size) {
+            plan.changed_without_delta += 1;
+            plan.update_download_bytes += file.object_size;
+            continue;
+        }
+        let path = store.join(layout::delta(&old.sha256, &file.sha256));
+        if !path.exists() {
+            write_atomic(&path, &delta)?;
+        }
+        plan.bytes += delta.len() as u64;
+        plan.update_download_bytes += delta.len() as u64;
+        plan.deltas.push(Delta {
+            path: file.path.clone(),
+            from_sha256: old.sha256.clone(),
+            from_size: old.size,
+            to_sha256: file.sha256.clone(),
+            delta_size: delta.len() as u64,
+        });
+    }
+    Ok(plan)
 }
 
 struct Stored {
@@ -308,6 +409,10 @@ pub fn publish(request: &PublishRequest<'_>) -> Result<PublishReport, StoreError
         levels: BTreeMap::new(),
         by_transform: BTreeMap::new(),
         seconds: 0,
+        deltas: 0,
+        delta_bytes: 0,
+        changed_without_delta: 0,
+        update_download_bytes: None,
     };
     let mut unique: HashMap<&str, u64> = HashMap::new();
     for s in &stored {
@@ -333,6 +438,19 @@ pub fn publish(request: &PublishRequest<'_>) -> Result<PublishReport, StoreError
         }
     }
     report.install_download_bytes += unique.values().sum::<u64>();
+    let files: Vec<FileEntry> = stored.into_iter().map(|s| s.entry).collect();
+    let deltas = match &previous {
+        Some(pointer) => {
+            let before = read_manifest(request.store, pointer.current, &public)?;
+            let plan = plan_deltas(request.store, request.tree, &before, &files, &keystream)?;
+            report.deltas = plan.deltas.len();
+            report.delta_bytes = plan.bytes;
+            report.changed_without_delta = plan.changed_without_delta;
+            report.update_download_bytes = Some(plan.update_download_bytes);
+            plan.deltas
+        }
+        None => Vec::new(),
+    };
     let manifest = Manifest {
         format: FORMAT,
         version,
@@ -344,7 +462,8 @@ pub fn publish(request: &PublishRequest<'_>) -> Result<PublishReport, StoreError
             size: codec::KEYSTREAM_SIZE as u64,
             object_size: keystream_object,
         },
-        files: stored.into_iter().map(|s| s.entry).collect(),
+        files,
+        deltas,
     };
     manifest.check()?;
     let manifest_bytes = manifest.to_bytes()?;
@@ -381,6 +500,8 @@ pub struct VerifyReport {
     pub manifests: usize,
     pub objects_listed: usize,
     pub objects_checked: usize,
+    pub deltas_listed: usize,
+    pub deltas_checked: usize,
     pub problems: Vec<String>,
 }
 
@@ -395,6 +516,8 @@ pub fn verify(store: &Path, public_hex: &str, deep: bool) -> Result<VerifyReport
         manifests: 0,
         objects_listed: 0,
         objects_checked: 0,
+        deltas_listed: 0,
+        deltas_checked: 0,
         problems: Vec::new(),
     };
     let mut seen = HashMap::new();
@@ -447,6 +570,56 @@ pub fn verify(store: &Path, public_hex: &str, deep: bool) -> Result<VerifyReport
                     ));
                 }
                 report.objects_checked += 1;
+            }
+        }
+        let transforms: HashMap<&str, Transform> = manifest
+            .files
+            .iter()
+            .map(|f| (f.path.as_str(), f.transform))
+            .collect();
+        let sizes: HashMap<&str, u64> = manifest
+            .files
+            .iter()
+            .map(|f| (f.path.as_str(), f.size))
+            .collect();
+        for delta in &manifest.deltas {
+            report.deltas_listed += 1;
+            let name = layout::delta(&delta.from_sha256, &delta.to_sha256);
+            match fs::metadata(store.join(&name)) {
+                Ok(meta) if meta.len() == delta.delta_size => {}
+                _ => {
+                    report.problems.push(format!(
+                        "{name} ({}) missing or of another size",
+                        delta.path
+                    ));
+                    continue;
+                }
+            }
+            if deep {
+                let size = sizes.get(delta.path.as_str()).copied().unwrap_or(0);
+                let transform = transforms
+                    .get(delta.path.as_str())
+                    .copied()
+                    .unwrap_or(Transform::None);
+                let restored = fs::read(store.join(layout::object(&delta.from_sha256)))
+                    .map_err(StoreError::from)
+                    .and_then(|old| Ok(codec::decompress(&old, delta.from_size)?))
+                    .and_then(|old| {
+                        Ok(codec::restore_from_delta(
+                            &old,
+                            &fs::read(store.join(&name))?,
+                            transform,
+                            &keystream,
+                            &delta.to_sha256,
+                            size,
+                        )?)
+                    });
+                if restored.is_err() {
+                    report
+                        .problems
+                        .push(format!("{name} does not rebuild {}", delta.path));
+                }
+                report.deltas_checked += 1;
             }
         }
     }
@@ -552,6 +725,53 @@ mod tests {
         // A tampered pointer no longer verifies.
         fs::write(store.join("versao.json"), b"{}").ok();
         assert!(verify(&store, &public, false).is_err());
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn a_changed_file_gets_a_delta_but_the_index_does_not() {
+        let temp = std::env::temp_dir().join(format!("client-dist-delta-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        tree(&temp);
+        let (store, keys, client, ks) = (
+            temp.join("store"),
+            temp.join("keys"),
+            temp.join("client"),
+            temp.join("ks.bin"),
+        );
+        let mut state = 0x9E37_79B9u32;
+        let mut noise: Vec<u8> = (0..200_000)
+            .map(|_| {
+                state ^= state << 13;
+                state ^= state >> 17;
+                state ^= state << 5;
+                state as u8
+            })
+            .collect();
+        fs::create_dir_all(client.join("bin")).ok();
+        fs::write(client.join("bin/client.dll"), &noise).ok();
+        fs::write(client.join(rules::HFS_INDEX), &noise[..50_000]).ok();
+        let public = keygen(&keys).unwrap_or_default();
+        assert!(publish(&request(&temp, &store, &keys, &client, &ks)).is_ok());
+        noise[1_000..1_016].fill(0);
+        fs::write(client.join("bin/client.dll"), &noise).ok();
+        fs::write(client.join(rules::HFS_INDEX), &noise[1_000..51_000]).ok();
+        let second = publish(&request(&temp, &store, &keys, &client, &ks)).ok();
+        let summary = second.as_ref().map(|r| {
+            (
+                r.deltas,
+                r.changed_without_delta,
+                r.update_download_bytes.unwrap_or(0) < 60_000,
+            )
+        });
+        assert_eq!(summary, Some((1, 1, true)));
+        let report = verify(&store, &public, true).ok();
+        assert_eq!(
+            report
+                .as_ref()
+                .map(|r| (r.deltas_listed, r.deltas_checked, r.problems.len())),
+            Some((1, 1, 0))
+        );
         let _ = fs::remove_dir_all(&temp);
     }
 }

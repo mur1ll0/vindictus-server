@@ -15,6 +15,11 @@ pub fn object(sha256: &str) -> String {
     format!("objects/{}/{sha256}.zst", sha256.get(..2).unwrap_or("00"))
 }
 
+/// `deltas/<from>-<to>.zst`.
+pub fn delta(from_sha256: &str, to_sha256: &str) -> String {
+    format!("deltas/{from_sha256}-{to_sha256}.zst")
+}
+
 /// `manifests/<n>.json`.
 pub fn manifest(version: u32) -> String {
     format!("manifests/{version}.json")

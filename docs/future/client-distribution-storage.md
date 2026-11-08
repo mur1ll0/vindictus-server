@@ -246,7 +246,9 @@ As três versões montadas pela receita (`build_client_version.py`) foram public
 | Instalar a v1 (13.851 MB no disco) | 9.121 MB (69,1 %) | **10.328 MB (74,6 %)** |
 | Instalar a v3 (15.770 MB no disco) | 10.937–10.962 MB (72,7 %) | **12.224 MB (77,5 %)** |
 | Atualizar v1→v2, só objetos inteiros | 41 MB | **22 MB** (10 objetos) |
+| **Atualizar v1→v2 com deltas** (L2) | ≈ 7,1 MB | **5,69 MB**: 5 deltas de 25 KB (`client.dll` 6,4 KB, `server.dll` 7,6 KB, `engine.dll` 1,5 KB, filme 7 KB, `heroes.db3` 2,7 KB); inteiros o índice (1,75 MB), o pacote de `pc_delia_town_motion` (3,9 MB, `.comp`: delta acima de 50 %) e as três `.dds` |
 | Atualizar v2→v3, só objetos inteiros | ≈ 1.816 MB | **1.935 MB** (150 objetos) |
+| **Atualizar v2→v3 com deltas** (L2) | ≈ 1.816 MB | **1.899 MB**: 132 pacotes novos da Miri inteiros; 16 deltas somam 903 KB (os dois pacotes de texto de 36 MB viram 12 KB cada; o de scripts, 351 KB); inteiros só o índice e o pacote da cena de criação |
 | Servidor, v1+v2+v3 (sem deltas) | ≈ 11,0 GB | **12,29 GB** |
 | CPU da importação da v1 | ≈ 26 min com 2 threads | ≈ 30 min com 2 threads (máquina do operador) |
 

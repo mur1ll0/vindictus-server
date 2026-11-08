@@ -68,6 +68,25 @@ pub struct Manifest {
     pub keystream: ObjectRef,
     /// Files, sorted by path.
     pub files: Vec<FileEntry>,
+    /// Deltas from version `version - 1` (`deltas/<from>-<to>.zst`), for files that changed at the same path.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub deltas: Vec<Delta>,
+}
+
+/// A binary delta from a file of the previous version to this one's (codec::delta: zstd with the old
+/// file's transformed form as prefix). The launcher uses it only when its file has `from_sha256`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Delta {
+    /// Game path (a file of this manifest).
+    pub path: String,
+    /// SHA-256 of the previous version's file.
+    pub from_sha256: String,
+    /// Size of the previous version's file.
+    pub from_size: u64,
+    /// SHA-256 of this version's file (the entry of `path`).
+    pub to_sha256: String,
+    /// Size of `deltas/<from>-<to>.zst`.
+    pub delta_size: u64,
 }
 
 /// `versao.json`: the current version, the oldest one the server still accepts, and the manifest's hash.
@@ -123,7 +142,23 @@ impl Manifest {
         {
             return bad;
         }
-        paths::check_all(self.files.iter().map(|f| f.path.as_str()))
+        paths::check_all(self.files.iter().map(|f| f.path.as_str()))?;
+        // Each delta ends at its file of this version, from another content no larger than a delta source.
+        let files: std::collections::HashMap<&str, &FileEntry> =
+            self.files.iter().map(|f| (f.path.as_str(), f)).collect();
+        for delta in &self.deltas {
+            let to = files.get(delta.path.as_str());
+            if to.is_none_or(|f| {
+                f.sha256 != delta.to_sha256 || f.size > crate::codec::DELTA_MAX_FILE
+            }) || !is_sha(&delta.from_sha256)
+                || delta.from_sha256 == delta.to_sha256
+                || delta.from_size > crate::codec::DELTA_MAX_FILE
+                || delta.delta_size == 0
+            {
+                return bad;
+            }
+        }
+        Ok(())
     }
 
     /// Canonical bytes (what is stored and signed).
@@ -179,6 +214,7 @@ mod tests {
                 object_size: 10,
             },
             files: vec![entry("Vindictus.exe"), entry("bin/client.dll")],
+            deltas: Vec::new(),
         }
     }
 
@@ -189,6 +225,28 @@ mod tests {
             Manifest::parse(&m.to_bytes().unwrap_or_default()).ok(),
             Some(m)
         );
+    }
+
+    #[test]
+    fn deltas_must_end_at_their_file() {
+        let mut m = manifest();
+        m.deltas.push(Delta {
+            path: "bin/client.dll".into(),
+            from_sha256: "d".repeat(64),
+            from_size: 3,
+            to_sha256: "a".repeat(64),
+            delta_size: 5,
+        });
+        assert!(m.check().is_ok());
+        assert_eq!(
+            Manifest::parse(&m.to_bytes().unwrap_or_default()).ok(),
+            Some(m.clone())
+        );
+        m.deltas[0].to_sha256 = "e".repeat(64);
+        assert!(m.check().is_err());
+        m.deltas[0].to_sha256 = "a".repeat(64);
+        m.deltas[0].path = "bin/other.dll".into();
+        assert!(m.check().is_err());
     }
 
     #[test]

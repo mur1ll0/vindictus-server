@@ -3948,3 +3948,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário (L3 instala pelo launcher).
 - Commits: (este)
 - Pendente / próxima ação: L2 (deltas v1→v2→v3 com `--patch-from`), rebuild do Docker para subir o `updates`; registro no PostgreSQL no L5.
+
+## 2026-11-07 — Launcher L2: deltas entre versões
+- Feito: `crates/client-dist`: `Delta` no manifesto (`path`, `from_sha256`, `from_size`, `to_sha256`, `delta_size`; checado contra a entrada do arquivo), `codec::delta`/`apply_delta`/`restore_from_delta` (zstd 19 com o antigo transformado como prefixo, LDM, checksum, janela ≤ 2^27, antigo e novo ≤ 64 MB), `delta_worth` (< 50 % do objeto), `layout::delta`. `client_dist_store`: `plan_deltas` na publicação (contra o manifesto anterior verificado, antigo lido do objeto do armazém, índice fora; relatório com `deltas`, `delta_bytes`, `changed_without_delta`, `update_download_bytes`) e conferência dos deltas no `verify` (`--deep` reconstrói e confere o SHA-256). Docs: `game-launcher.md` 4.7 e §7, `client-distribution-storage.md` 6.1.
+- Verificação: crate 19 testes, armazém/HTTP 6 testes, clippy do workspace `-D warnings`, fmt (`.cache/verification/client-dist-l2-*.log`). Manifestos e `versao.json` do armazém local refeitos (objetos mantidos; nada distribuído) e v1–v3 publicadas de novo (`.cache/verification/client-dist-l2/publish-v*.json`): v1→v2 5 deltas de 25 KB e atualização de 5.692.847 bytes (estudo ≈ 7,1 MB; inteiros o índice, o pacote `35C6890E…` e as três `.dds`); v2→v3 16 deltas de 902.733 bytes e atualização de 1.898.785.093 bytes (132 pacotes novos inteiros; inteiros também o índice e `E0F18F15…`). `verify --deep`: 3 manifestos, 3.543 objetos e 21 deltas sem problema; `deltas/` 928 KB, armazém 12,29 GB.
+- Cliente: não necessário (o launcher aplica deltas no L3).
+- Commits: (este)
+- Pendente / próxima ação: L3 (instalar, atualizar, verificar e reparar no launcher, chave pública fixada); rebuild do Docker para subir o `updates`; registro no PostgreSQL e envio remoto no L5.

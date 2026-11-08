@@ -83,6 +83,73 @@ pub fn restore(
     Ok(data)
 }
 
+/// Largest old or new file a delta covers (docs/future/game-launcher.md 4.3 item 4): the decoder holds both,
+/// at most 128 MB, safe in a 32-bit launcher.
+pub const DELTA_MAX_FILE: u64 = 64 << 20;
+/// Largest window of a delta (log2): old + new of 64 MB each.
+pub const DELTA_MAX_WINDOW_LOG: u32 = 27;
+/// A delta is kept only below this share of the whole object (percent).
+pub const DELTA_KEEP_PERCENT: u64 = 50;
+/// Level of the deltas (the patch-from measurements of the study used 19).
+pub const DELTA_LEVEL: i32 = 19;
+
+/// Window (log2) covering the old file as prefix plus the new one.
+pub fn delta_window_log(old: usize, new: usize) -> u32 {
+    let span = (old + new).max(1 << 10) as u64;
+    (64 - (span - 1).leading_zeros()).clamp(10, DELTA_MAX_WINDOW_LOG)
+}
+
+/// Delta from `old` to `new`, both in their transformed form (zstd `--patch-from`: the old one is the
+/// prefix, long-distance matching on, checksum on).
+pub fn delta(old: &[u8], new: &[u8]) -> Result<Vec<u8>, DistError> {
+    if old.len() as u64 > DELTA_MAX_FILE || new.len() as u64 > DELTA_MAX_FILE {
+        return Err(DistError::Format("delta source"));
+    }
+    let mut encoder = zstd::stream::Encoder::with_ref_prefix(Vec::new(), DELTA_LEVEL, old)?;
+    encoder.window_log(delta_window_log(old.len(), new.len()))?;
+    encoder.long_distance_matching(true)?;
+    encoder.include_checksum(true)?;
+    encoder.include_contentsize(true)?;
+    encoder.set_pledged_src_size(Some(new.len() as u64))?;
+    encoder.write_all(new)?;
+    Ok(encoder.finish()?)
+}
+
+/// The new transformed form from the old one and a delta (at most `size` bytes plus one).
+pub fn apply_delta(old: &[u8], delta: &[u8], size: u64) -> Result<Vec<u8>, DistError> {
+    if old.len() as u64 > DELTA_MAX_FILE || size > DELTA_MAX_FILE {
+        return Err(DistError::Format("delta source"));
+    }
+    let mut decoder = zstd::stream::Decoder::with_ref_prefix(delta, old)?;
+    decoder.window_log_max(DELTA_MAX_WINDOW_LOG)?;
+    let mut out = Vec::with_capacity(usize::try_from(size).unwrap_or(0));
+    decoder.take(size.saturating_add(1)).read_to_end(&mut out)?;
+    Ok(out)
+}
+
+/// The new file on disk from the old file's transformed form and a delta: apply, redo the transform, check
+/// size and SHA-256 (what the launcher does when updating, docs/future/client-distribution-storage.md 5.4).
+pub fn restore_from_delta(
+    old_transformed: &[u8],
+    delta: &[u8],
+    transform: Transform,
+    keystream: &[u8; KEYSTREAM_SIZE],
+    sha256: &str,
+    size: u64,
+) -> Result<Vec<u8>, DistError> {
+    let mut data = apply_delta(old_transformed, delta, size)?;
+    apply(transform, keystream, 0, &mut data);
+    if data.len() as u64 != size || sha256_hex(&data) != sha256 {
+        return Err(DistError::Digest(sha256.chars().take(16).collect()));
+    }
+    Ok(data)
+}
+
+/// True when a delta of `delta_size` is worth keeping next to an object of `object_size`.
+pub fn delta_worth(delta_size: u64, object_size: u64) -> bool {
+    delta_size * 100 < object_size * DELTA_KEEP_PERCENT
+}
+
 /// Reads a 4096-byte keystream.
 pub fn keystream(bytes: &[u8]) -> Result<[u8; KEYSTREAM_SIZE], DistError> {
     bytes.try_into().map_err(|_| DistError::Format("keystream"))
@@ -136,6 +203,34 @@ mod tests {
             compress(&noise).map(|(_, level)| level).ok(),
             Some(FAST_LEVEL)
         );
+    }
+
+    #[test]
+    fn a_delta_rebuilds_the_new_file_from_the_old_one() {
+        let old: Vec<u8> = (0..300_000u32)
+            .map(|i| (i.wrapping_mul(2_654_435_761) >> 13) as u8)
+            .collect();
+        let mut new = old.clone();
+        new[150_000..150_100].fill(7);
+        new.extend_from_slice(b"appended");
+        let patch = delta(&old, &new).unwrap_or_default();
+        assert!(patch.len() < 2_000, "delta of {} bytes", patch.len());
+        assert!(apply_delta(&old, &patch, new.len() as u64).is_ok_and(|out| out == new));
+        // Another prefix gives other bytes or a checksum error; the launcher's SHA-256 check is what
+        // proves the file (one byte the delta never copies would not change the output).
+        let other = vec![0u8; old.len()];
+        assert!(
+            apply_delta(&other, &patch, new.len() as u64).is_ok_and(|out| out != new)
+                || apply_delta(&other, &patch, new.len() as u64).is_err()
+        );
+    }
+
+    #[test]
+    fn delta_bounds() {
+        assert_eq!(delta_window_log(64 << 20, 64 << 20), 27);
+        assert_eq!(delta_window_log(10, 10), 10);
+        assert!(delta_worth(49, 100) && !delta_worth(50, 100));
+        assert!(delta(&vec![0u8; (DELTA_MAX_FILE + 1) as usize], b"x").is_err());
     }
 
     #[test]
