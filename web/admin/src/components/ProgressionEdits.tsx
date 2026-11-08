@@ -39,7 +39,8 @@ async function reachPlan(cid: string, level: number): Promise<ReachPlan> {
     params: { path: { cid }, query: { level } },
   });
   if (!data) fail(response, error);
-  return data;
+  // openapi-fetch widens the `phase_changes` tuples ([string, string][]) to string[][]; the schema is the same.
+  return data as ReachPlan;
 }
 
 const SKIP_REASON: Record<string, string> = {

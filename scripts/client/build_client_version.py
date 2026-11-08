@@ -42,7 +42,8 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = Path(__file__).resolve().parent
 ORIGINAL = WORKSPACE / 'Vindictus1.69EN/Vindictus EU/en-EU'
 KEYSTREAM = ROOT / '.cache/play-client/hfs-keystream.bin'   # read only; derived once (hfs.py keystream)
-KEYSTREAM_SHA256 = '8af3e7e346c5a22d2c2f8584234ef16183fd6421547841fb114120ab7e23ab5b'
+STATE_NAME = 'client-build.json'   # lab-backup/<this> marks a tree built with keep_state
+KEYSTREAM_SHA256 ='8af3e7e346c5a22d2c2f8584234ef16183fd6421547841fb114120ab7e23ab5b'
 NMCOGAME = ROOT / 'tools/nmcogame/target/i686-win7-windows-msvc/release/nmcogame.dll'  # tools/nmcogame/build.ps1
 HASH_CACHE = ROOT / '.cache/client-versions/original-sha256.json'
 # Lab endpoint (prepare_lab_client.py defaults: the frontend of scripts/dev/start-lab-frontend.ps1).
@@ -124,7 +125,10 @@ def original_hashes(original: Path, files: dict[str, os.stat_result]) -> dict[st
 
 def git_state() -> dict:
     def git(*args: str) -> str:
-        return subprocess.run(['git', *args], cwd=ROOT, capture_output=True, text=True, check=False).stdout.strip()
+        try:
+            return subprocess.run(['git', *args], cwd=ROOT, capture_output=True, text=True, check=False).stdout.strip()
+        except OSError:  # the client builder image has no git: the image records the commit
+            return os.environ.get('VINDICTUS_RECIPE_COMMIT', '') if args[0] == 'rev-parse' else ''
     return {'commit': git('rev-parse', 'HEAD'),
             'dirty_recipe_files': git('status', '--porcelain', '--', 'scripts/client', 'scripts/content').splitlines()}
 
@@ -198,12 +202,12 @@ def base_costume(original: Path, keystream: bytes, work: Path):
 
 def build(version: int, out: Path, original: Path = ORIGINAL, keystream: Path = KEYSTREAM, edits: Path | None = None,
           nmcogame: Path = NMCOGAME, keep_test_items: bool = False, report: Path | None = None,
-          link_from: Path | None = None, endpoint_host: str = '127.0.0.1') -> dict:
+          link_from: Path | None = None, endpoint_host: str = '127.0.0.1', keep_state: bool = False) -> dict:
+    """keep_state: the server's client tree (game-launcher.md 4.10): the backups and lab-backup/ stay so
+    refresh() can apply the content again; no per-file report (the client builder hashes the tree)."""
     sys.path.insert(0, str(ROOT / 'scripts/content'))
     import apply_delia_creation_movie
-    import apply_lab_content_additions
     import content_edits
-    import hfs
     import prepare_lab_client
     import recover_mss32
     classes = class_layers.VERSIONS[version]
@@ -254,15 +258,69 @@ def build(version: int, out: Path, original: Path = ORIGINAL, keystream: Path = 
         if 'delia' in classes:
             result['steps']['delia_movie'] = apply_delia_creation_movie.apply(out, keystream, True)
         # 6. Content of the layer: shops, panel edits, items, collabs, classes, packs and index.
-        ks = hfs.load_keystream(keystream)
-        with base_costume(original, ks, work) as costume_sha:
-            plan = apply_lab_content_additions.apply(
-                out, True, edits=content_edits.load(edits), keystream=keystream, classes=classes,
-                exclude_items=() if keep_test_items else TEST_ITEMS)
-        result['steps']['content'] = {'base_costume_sha256': costume_sha, 'edits': str(edits),
-                                      'edits_sha256': sha256_file(edits) if edits.is_file() else None, **plan}
+        result['steps']['content'] = apply_content(out, classes, original, keystream, edits, keep_test_items, work)
 
-    # 7. The build's leftovers leave the folder (backups, lab-backup/, reports).
+    if keep_state:
+        # The server's client tree (client builder, game-launcher.md 4.10): the backups stay, so the content
+        # step can run again over it (refresh); the distributed files are those outside the exclusions.
+        (out / 'lab-backup').mkdir(exist_ok=True)
+        (out / 'lab-backup' / STATE_NAME).write_bytes(json.dumps(
+            {'version': version, 'keep_test_items': keep_test_items, 'commit': result['git']['commit']}).encode('utf-8'))
+    removed = [] if keep_state else prune(out)
+    result['steps']['pruned'] = sorted(removed)
+    if keep_state:
+        result['totals'] = {'seconds': round(time.time() - started)}
+        report = out.parent / f'{out.name}.report.json' if report is None else report
+        report.write_bytes(json.dumps(result, indent=1).encode('utf-8'))
+        return result
+
+    # 8. Report: every file, which ones differ from the original, the player's files.
+    return finish_report(result, out, original, source, copied, after_copy, started, report, link_from)
+
+
+def apply_content(out: Path, classes: tuple[str, ...], original: Path, keystream: Path, edits: Path,
+                  keep_test_items: bool, work: Path) -> dict:
+    """Step 6: shops, panel edits, items, collabs, classes, packs and index (idempotent: the packs and the
+    database come back from the backups the first run kept, then the edits go on top)."""
+    import apply_lab_content_additions
+    import content_edits
+    import hfs
+    ks = hfs.load_keystream(keystream)
+    with base_costume(original, ks, work) as costume_sha:
+        plan = apply_lab_content_additions.apply(
+            out, True, edits=content_edits.load(edits), keystream=keystream, classes=classes,
+            exclude_items=() if keep_test_items else TEST_ITEMS)
+    return {'base_costume_sha256': costume_sha, 'edits': str(edits),
+            'edits_sha256': sha256_file(edits) if edits.is_file() else None, **plan}
+
+
+def refresh(out: Path, original: Path = ORIGINAL, keystream: Path = KEYSTREAM, edits: Path | None = None) -> dict:
+    """Runs only the content step again over a tree built with keep_state (the server's client tree): the
+    published panel edits change heroes.db3, the item packs and the index without rebuilding the client."""
+    sys.path.insert(0, str(ROOT / 'scripts/content'))
+    import content_edits
+    out = reject_original(out)
+    marker = out / 'lab-backup' / STATE_NAME
+    if not marker.is_file():
+        raise PreparationError(f'{out} was not built with --keep-state (no lab-backup/{STATE_NAME}).')
+    state = json.loads(marker.read_text(encoding='utf-8'))
+    version = int(state['version'])
+    classes = class_layers.VERSIONS[version]
+    for path, what in ((original / 'bin/client.dll', 'the 1.69 EU original'), (keystream, 'the pack keystream')):
+        if not path.is_file():
+            raise PreparationError(f'Missing {what}: {path}.')
+    if sha256_file(keystream) != KEYSTREAM_SHA256:
+        raise PreparationError('The keystream differs from the recorded one.')
+    edits = content_edits.EDITS if edits is None else edits
+    started = time.time()
+    with tempfile.TemporaryDirectory(prefix=f'client-refresh-v{version}-', dir=out.parent) as tmp:
+        content = apply_content(out, classes, original, keystream, edits, bool(state.get('keep_test_items')), Path(tmp))
+    return {'version': version, 'classes': list(classes), 'out': str(out), 'git': git_state(),
+            'steps': {'content': content}, 'totals': {'seconds': round(time.time() - started)}}
+
+
+def prune(out: Path) -> list[str]:
+    """Step 7: the build's leftovers leave the folder (backups, lab-backup/, reports)."""
     removed = []
     for folder, dirs, files in os.walk(out, topdown=False):
         rel = Path(folder).relative_to(out).as_posix()
@@ -274,9 +332,12 @@ def build(version: int, out: Path, original: Path = ORIGINAL, keystream: Path = 
         if rel != '.' and Path(folder).name in EXCLUDED_DIRS:
             shutil.rmtree(folder)
             removed.append(rel + '/')
-    result['steps']['pruned'] = sorted(removed)
+    return removed
 
-    # 8. Report: every file, which ones differ from the original, the player's files.
+
+def finish_report(result: dict, out: Path, original: Path, source: dict, copied: dict, after_copy: dict,
+                  started: float, report: Path | None, link_from: Path | None) -> dict:
+    """Step 8: every file, which ones differ from the original, the player's files."""
     hashes = original_hashes(original, {p: st for p, st in source.items() if p in copied})
     files, differ = {}, {}
     for path, st in sorted(tree(out).items()):
@@ -322,8 +383,13 @@ def link_identical(out: Path, files: dict, previous: Path) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--version', type=int, choices=sorted(class_layers.VERSIONS), required=True)
+    parser.add_argument('--version', type=int, choices=sorted(class_layers.VERSIONS),
+                        help='layer to build (required unless --refresh)')
     parser.add_argument('--out', type=Path, required=True, help='new folder (e.g. .cache/client-versions/v3)')
+    parser.add_argument('--keep-state', action='store_true',
+                        help="the server's client tree: keep the backups so --refresh can apply the content again")
+    parser.add_argument('--refresh', action='store_true',
+                        help='only the content step again, over a tree built with --keep-state')
     parser.add_argument('--original', type=Path, default=ORIGINAL, help='1.69 EU client (read only)')
     parser.add_argument('--keystream', type=Path, default=KEYSTREAM)
     parser.add_argument('--edits', type=Path, help='published panel edits (default: content_edits.EDITS)')
@@ -336,14 +402,19 @@ def main() -> int:
     parser.add_argument('--link-from', type=Path,
                         help='an earlier version folder (with its report): identical files become read-only hard links')
     args = parser.parse_args()
+    if args.version is None and not args.refresh:
+        parser.error('--version is required unless --refresh')
     try:
-        result = build(args.version, args.out, args.original, args.keystream, args.edits, args.nmcogame,
-                       args.keep_test_items, args.report, args.link_from, args.endpoint_host)
+        if args.refresh:
+            result = refresh(args.out, args.original, args.keystream, args.edits)
+        else:
+            result = build(args.version, args.out, args.original, args.keystream, args.edits, args.nmcogame,
+                           args.keep_test_items, args.report, args.link_from, args.endpoint_host, args.keep_state)
     except (PreparationError, ValueError, OSError) as error:
         print(json.dumps({'built': False, 'error': str(error)}))
         return 2
     print(json.dumps({'built': True, 'version': result['version'], 'totals': result['totals'],
-                      'differ_from_original': result['differ_from_original']}))
+                      'differ_from_original': result.get('differ_from_original', {})}))
     return 0
 
 

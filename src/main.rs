@@ -59,6 +59,9 @@ async fn run(cli: Cli) -> Result<(), Error> {
     if let Command::ClientDist { command } = &cli.command {
         return client_dist(command.clone()).await;
     }
+    if let Command::ClientBuilder { command } = &cli.command {
+        return client_builder(command.clone()).await;
+    }
     if let Command::ProbeFrontend { bind } = &cli.command {
         if !bind.ip().is_loopback() {
             return Err(vindictus_server::infrastructure::frontend::ProbeError::NonLoopback.into());
@@ -330,6 +333,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
         admin_private_assets,
         admin_client_dist,
         admin_client_dist_keys,
+        admin_client_staging,
         item_content_stamp,
         shop_list_output,
         content_edits_output,
@@ -563,6 +567,9 @@ async fn run(cli: Cli) -> Result<(), Error> {
                 if let (Some(store), Some(keys)) = (admin_client_dist, admin_client_dist_keys) {
                     state = state.with_client_dist(store.clone(), keys.clone());
                 }
+                if let Some(staging) = admin_client_staging {
+                    state = state.with_client_staging(staging.clone());
+                }
                 let app = admin::router(state, admin_ui_dir.as_deref());
                 Some(tokio::spawn(admin::serve(admin_listener, app)))
             }
@@ -776,6 +783,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
     let pool = postgres::pool(&config)?;
     match cli.command {
         Command::ClientDist { .. }
+        | Command::ClientBuilder { .. }
         | Command::ProbeFrontend { .. }
         | Command::InspectRewardPolicy { .. }
         | Command::InspectFionaInventory { .. }
@@ -1259,6 +1267,47 @@ async fn maintenance_stop(
         version = plan.version,
         "scheduled maintenance reached; stopping to apply the content version"
     );
+}
+
+/// The client builder (docs/future/game-launcher.md 4.10): the service, or the one-time seed.
+async fn client_builder(command: vindictus_server::cli::ClientBuilderCommand) -> Result<(), Error> {
+    use vindictus_server::application::client_builder::{self as builder, BuilderPaths};
+    use vindictus_server::cli::{ClientBuilderArgs, ClientBuilderCommand};
+    use vindictus_server::infrastructure::client_tree::ServerDirs;
+    let paths = |args: ClientBuilderArgs| BuilderPaths {
+        store: args.store,
+        server: ServerDirs {
+            root: args.server_dir,
+        },
+        recipe: args.recipe,
+        edits: args.edits,
+        python: args.python,
+    };
+    let config = Config::from_env()?;
+    let pool = postgres::pool(&config)?;
+    postgres::check_ready(&pool).await?;
+    let failed = |error: builder::BuildError| Error::Configuration(error.to_string());
+    let result = match command {
+        ClientBuilderCommand::Worker { paths: args } => {
+            tracing::info!("client builder ready");
+            builder::worker(pool.clone(), paths(args), shutdown())
+                .await
+                .map_err(failed)
+        }
+        ClientBuilderCommand::Seed {
+            paths: args,
+            layer,
+            nmcogame,
+        } => builder::seed(&pool, &paths(args), layer, &nmcogame)
+            .await
+            .map(|outcome| {
+                println!("{}", serde_json::to_string(&outcome).unwrap_or_default());
+                tracing::info!(message = %outcome.message(), "client builder: seed done");
+            })
+            .map_err(failed),
+    };
+    pool.close().await;
+    result
 }
 
 async fn client_dist(command: vindictus_server::cli::ClientDistCommand) -> Result<(), Error> {

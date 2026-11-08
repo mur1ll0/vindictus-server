@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import ipaddress
 import json
+import os
 import sqlite3
 from contextlib import contextmanager
 
@@ -24,7 +25,10 @@ import uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 
-WORKSPACE = Path(__file__).resolve().parents[3]
+# The folder holding the read-only evidence (Vindictus1.69EN, Client, ServidorVindictus, TutorialRagezone).
+# The client builder container points it at the server's imported copy (VINDICTUS_WORKSPACE,
+# docs/future/game-launcher.md 4.10).
+WORKSPACE = Path(os.environ.get('VINDICTUS_WORKSPACE') or Path(__file__).resolve().parents[3])
 ORIGINAL_ROOTS = tuple(WORKSPACE / name for name in ('Client','Vindictus1.69EN','ServidorVindictus','Tools','TutorialRagezone'))
 
 class PreparationError(ValueError):

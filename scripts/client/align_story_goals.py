@@ -18,7 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from prepare_lab_client import PreparationError, connect, reject_original  # noqa: E402
 
-WORKSPACE = Path(__file__).resolve().parents[3]
+from prepare_lab_client import WORKSPACE  # noqa: E402  (VINDICTUS_WORKSPACE)
 SERVER_DATABASE = WORKSPACE / 'ServidorVindictus/Server/zh-tw-x-gm/Bin/heroesContents.db3'
 
 

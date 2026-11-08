@@ -13,6 +13,48 @@ pub struct Cli {
     pub command: Command,
 }
 
+/// Folders of the client builder service (docs/future/game-launcher.md 4.10).
+#[derive(Debug, Clone, clap::Args)]
+pub struct ClientBuilderArgs {
+    /// The update store (read only).
+    #[arg(long)]
+    pub store: PathBuf,
+    /// The server's client data (`${CLIENT_SERVER_DIR}`): work/, staging/, build-state/, inputs/workspace.
+    #[arg(long)]
+    pub server_dir: PathBuf,
+    /// The recipe (scripts/client and scripts/content) inside the image.
+    #[arg(long, default_value = "/app/recipe")]
+    pub recipe: PathBuf,
+    /// The published panel content the game writes at start (content-state/content-edits.json).
+    #[arg(long)]
+    pub edits: PathBuf,
+    #[arg(long, default_value = "python3")]
+    pub python: PathBuf,
+}
+
+/// Subcommands of `client-builder`. Both open the database (the drafts and jobs).
+#[derive(Debug, Clone, Subcommand)]
+pub enum ClientBuilderCommand {
+    /// The service: applies the published panel content to the server's client when the panel asks,
+    /// and puts what changed in the draft of the next version.
+    Worker {
+        #[command(flatten)]
+        paths: ClientBuilderArgs,
+    },
+    /// One-time build of the server's client tree from the imported 1.69 original (after
+    /// scripts/dev/import-client-base.ps1); what differs from the published version goes to the draft.
+    Seed {
+        #[command(flatten)]
+        paths: ClientBuilderArgs,
+        /// Layer of the recipe (3 = base + Delia + Miri).
+        #[arg(long, default_value_t = 3)]
+        layer: u8,
+        /// The Messenger DLL (tools/nmcogame), imported with the original.
+        #[arg(long)]
+        nmcogame: PathBuf,
+    },
+}
+
 /// Subcommands of `client-dist`. None opens the database.
 #[derive(Debug, Clone, Subcommand)]
 pub enum ClientDistCommand {
@@ -159,6 +201,10 @@ pub enum Command {
         /// The folder of the store's private key (client-dist keygen), mounted only into the panel.
         #[arg(long, requires = "admin_client_dist")]
         admin_client_dist_keys: Option<std::path::PathBuf>,
+        /// Client version drafts (docs/future/game-launcher.md 4.10): the staging folder of the server's
+        /// client data (`${CLIENT_SERVER_DIR}/staging`), where uploaded files wait for publishing.
+        #[arg(long, requires = "admin_client_dist")]
+        admin_client_staging: Option<std::path::PathBuf>,
         /// Item editor: the host's item export stamp (.cache/private-content/item-content.json,
         /// scripts/content/refresh_item_content.py). A published item version newer than it
         /// is not recorded as applied at start.
@@ -250,6 +296,11 @@ pub enum Command {
     ClientDist {
         #[command(subcommand)]
         command: ClientDistCommand,
+    },
+    /// The server's client tree and the drafts of the next version (docs/future/game-launcher.md 4.10).
+    ClientBuilder {
+        #[command(subcommand)]
+        command: ClientBuilderCommand,
     },
     /// Read-only reward diagnostic. Reads private policy from stdin and prints counts/digest only.
     InspectRewardPolicy {

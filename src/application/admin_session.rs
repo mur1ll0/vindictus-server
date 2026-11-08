@@ -89,6 +89,10 @@ pub enum AdminError {
     Unchanged(&'static str),
     #[error("panel storage unavailable")]
     Unavailable(#[from] sqlx::Error),
+    /// A client version change the store refused (docs/future/game-launcher.md 4.10); the message is
+    /// the store's own reason, in Portuguese, without host paths.
+    #[error("client change refused: {0}")]
+    ClientRefused(String),
 }
 
 /// Fixed-window attempt counters per peer and per account name, in process memory.

@@ -29,12 +29,12 @@ pub enum StoreError {
     Refused(String),
 }
 
-fn refused(message: impl Into<String>) -> StoreError {
+pub(crate) fn refused(message: impl Into<String>) -> StoreError {
     StoreError::Refused(message.into())
 }
 
 /// Writes through a temporary name in the same folder and renames, so a reader never sees half a file.
-fn write_atomic(path: &Path, data: &[u8]) -> Result<(), StoreError> {
+pub(crate) fn write_atomic(path: &Path, data: &[u8]) -> Result<(), StoreError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -70,7 +70,7 @@ pub fn keygen(keys: &Path) -> Result<String, StoreError> {
     Ok(public)
 }
 
-fn load_key(keys: &Path) -> Result<ed25519_dalek::SigningKey, StoreError> {
+pub(crate) fn load_key(keys: &Path) -> Result<ed25519_dalek::SigningKey, StoreError> {
     let seed = zeroize::Zeroizing::new(fs::read(keys.join(PRIVATE_KEY))?);
     Ok(sign::signing_key(&seed)?)
 }
@@ -113,7 +113,7 @@ pub fn tree_files(root: &Path) -> Result<Vec<String>, StoreError> {
     Ok(out)
 }
 
-fn read_pointer(
+pub(crate) fn read_pointer(
     store: &Path,
     key: &ed25519_dalek::VerifyingKey,
 ) -> Result<Option<VersionPointer>, StoreError> {
@@ -167,7 +167,7 @@ pub struct PublishReport {
 }
 
 /// The previous version's manifest, checked against the key.
-fn read_manifest(
+pub(crate) fn read_manifest(
     store: &Path,
     version: u32,
     key: &ed25519_dalek::VerifyingKey,
@@ -183,17 +183,17 @@ fn read_manifest(
     Ok(Manifest::parse(&bytes)?)
 }
 
-struct DeltaPlan {
-    deltas: Vec<Delta>,
-    bytes: u64,
-    changed_without_delta: usize,
-    update_download_bytes: u64,
+pub(crate) struct DeltaPlan {
+    pub(crate) deltas: Vec<Delta>,
+    pub(crate) bytes: u64,
+    pub(crate) changed_without_delta: usize,
+    pub(crate) update_download_bytes: u64,
 }
 
 /// Deltas from `previous` for the files that changed at the same path (docs/future/game-launcher.md 4.3
 /// item 4): old and new up to codec::DELTA_MAX_FILE, not the HFS index (its zlib changes everywhere), kept
 /// only below codec::DELTA_KEEP_PERCENT of the object. The old form comes from the store's object.
-fn plan_deltas(
+pub(crate) fn plan_deltas(
     store: &Path,
     previous: &Manifest,
     files: &[FileEntry],
@@ -263,7 +263,7 @@ struct Stored {
 }
 
 /// Object of `data` (already the final file): transformed, compressed and written unless the store has it.
-fn store_object(
+pub(crate) fn store_object(
     store: &Path,
     sha: &str,
     mut data: Vec<u8>,
@@ -852,7 +852,7 @@ mod tests {
 
 /// Signs and writes `versao.json` (the signature first: a reader never pairs the new pointer with an
 /// old signature that verifies).
-fn write_pointer(
+pub(crate) fn write_pointer(
     store: &Path,
     key: &ed25519_dalek::SigningKey,
     pointer: &VersionPointer,
@@ -867,7 +867,7 @@ fn write_pointer(
     Ok(())
 }
 
-fn current_pointer(
+pub(crate) fn current_pointer(
     store: &Path,
     key: &ed25519_dalek::SigningKey,
 ) -> Result<VersionPointer, StoreError> {

@@ -56,6 +56,8 @@ pub struct AdminState {
     item_stamp: Option<std::sync::Arc<std::path::PathBuf>>,
     /// Update store and key folder of "Versões do cliente" (L5).
     client_dist: Option<std::sync::Arc<crate::infrastructure::client_dist_store::StorePaths>>,
+    /// Staging folder of client version drafts (`${CLIENT_SERVER_DIR}/staging`, game-launcher.md 4.10).
+    client_staging: Option<std::sync::Arc<std::path::PathBuf>>,
 }
 
 impl AdminState {
@@ -71,7 +73,13 @@ impl AdminState {
             private_assets: None,
             item_stamp: None,
             client_dist: None,
+            client_staging: None,
         }
+    }
+    /// Client version drafts: where uploaded files wait for publishing.
+    pub fn with_client_staging(mut self, staging: std::path::PathBuf) -> Self {
+        self.client_staging = Some(std::sync::Arc::new(staging));
+        self
     }
     /// "Versões do cliente": the update store (read and written) and the folder of its private key.
     pub fn with_client_dist(mut self, store: std::path::PathBuf, keys: std::path::PathBuf) -> Self {
@@ -194,7 +202,15 @@ impl AdminState {
         client_versions::set_minimum,
         client_versions::withdraw,
         client_versions::add_news,
-        client_versions::set_news_hidden
+        client_versions::set_news_hidden,
+        client_versions::draft,
+        client_versions::files,
+        client_versions::upload_file,
+        client_versions::remove_file,
+        client_versions::drop_change,
+        client_versions::discard,
+        client_versions::request_content,
+        client_versions::publish_draft
     ),
     components(schemas(
         models::ItemModel,
@@ -300,7 +316,17 @@ impl AdminState {
         client_versions::Withdrawn,
         client_versions::NewNews,
         client_versions::NewsCreated,
-        client_versions::NewsVisibility
+        client_versions::NewsVisibility,
+        crate::application::client_drafts::DraftView,
+        crate::application::client_drafts::PublishedFile,
+        crate::infrastructure::client_drafts::DraftRow,
+        crate::infrastructure::client_drafts::ItemRow,
+        crate::infrastructure::client_drafts::JobRow,
+        client_versions::DraftPath,
+        client_versions::DraftOperation,
+        client_versions::JobQueued,
+        client_versions::PublishDraft,
+        client_versions::DraftPublished
     ))
 )]
 pub struct ApiDoc;
@@ -409,6 +435,24 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
             "/api/client-versions/news/{id}/hidden",
             post(client_versions::set_news_hidden),
         )
+        .route("/api/client-versions/draft", get(client_versions::draft))
+        .route("/api/client-versions/files", get(client_versions::files))
+        .route(
+            "/api/client-versions/draft/remove",
+            post(client_versions::remove_file),
+        )
+        .route(
+            "/api/client-versions/draft/drop",
+            post(client_versions::drop_change),
+        )
+        .route(
+            "/api/client-versions/draft/discard",
+            post(client_versions::discard),
+        )
+        .route(
+            "/api/client-versions/draft/content",
+            post(client_versions::request_content),
+        )
         .route("/api/item-editor/items", get(items::list).post(items::save))
         .route("/api/item-editor/costumes", get(items::costumes))
         .route("/api/item-editor/items/{item_class}", get(items::detail))
@@ -472,7 +516,31 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
             Duration::from_secs(120),
         ))
         .with_state(state.clone());
-    let api = icons.merge(kits).merge(api);
+    // Client version drafts (game-launcher.md 4.10): a client file up to 256 MiB; publishing compresses the
+    // changed files and computes deltas, which can take minutes for large packs.
+    let client_files = Router::new()
+        .route(
+            "/api/client-versions/draft/file",
+            axum::routing::put(client_versions::upload_file),
+        )
+        .route(
+            "/api/client-versions/draft/publish",
+            post(client_versions::publish_draft),
+        )
+        .layer(SetResponseHeaderLayer::overriding(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("no-store"),
+        ))
+        .layer(DefaultBodyLimit::max(
+            usize::try_from(crate::infrastructure::client_tree::MAX_STAGED_FILE)
+                .unwrap_or(usize::MAX),
+        ))
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            Duration::from_secs(900),
+        ))
+        .with_state(state.clone());
+    let api = icons.merge(kits).merge(client_files).merge(api);
     let app = match ui_dir {
         Some(dir) => api
             .fallback_service(ServeDir::new(dir).fallback(ServeFile::new(dir.join("index.html")))),
@@ -504,7 +572,7 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
 pub struct ApiError {
     /// Stable machine-readable code.
     code: &'static str,
-    message: &'static str,
+    message: String,
 }
 
 enum Refusal {
@@ -521,140 +589,156 @@ impl From<AdminError> for Refusal {
 
 impl IntoResponse for Refusal {
     fn into_response(self) -> Response {
-        let (status, code, message) = match self {
-            Self::Csrf => (
-                StatusCode::FORBIDDEN,
-                "csrf",
-                "Recarregue a página e tente de novo.",
-            ),
-            Self::Origin => (
-                StatusCode::FORBIDDEN,
-                "origem_recusada",
-                "Origem da requisição recusada.",
-            ),
-            Self::Admin(error) => match error {
-                AdminError::InvalidCredentials => (
-                    StatusCode::UNAUTHORIZED,
-                    "credenciais_invalidas",
-                    "Login ou senha inválidos, ou conta sem acesso ao painel.",
-                ),
-                AdminError::RateLimited => (
-                    StatusCode::TOO_MANY_REQUESTS,
-                    "muitas_tentativas",
-                    "Muitas tentativas. Aguarde um minuto.",
-                ),
-                AdminError::Busy => (
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    "autenticacao_ocupada",
-                    "Autenticação ocupada. Tente de novo.",
-                ),
-                AdminError::Unauthenticated => (
-                    StatusCode::UNAUTHORIZED,
-                    "sessao_encerrada",
-                    "Sessão encerrada. Entre de novo.",
-                ),
-                AdminError::Forbidden => (
-                    StatusCode::FORBIDDEN,
-                    "papel_insuficiente",
-                    "Seu papel não permite esta ação.",
-                ),
-                AdminError::InvalidInput => (
-                    StatusCode::BAD_REQUEST,
-                    "entrada_invalida",
-                    "Dados inválidos.",
-                ),
-                AdminError::NotFound => {
-                    (StatusCode::NOT_FOUND, "nao_encontrado", "Não encontrado.")
-                }
-                AdminError::Exists => (
-                    StatusCode::CONFLICT,
-                    "conta_existente",
-                    "Já existe uma conta com esse login.",
-                ),
-                AdminError::RepeatedOperation => (
-                    StatusCode::CONFLICT,
-                    "operacao_repetida",
-                    "Esta operação já foi aplicada.",
-                ),
-                AdminError::Online => (
-                    StatusCode::CONFLICT,
-                    "precisa_estar_offline",
-                    "O personagem está no jogo. Saia do jogo (ou desconecte) e tente de novo.",
-                ),
-                AdminError::ItemRefused(name) => {
-                    (StatusCode::CONFLICT, "item_recusado", item_refusal(&name))
-                }
-                AdminError::NotEditable => (
-                    StatusCode::BAD_REQUEST,
-                    "fora_do_perfil",
-                    "O jogo recusou a mudança: item inválido para essa operação, ou personagem fora do perfil do laboratório (o motivo fica no log do servidor).",
-                ),
-                AdminError::ContentUnavailable => (
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    "conteudo_indisponivel",
-                    "O conteúdo de itens do servidor não está carregado.",
-                ),
-                AdminError::Unchanged(why) => (
-                    StatusCode::CONFLICT,
-                    "sem_mudanca",
-                    match why {
-                        "nivel" => {
-                            "Nível alvo inválido: precisa ser maior que o atual e até o nível máximo."
+        let (status, code, message): (StatusCode, &'static str, String) = match self {
+            // A refused client version change says why (the store's own message, never a path outside the client).
+            Self::Admin(AdminError::ClientRefused(text)) => {
+                (StatusCode::CONFLICT, "cliente_recusado", text)
+            }
+            other => {
+                let (status, code, message) = match other {
+                    Self::Csrf => (
+                        StatusCode::FORBIDDEN,
+                        "csrf",
+                        "Recarregue a página e tente de novo.",
+                    ),
+                    Self::Origin => (
+                        StatusCode::FORBIDDEN,
+                        "origem_recusada",
+                        "Origem da requisição recusada.",
+                    ),
+                    Self::Admin(error) => match error {
+                        AdminError::InvalidCredentials => (
+                            StatusCode::UNAUTHORIZED,
+                            "credenciais_invalidas",
+                            "Login ou senha inválidos, ou conta sem acesso ao painel.",
+                        ),
+                        AdminError::RateLimited => (
+                            StatusCode::TOO_MANY_REQUESTS,
+                            "muitas_tentativas",
+                            "Muitas tentativas. Aguarde um minuto.",
+                        ),
+                        AdminError::Busy => (
+                            StatusCode::SERVICE_UNAVAILABLE,
+                            "autenticacao_ocupada",
+                            "Autenticação ocupada. Tente de novo.",
+                        ),
+                        AdminError::Unauthenticated => (
+                            StatusCode::UNAUTHORIZED,
+                            "sessao_encerrada",
+                            "Sessão encerrada. Entre de novo.",
+                        ),
+                        AdminError::Forbidden => (
+                            StatusCode::FORBIDDEN,
+                            "papel_insuficiente",
+                            "Seu papel não permite esta ação.",
+                        ),
+                        AdminError::InvalidInput => (
+                            StatusCode::BAD_REQUEST,
+                            "entrada_invalida",
+                            "Dados inválidos.",
+                        ),
+                        AdminError::NotFound => {
+                            (StatusCode::NOT_FOUND, "nao_encontrado", "Não encontrado.")
                         }
-                        "sem_pendentes" => "Não há edições pendentes para publicar.",
-                        "mover" => "O item já está nesse espaço.",
-                        "organizar" => "O inventário já está organizado.",
-                        "manutencao" => {
-                            "Já há uma manutenção agendada; cancele-a ou espere o reinício."
+                        AdminError::Exists => (
+                            StatusCode::CONFLICT,
+                            "conta_existente",
+                            "Já existe uma conta com esse login.",
+                        ),
+                        AdminError::RepeatedOperation => (
+                            StatusCode::CONFLICT,
+                            "operacao_repetida",
+                            "Esta operação já foi aplicada.",
+                        ),
+                        AdminError::Online => (
+                            StatusCode::CONFLICT,
+                            "precisa_estar_offline",
+                            "O personagem está no jogo. Saia do jogo (ou desconecte) e tente de novo.",
+                        ),
+                        AdminError::ItemRefused(name) => {
+                            (StatusCode::CONFLICT, "item_recusado", item_refusal(&name))
                         }
-                        "item_base" => {
-                            "Itens base não são removidos: oculte o item ou restaure os valores originais."
+                        AdminError::NotEditable => (
+                            StatusCode::BAD_REQUEST,
+                            "fora_do_perfil",
+                            "O jogo recusou a mudança: item inválido para essa operação, ou personagem fora do perfil do laboratório (o motivo fica no log do servidor).",
+                        ),
+                        AdminError::ContentUnavailable => (
+                            StatusCode::SERVICE_UNAVAILABLE,
+                            "conteudo_indisponivel",
+                            "O conteúdo de itens do servidor não está carregado.",
+                        ),
+                        AdminError::Unchanged(why) => (
+                            StatusCode::CONFLICT,
+                            "sem_mudanca",
+                            match why {
+                                "nivel" => {
+                                    "Nível alvo inválido: precisa ser maior que o atual e até o nível máximo."
+                                }
+                                "sem_pendentes" => "Não há edições pendentes para publicar.",
+                                "mover" => "O item já está nesse espaço.",
+                                "organizar" => "O inventário já está organizado.",
+                                "manutencao" => {
+                                    "Já há uma manutenção agendada; cancele-a ou espere o reinício."
+                                }
+                                "item_base" => {
+                                    "Itens base não são removidos: oculte o item ou restaure os valores originais."
+                                }
+                                "item_existente" => "Já existe um item com essa classe.",
+                                "item_igual" => "Nada mudou em relação ao item atual.",
+                                "kit_invalido" => {
+                                    "Kit inválido: precisa ser o zip do add-on (kit.json, só models/ e materials/, sem caminhos fora deles, até 64 MiB)."
+                                }
+                                "kit_colide" => {
+                                    "Um arquivo do kit já existe no cliente. Exporte o modelo e os materiais com nomes novos no add-on."
+                                }
+                                "kit_outro_modelo" => {
+                                    "O kit não substitui o modelo deste item: exporte-o no add-on com o caminho do modelo original do item (o da prévia)."
+                                }
+                                "kit_de_outro_item" => {
+                                    "Outro item já tem um kit com um destes arquivos. Restaure o modelo dele ou exporte com outro nome."
+                                }
+                                "modelo_sem_secao" => {
+                                    "A categoria do item não tem modelo de roupa no player_costume.txt (use inner, avatar ou armadura)."
+                                }
+                                "sem_costume_type" => {
+                                    "Não há CostumeType livre na faixa do editor."
+                                }
+                                "efeito" => {
+                                    "O jogo recusou o efeito: tipo/nível inexistente, efeito do cliente ou que não pode substituir o atual."
+                                }
+                                _ => {
+                                    "O jogo não fez nenhuma mudança (por exemplo, nível máximo, título já obtido ou AP no limite)."
+                                }
+                            },
+                        ),
+                        AdminError::NotEnough => (
+                            StatusCode::CONFLICT,
+                            "saldo_insuficiente",
+                            "Saldo insuficiente para o débito.",
+                        ),
+                        AdminError::LastAdmin => (
+                            StatusCode::CONFLICT,
+                            "ultimo_admin",
+                            "A última conta admin não pode perder o papel.",
+                        ),
+                        AdminError::Unavailable(_) => {
+                            tracing::warn!("admin panel storage unavailable");
+                            (
+                                StatusCode::SERVICE_UNAVAILABLE,
+                                "indisponivel",
+                                "Banco de dados indisponível.",
+                            )
                         }
-                        "item_existente" => "Já existe um item com essa classe.",
-                        "item_igual" => "Nada mudou em relação ao item atual.",
-                        "kit_invalido" => {
-                            "Kit inválido: precisa ser o zip do add-on (kit.json, só models/ e materials/, sem caminhos fora deles, até 64 MiB)."
-                        }
-                        "kit_colide" => {
-                            "Um arquivo do kit já existe no cliente. Exporte o modelo e os materiais com nomes novos no add-on."
-                        }
-                        "kit_outro_modelo" => {
-                            "O kit não substitui o modelo deste item: exporte-o no add-on com o caminho do modelo original do item (o da prévia)."
-                        }
-                        "kit_de_outro_item" => {
-                            "Outro item já tem um kit com um destes arquivos. Restaure o modelo dele ou exporte com outro nome."
-                        }
-                        "modelo_sem_secao" => {
-                            "A categoria do item não tem modelo de roupa no player_costume.txt (use inner, avatar ou armadura)."
-                        }
-                        "sem_costume_type" => "Não há CostumeType livre na faixa do editor.",
-                        "efeito" => {
-                            "O jogo recusou o efeito: tipo/nível inexistente, efeito do cliente ou que não pode substituir o atual."
-                        }
-                        _ => {
-                            "O jogo não fez nenhuma mudança (por exemplo, nível máximo, título já obtido ou AP no limite)."
-                        }
+                        AdminError::ClientRefused(_) => (
+                            StatusCode::CONFLICT,
+                            "cliente_recusado",
+                            "Mudança do cliente recusada.",
+                        ),
                     },
-                ),
-                AdminError::NotEnough => (
-                    StatusCode::CONFLICT,
-                    "saldo_insuficiente",
-                    "Saldo insuficiente para o débito.",
-                ),
-                AdminError::LastAdmin => (
-                    StatusCode::CONFLICT,
-                    "ultimo_admin",
-                    "A última conta admin não pode perder o papel.",
-                ),
-                AdminError::Unavailable(_) => {
-                    tracing::warn!("admin panel storage unavailable");
-                    (
-                        StatusCode::SERVICE_UNAVAILABLE,
-                        "indisponivel",
-                        "Banco de dados indisponível.",
-                    )
-                }
-            },
+                };
+                (status, code, message.to_owned())
+            }
         };
         // The code is a fixed label; request values and the message's details stay out.
         if code != "sessao_encerrada" {

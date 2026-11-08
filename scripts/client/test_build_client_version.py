@@ -49,6 +49,18 @@ class RulesTest(unittest.TestCase):
         with self.assertRaises(PreparationError):
             recipe.build(1, recipe.ORIGINAL / 'out')
 
+    def test_refresh_needs_a_tree_built_with_keep_state(self):
+        # The server's client tree (client builder): only a tree with lab-backup/client-build.json.
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / 'sql').mkdir()
+            with self.assertRaisesRegex(PreparationError, 'keep-state'):
+                recipe.refresh(Path(tmp))
+        with self.assertRaises(PreparationError):
+            recipe.refresh(recipe.ORIGINAL)
+
+    def test_the_marker_of_the_server_tree_is_never_distributed(self):
+        self.assertTrue(recipe.excluded('lab-backup/' + recipe.STATE_NAME))
+
 
 class LinkTest(unittest.TestCase):
     def test_identical_files_become_read_only_links(self):

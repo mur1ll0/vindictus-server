@@ -297,6 +297,41 @@ pub struct Remote {
     pub pointer: VersionPointer,
 }
 
+/// O que o botão grande faz (atualização obrigatória, pedido do operador de 08/11/2026): com uma versão
+/// publicada mais nova que a da pasta, ou numa pasta sem estado do launcher (cópia manual), "Jogar" vira
+/// "Atualizar" e o jogo não abre até atualizar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayGate {
+    /// Cliente na versão publicada, ou servidor de atualização fora do ar com um cliente registrado.
+    Play,
+    /// Versão publicada mais nova, ou pasta sem estado: atualizar (só baixa a diferença).
+    Update,
+    /// Pasta escolhida sem o jogo: instalar.
+    Install,
+    /// Esperando a versão publicada, ou sem pasta.
+    Wait,
+}
+
+/// `game_folder`: a pasta tem o jogo; `has_folder`: há uma pasta escolhida; `local`: versão do estado;
+/// `remote`: versão publicada (`None` sem resposta); `remote_failed`: o servidor de atualização não respondeu.
+pub fn play_gate(
+    game_folder: bool,
+    has_folder: bool,
+    local: Option<u32>,
+    remote: Option<u32>,
+    remote_failed: bool,
+) -> PlayGate {
+    match (game_folder, local, remote) {
+        (false, _, Some(_)) if has_folder => PlayGate::Install,
+        (false, _, _) => PlayGate::Wait,
+        (true, Some(local), Some(current)) if local >= current => PlayGate::Play,
+        (true, _, Some(_)) => PlayGate::Update,
+        // Sem o servidor de atualização não há como saber: joga quem já tem um cliente registrado.
+        (true, Some(_), None) if remote_failed => PlayGate::Play,
+        (true, _, None) => PlayGate::Wait,
+    }
+}
+
 /// A chave fixada no exe.
 pub fn pinned_key() -> Result<ed25519_dalek::VerifyingKey, UpdateError> {
     Ok(sign::verifying_key(PUBLIC_KEY)?)

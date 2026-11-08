@@ -1409,6 +1409,432 @@
         }
       }
     },
+    "/api/client-versions/draft": {
+      "get": {
+        "tags": [
+          "client_versions"
+        ],
+        "summary": "The open draft of the next client version, its changes and the client builder's jobs.",
+        "operationId": "client_versions_draft",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/client-versions/draft/content": {
+      "post": {
+        "tags": [
+          "client_versions"
+        ],
+        "summary": "Apply the published panel content to the server's client and put what changed in the draft (admin;\nthe client builder service does it in the background).",
+        "operationId": "client_versions_draft_content",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftOperation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobQueued"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/client-versions/draft/discard": {
+      "post": {
+        "tags": [
+          "client_versions"
+        ],
+        "summary": "Discard the open draft (admin).",
+        "operationId": "client_versions_draft_discard",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftOperation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/client-versions/draft/drop": {
+      "post": {
+        "tags": [
+          "client_versions"
+        ],
+        "summary": "Take a path out of the draft (admin).",
+        "operationId": "client_versions_draft_drop",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftPath"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/client-versions/draft/file": {
+      "put": {
+        "tags": [
+          "client_versions"
+        ],
+        "summary": "Add or replace the file at `path` in the draft (admin; body = the file, up to 256 MiB).",
+        "operationId": "client_versions_draft_file",
+        "parameters": [
+          {
+            "name": "operation_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "description": "Game path, relative to the game folder ('/' or '\\').",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemRow"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/client-versions/draft/publish": {
+      "post": {
+        "tags": [
+          "client_versions"
+        ],
+        "summary": "Publish the draft as the next version (admin): the previous version plus its changes; launchers\nmust update before playing.",
+        "operationId": "client_versions_draft_publish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftPublished"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/client-versions/draft/remove": {
+      "post": {
+        "tags": [
+          "client_versions"
+        ],
+        "summary": "Mark a published file for removal in the draft (admin): the launchers delete it.",
+        "operationId": "client_versions_draft_remove",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftPath"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemRow"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/client-versions/files": {
+      "get": {
+        "tags": [
+          "client_versions"
+        ],
+        "summary": "Published files of the current version whose path contains `search` (at most 200).",
+        "operationId": "client_versions_files",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Part of the path (case-insensitive); empty lists the first files.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PublishedFile"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/client-versions/minimum": {
       "post": {
         "tags": [
@@ -4734,6 +5160,78 @@
           }
         }
       },
+      "DraftOperation": {
+        "type": "object",
+        "required": [
+          "operation_id"
+        ],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "DraftPath": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "path"
+        ],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      },
+      "DraftPublished": {
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "DraftRow": {
+        "type": "object",
+        "description": "The open draft.",
+        "required": [
+          "id",
+          "base_version",
+          "created_unix"
+        ],
+        "properties": {
+          "author": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "base_version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The published version it applies to."
+          },
+          "created_unix": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Seconds since the Unix epoch."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "DraftSaved": {
         "type": "object",
         "required": [
@@ -4757,6 +5255,43 @@
           "kind": {
             "type": "string",
             "description": "item (added item) or item_override (base item)."
+          }
+        }
+      },
+      "DraftView": {
+        "type": "object",
+        "description": "The open draft of the next version, its changes and the client builder's recent jobs.",
+        "required": [
+          "items",
+          "jobs",
+          "staging"
+        ],
+        "properties": {
+          "draft": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DraftRow"
+              }
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemRow"
+            }
+          },
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobRow"
+            }
+          },
+          "staging": {
+            "type": "boolean",
+            "description": "The panel can stage files (the server's client folder is mounted)."
           }
         }
       },
@@ -6052,6 +6587,48 @@
           }
         }
       },
+      "ItemRow": {
+        "type": "object",
+        "description": "One change of a draft.",
+        "required": [
+          "path",
+          "action",
+          "source"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "`put` (add or replace) or `remove`."
+          },
+          "before_sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The published file it replaces or removes; none for a new path."
+          },
+          "path": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "size": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "source": {
+            "type": "string",
+            "description": "`upload` (panel) or `content` (the published panel content, applied by the client builder)."
+          }
+        }
+      },
       "ItemTooltip": {
         "type": "object",
         "required": [
@@ -6216,6 +6793,58 @@
             "type": "integer",
             "format": "int64",
             "description": "Items of the class in every storage (bags, equipment, shared storage)."
+          }
+        }
+      },
+      "JobQueued": {
+        "type": "object",
+        "required": [
+          "job"
+        ],
+        "properties": {
+          "job": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "JobRow": {
+        "type": "object",
+        "description": "A client builder job, for the panel.",
+        "required": [
+          "id",
+          "kind",
+          "state",
+          "created_unix"
+        ],
+        "properties": {
+          "created_unix": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "finished_unix": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "description": "`queued`, `running`, `done` or `failed`."
           }
         }
       },
@@ -7042,6 +7671,27 @@
           }
         }
       },
+      "PublishDraft": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "title"
+        ],
+        "properties": {
+          "notes": {
+            "type": "string",
+            "description": "Up to 4000 characters."
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "description": "1-200 characters, shown by the launcher."
+          }
+        }
+      },
       "Published": {
         "type": "object",
         "required": [
@@ -7062,6 +7712,28 @@
           "version": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "PublishedFile": {
+        "type": "object",
+        "description": "One published file, for choosing what to replace or remove.",
+        "required": [
+          "path",
+          "sha256",
+          "size"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -7726,7 +8398,8 @@
           "open",
           "give_quests",
           "titles",
-          "skills"
+          "skills",
+          "phase_changes"
         ],
         "properties": {
           "complete": {
@@ -7749,6 +8422,22 @@
               "type": "string"
             },
             "description": "Storylines opened at their initial phase: the next main ones and the side ones the\ncompleted storylines start."
+          },
+          "phase_changes": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": false,
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "`change_phase` of the completed storylines, in walk order: applied to storylines the\ncharacter has open (not to the completed ones)."
           },
           "skills": {
             "type": "array",

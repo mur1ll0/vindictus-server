@@ -85,3 +85,29 @@ Pré-condição: versão 4 publicada (`scripts/dev/publish-client-version.ps1`, 
 - [ ] Abrir o launcher da pasta `F:\Games\Vindictus1.69` → "Publicada: versão 4" → atualizar → baixa só a pasta `BlackCipher` (≈ 18 MB) → "Cliente na versão 4".
 - [ ] Jogar → o jogo abre sem o aviso do BlackCipher → Start Game → seleção → cidade.
 Relato: a mensagem do launcher e, se o aviso voltar, o conteúdo de `BlackCipher\NGClient.log` da pasta instalada.
+
+### LV11 — atualização obrigatória no outro PC (launcher 0.4.0, 08/11/2026)
+Pedido do operador: com atualização publicada, o launcher não deixa jogar; "Jogar" vira "Atualizar" (`docs/future/game-launcher.md` 4.10).
+Pré-condição: Docker reconstruído (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, depois `docker compose up -d --wait`); launcher 0.4.0 publicado para a autoatualização (`scripts/dev/package-launcher.ps1 -PublicHost <ip>`); no outro PC, o launcher 0.3.0 com o cliente instalado.
+- [ ] Abrir o launcher do outro PC → ele baixa o 0.4.0 e reabre sozinho (sem login aberto) → título ou mensagem com a versão 0.4.0.
+- [ ] Com o cliente na versão publicada → botão "Jogar" → entra no jogo normalmente.
+- [ ] Publicar uma versão nova pelo painel (LV12) com o launcher do outro PC aberto → em até 30 s o botão grande vira "Atualizar"; clicar baixa só o arquivo mudado → "Cliente na versão N" → o botão volta a "Jogar".
+- [ ] Publicar outra versão e clicar em "Jogar" antes dos 30 s → o jogo **não** abre; a mensagem diz "Há uma versão nova do cliente (N): clique em Atualizar antes de jogar" e o botão vira "Atualizar".
+- [ ] Uma pasta copiada à mão (sem `.vindictus-update`) → o botão diz "Atualizar"; clicar confere tudo e baixa só a diferença; depois joga.
+Relato: a versão de cada passo, o texto do botão e, se o jogo abrir desatualizado, o `estado.json` de `.vindictus-update`.
+
+### LV12 — versão nova pelo painel, por arquivo (08/11/2026)
+Pré-condição: Docker reconstruído (o painel tem a seção "Próxima versão"); conta admin.
+- [ ] Painel → Versões do cliente → "Adicionar ou trocar arquivo" → escolher um arquivo pequeno (por exemplo uma `nmcogame.dll` nova, ou um `.txt` de teste em `cfg/lv12-teste.cfg`) → aparece no rascunho como "novo" ou "alterado", origem "manual".
+- [ ] "Remover arquivo" → buscar `lv12` → marcar a remoção de um arquivo de teste publicado antes → aparece como "removido".
+- [ ] "Publicar a versão N+1" com título → a lista de versões mostra N+1 com "atualizar da anterior" de poucos KB e "1 removidos"; o `Vindictus1.69EN` não foi usado (a publicação leva segundos).
+- [ ] No launcher: atualizar baixa só esses arquivos e apaga o removido.
+Relato: o tamanho de "atualizar da anterior", o tempo da publicação e qualquer recusa (a mensagem vem do servidor, por exemplo "já está publicado com este conteúdo").
+
+### LV13 — importação única e "Gerar a partir do conteúdo publicado" (08/11/2026)
+Pré-condição: espaço livre para ≈ 29 GB em `${CLIENT_SERVER_DIR}` (padrão `.cache/client-server`); Docker em execução; `tools/nmcogame/build.ps1` rodado.
+- [ ] `.\scripts\dev\import-client-base.ps1` (≈ 15 min de cópia e ≈ 25 min de montagem; logs em `.cache/verification/client-builder/`) → "Pronto" → `docker compose up -d --wait client-builder`.
+- [ ] Painel → Versões do cliente → o rascunho mostra o que a montagem no contêiner difere da versão publicada (esperado: nada, ou só o conteúdo publicado no painel depois dela). Se aparecerem muitos arquivos, relatar a lista antes de publicar.
+- [ ] Mudar o preço de um item de loja no painel e publicar o conteúdo (manutenção B4.4c) → "Gerar a partir do conteúdo publicado" → em alguns minutos o rascunho traz `sql/heroes.db3` alterado (origem "conteúdo do painel") → publicar → atualizar pelo launcher → o preço novo aparece na loja do NPC.
+- [ ] Clicar de novo em "Gerar a partir do conteúdo publicado" sem mudar nada → rascunho vazio (a reaplicação não muda bytes). Se `sql/heroes.db3` voltar como alterado, relatar (hipótese de não determinismo do SQLite).
+Relato: a mensagem do construtor (linha "Construtor do cliente" do painel) e, em falha, `build-state/refresh.log` ou `seed.log` da pasta do cliente do servidor.

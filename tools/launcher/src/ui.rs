@@ -113,6 +113,8 @@ struct State {
     local: Option<u32>,
     /// Versão publicada e mínima (`versao.json` assinado); `None` sem resposta.
     remote: Option<(u32, u32)>,
+    /// A última consulta ao servidor de atualização falhou.
+    remote_failed: bool,
     /// Instalando, atualizando ou verificando; o flag cancela.
     updating: Option<Arc<AtomicBool>>,
     /// Espelho de `game_running` para a thread da atualização.
@@ -272,15 +274,25 @@ fn refresh() {
         enable(c.logout, idle && !s.game_running);
         let folder_ok = game::is_game_folder(Path::new(&s.config.game_folder));
         let updating = s.updating.is_some();
-        // Abaixo da mínima publicada o jogo não abre; sem estado (cópia antiga) abre, e "Verificar
-        // arquivos" registra a versão.
-        let below_minimum =
-            matches!((s.local, s.remote), (Some(local), Some((_, minimum))) if local < minimum);
+        let has_folder = !s.config.game_folder.is_empty();
+        // Atualização obrigatória: com versão publicada mais nova (ou pasta sem estado), "Jogar" vira
+        // "Atualizar" e o jogo não abre até atualizar.
+        let gate = update::play_gate(
+            folder_ok,
+            has_folder,
+            s.local,
+            s.remote.map(|(current, _)| current),
+            s.remote_failed,
+        );
+        let free = idle && !s.game_running && !updating;
         enable(
             c.play,
-            idle && logged && !s.game_running && folder_ok && !updating && !below_minimum,
+            match gate {
+                update::PlayGate::Play => free && logged,
+                update::PlayGate::Update | update::PlayGate::Install => free,
+                update::PlayGate::Wait => false,
+            },
         );
-        let has_folder = !s.config.game_folder.is_empty();
         let (update_text, update_on) = if updating {
             ("Cancelar", true)
         } else {
@@ -317,8 +329,14 @@ fn refresh() {
             c.play,
             if s.game_running {
                 "Jogo aberto"
+            } else if updating {
+                "Atualizando…"
             } else {
-                "Jogar"
+                match gate {
+                    update::PlayGate::Update => "Atualizar",
+                    update::PlayGate::Install => "Instalar o jogo",
+                    update::PlayGate::Play | update::PlayGate::Wait => "Jogar",
+                }
             },
         );
         set_text(
@@ -461,7 +479,11 @@ fn on_launcher(result: Result<String, String>) {
 }
 
 fn on_remote(remote: Result<(u32, u32), String>) {
-    ST.with(|s| s.borrow_mut().remote = remote.ok());
+    ST.with(|s| {
+        let mut s = s.borrow_mut();
+        s.remote_failed = remote.is_err();
+        s.remote = remote.ok();
+    });
     refresh();
 }
 
@@ -689,14 +711,29 @@ fn start_elevated(folder: &Path, ticket: &str) -> Result<Running, String> {
 }
 
 fn on_play() {
-    let (session, folder, as_admin) = ST.with(|s| {
+    let (session, folder, as_admin, gate, local) = ST.with(|s| {
         let s = s.borrow();
+        let folder = PathBuf::from(&s.config.game_folder);
+        let gate = update::play_gate(
+            game::is_game_folder(&folder),
+            !s.config.game_folder.is_empty(),
+            s.local,
+            s.remote.map(|(current, _)| current),
+            s.remote_failed,
+        );
         (
             s.session.clone(),
-            PathBuf::from(&s.config.game_folder),
+            folder,
             s.config.game_as_admin,
+            gate,
+            s.local,
         )
     });
+    match gate {
+        update::PlayGate::Update | update::PlayGate::Install => return on_update(false),
+        update::PlayGate::Wait => return,
+        update::PlayGate::Play => {}
+    }
     let Some(session) = session else { return };
     let api = match api() {
         Ok(api) => api,
@@ -712,7 +749,33 @@ fn on_play() {
     set_busy(true);
     message("Abrindo o jogo…", Tone::Normal);
     let window = ctl().window;
+    let updates = ST.with(|s| s.borrow().config.updates_base()).ok();
     std::thread::spawn(move || {
+        // Atualização obrigatória: a versão publicada é conferida de novo a cada Jogar; uma versão
+        // publicada depois da última consulta troca o botão por "Atualizar" e o jogo não abre.
+        if let (Some(base), Ok(key)) = (&updates, update::pinned_key())
+            && let Ok(remote) = update::remote(&update::HttpFetch::new(base), &key)
+            && update::play_gate(true, true, local, Some(remote.pointer.current), false)
+                != update::PlayGate::Play
+        {
+            post(
+                window,
+                WM_REMOTE,
+                Ok::<(u32, u32), String>((remote.pointer.current, remote.pointer.minimum)),
+            );
+            post(
+                window,
+                WM_GAME_STARTED,
+                Err::<(), (bool, String)>((
+                    false,
+                    format!(
+                        "Há uma versão nova do cliente ({}): clique em Atualizar antes de jogar.",
+                        remote.pointer.current
+                    ),
+                )),
+            );
+            return;
+        }
         // O endereço do servidor no cliente segue o servidor de atualização configurado agora.
         let endpoint = bootstrap
             .map(|url| update::apply_endpoint(&folder, &url).map_err(|e| (false, e.message())))

@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { EyeOff, Eye, HardDriveDownload, Megaphone, Rocket, Undo2 } from 'lucide-react';
+import { EyeOff, Eye, FileUp, FileX, HardDriveDownload, Megaphone, Rocket, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import { api, type components, fail } from '@/api/client';
 import { sessionQuery } from '@/api/session';
@@ -13,11 +13,295 @@ import { Label } from '@/components/ui/label';
 
 type View = components['schemas']['ClientVersionsView'];
 type News = components['schemas']['NewsRow'];
+type Draft = components['schemas']['DraftView'];
+type Item = components['schemas']['ItemRow'];
+type Published = components['schemas']['PublishedFile'];
 
 async function load(): Promise<View> {
   const { data, error, response } = await api.GET('/api/client-versions');
   if (!data) fail(response, error);
   return data;
+}
+
+async function loadDraft(): Promise<Draft> {
+  const { data, error, response } = await api.GET('/api/client-versions/draft');
+  if (!data) fail(response, error);
+  return data;
+}
+
+function UploadModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [path, setPath] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  return (
+    <Modal
+      open
+      title="Adicionar ou trocar arquivo"
+      subtitle="O arquivo entra no rascunho da próxima versão no caminho indicado (relativo à pasta do jogo). Se o caminho já existe, ele é trocado."
+      icon={<FileUp className="size-5 text-muted" />}
+      onClose={onClose}
+    >
+      <ActionForm
+        submitLabel="Enviar"
+        onCancel={onClose}
+        onDone={onDone}
+        onSubmit={async (operation_id) => {
+          if (!file) throw new Error('Escolha o arquivo.');
+          const { data, error, response } = await api.PUT('/api/client-versions/draft/file', {
+            params: { query: { operation_id, path } },
+            body: file as unknown as number[],
+            bodySerializer: (body) => body as unknown as BodyInit,
+            headers: { 'Content-Type': 'application/octet-stream' },
+          });
+          if (!data) fail(response, error);
+        }}
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="draft-file">Arquivo (até 256 MB)</Label>
+          <Input
+            id="draft-file"
+            type="file"
+            required
+            onChange={(e) => {
+              const chosen = e.target.files?.[0] ?? null;
+              setFile(chosen);
+              if (chosen && !path) setPath(chosen.name);
+            }}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="draft-path">Caminho no cliente (ex.: nmcogame.dll, bin/client.dll, hfs/&lt;pacote&gt;.hfs)</Label>
+          <Input id="draft-path" required maxLength={260} value={path} onChange={(e) => setPath(e.target.value)} />
+        </div>
+      </ActionForm>
+    </Modal>
+  );
+}
+
+function RemoveModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [search, setSearch] = useState('');
+  const [path, setPath] = useState('');
+  const found = useQuery({
+    queryKey: ['client-files', search],
+    enabled: search.trim().length >= 2,
+    queryFn: async (): Promise<Published[]> => {
+      const { data, error, response } = await api.GET('/api/client-versions/files', { params: { query: { search } } });
+      if (!data) fail(response, error);
+      return data;
+    },
+  });
+  return (
+    <Modal
+      open
+      title="Remover arquivo"
+      subtitle="O arquivo sai da próxima versão: os launchers o apagam ao atualizar."
+      icon={<FileX className="size-5 text-muted" />}
+      onClose={onClose}
+    >
+      <ActionForm
+        danger
+        submitLabel="Marcar remoção"
+        onCancel={onClose}
+        onDone={onDone}
+        onSubmit={async (operation_id) => {
+          const { data, error, response } = await api.POST('/api/client-versions/draft/remove', { body: { operation_id, path } });
+          if (!data) fail(response, error);
+        }}
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="remove-search">Buscar na versão publicada</Label>
+          <Input id="remove-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="parte do caminho" />
+        </div>
+        {(found.data ?? []).length > 0 && (
+          <ul className="max-h-48 overflow-y-auto rounded-lg border border-border text-sm">
+            {(found.data ?? []).map((f) => (
+              <li key={f.path}>
+                <button type="button" className={`w-full px-3 py-1 text-left hover:bg-surface-2 ${f.path === path ? 'font-semibold' : ''}`} onClick={() => setPath(f.path)}>
+                  {f.path} <span className="text-xs text-muted">{size(f.size)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="space-y-1.5">
+          <Label htmlFor="remove-path">Caminho</Label>
+          <Input id="remove-path" required maxLength={260} value={path} onChange={(e) => setPath(e.target.value)} />
+        </div>
+      </ActionForm>
+    </Modal>
+  );
+}
+
+function PublishModal({ next, changes, onClose, onDone }: { next: number; changes: number; onClose: () => void; onDone: () => void }) {
+  const [title, setTitle] = useState('');
+  const [notes, setNotes] = useState('');
+  return (
+    <Modal
+      open
+      title={`Publicar a versão ${next}`}
+      subtitle={`A versão atual mais as ${changes} mudança(s) do rascunho. Os launchers trocam Jogar por Atualizar até baixarem a versão nova.`}
+      icon={<Rocket className="size-5 text-muted" />}
+      onClose={onClose}
+    >
+      <ActionForm
+        submitLabel="Publicar"
+        onCancel={onClose}
+        onDone={onDone}
+        onSubmit={async (operation_id) => {
+          const { data, error, response } = await api.POST('/api/client-versions/draft/publish', { body: { operation_id, title, notes } });
+          if (!data) fail(response, error);
+        }}
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="publish-title">Título (aparece no launcher, até 200 caracteres)</Label>
+          <Input id="publish-title" required maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="publish-notes">Notas (opcional)</Label>
+          <textarea
+            id="publish-notes"
+            maxLength={4000}
+            rows={4}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+          />
+        </div>
+      </ActionForm>
+    </Modal>
+  );
+}
+
+function SimpleAction({ label, danger, run, onDone }: { label: string; danger?: boolean; run: (operation_id: string) => Promise<void>; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  return (
+    <span className="inline-flex items-center gap-2">
+      {error != null && <span className="text-xs text-danger">{errorText(error)}</span>}
+      <Button
+        variant={danger ? 'danger' : 'outline'}
+        size="sm"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          setError(null);
+          run(crypto.randomUUID())
+            .then(onDone)
+            .catch(setError)
+            .finally(() => setBusy(false));
+        }}
+      >
+        {label}
+      </Button>
+    </span>
+  );
+}
+
+const ACTION: Record<string, string> = { put: 'novo', remove: 'removido' };
+
+function itemLabel(item: Item) {
+  if (item.action === 'remove') return ACTION.remove;
+  return item.before_sha256 ? 'alterado' : ACTION.put;
+}
+
+/** The draft of the next version (game-launcher.md 4.10): files by path, content from the panel, publish. */
+function DraftSection({ current, admin }: { current: number; admin: boolean }) {
+  const queryClient = useQueryClient();
+  const q = useQuery({
+    queryKey: ['client-draft'],
+    queryFn: loadDraft,
+    refetchInterval: (query) => (query.state.data?.jobs.some((j) => j.state === 'queued' || j.state === 'running') ? 4000 : false),
+  });
+  const [open, setOpen] = useState<'upload' | 'remove' | 'publish' | null>(null);
+  const done = () => {
+    setOpen(null);
+    void queryClient.invalidateQueries({ queryKey: ['client-draft'] });
+    void queryClient.invalidateQueries({ queryKey: ['client-versions'] });
+    void queryClient.invalidateQueries({ queryKey: ['audit'] });
+  };
+  if (q.isPending) return <p className="text-muted">Carregando o rascunho…</p>;
+  if (q.isError) return <p className="text-danger">{errorText(q.error)}</p>;
+  const { draft, items, jobs } = q.data;
+  const job = jobs[0];
+  const busy = jobs.some((j) => j.state === 'queued' || j.state === 'running');
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="text-lg font-semibold">Próxima versão ({current + 1})</h2>
+        {draft && <Badge>rascunho sobre a versão {draft.base_version}</Badge>}
+        {admin && (
+          <>
+            <Button variant="outline" disabled={!q.data.staging} onClick={() => setOpen('upload')}>
+              <FileUp className="size-4" /> Adicionar ou trocar arquivo
+            </Button>
+            <Button variant="outline" onClick={() => setOpen('remove')}>
+              <FileX className="size-4" /> Remover arquivo
+            </Button>
+            <SimpleAction
+              label={busy ? 'Aplicando o conteúdo…' : 'Gerar a partir do conteúdo publicado'}
+              run={async (operation_id) => {
+                const { data, error, response } = await api.POST('/api/client-versions/draft/content', { body: { operation_id } });
+                if (!data) fail(response, error);
+              }}
+              onDone={done}
+            />
+          </>
+        )}
+      </div>
+      {job && (
+        <p className={`text-sm ${job.state === 'failed' ? 'text-danger' : 'text-muted'}`}>
+          Construtor do cliente: {job.state === 'queued' ? 'na fila' : job.state === 'running' ? 'aplicando o conteúdo publicado' : job.state === 'done' ? 'concluído' : 'falhou'}
+          {job.message ? ` — ${job.message}` : ''}
+        </p>
+      )}
+      {!draft || items.length === 0 ? (
+        <p className="text-sm text-muted">Nenhuma mudança no rascunho. Envie arquivos ou gere a partir do conteúdo publicado no painel.</p>
+      ) : (
+        <Card className="space-y-2">
+          <ul className="divide-y divide-border text-sm">
+            {items.map((item) => (
+              <li key={item.path} className="flex flex-wrap items-center justify-between gap-2 py-1">
+                <span className="flex flex-wrap items-center gap-2">
+                  <Badge>{itemLabel(item)}</Badge>
+                  <code>{item.path}</code>
+                  {item.size != null && <span className="text-xs text-muted">{size(item.size)}</span>}
+                  <span className="text-xs text-muted">{item.source === 'content' ? 'conteúdo do painel' : 'manual'}</span>
+                </span>
+                {admin && (
+                  <SimpleAction
+                    label="Tirar"
+                    run={async (operation_id) => {
+                      const { error, response } = await api.POST('/api/client-versions/draft/drop', { body: { operation_id, path: item.path } });
+                      if (!response.ok) fail(response, error);
+                    }}
+                    onDone={done}
+                  />
+                )}
+              </li>
+            ))}
+          </ul>
+          {admin && (
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={busy} onClick={() => setOpen('publish')}>
+                <Rocket className="size-4" /> Publicar a versão {current + 1}
+              </Button>
+              <SimpleAction
+                danger
+                label="Descartar o rascunho"
+                run={async (operation_id) => {
+                  const { error, response } = await api.POST('/api/client-versions/draft/discard', { body: { operation_id } });
+                  if (!response.ok) fail(response, error);
+                }}
+                onDone={done}
+              />
+            </div>
+          )}
+        </Card>
+      )}
+      {open === 'upload' && <UploadModal onClose={() => setOpen(null)} onDone={done} />}
+      {open === 'remove' && <RemoveModal onClose={() => setOpen(null)} onDone={done} />}
+      {open === 'publish' && <PublishModal next={current + 1} changes={items.length} onClose={() => setOpen(null)} onDone={done} />}
+    </div>
+  );
 }
 
 function size(bytes: number | null | undefined) {
@@ -206,11 +490,12 @@ export function ClientVersionsPage() {
             ))}
           </div>
           <p className="text-xs text-muted">
-            Publicar uma versão nova: <code>vindictus-server client-dist publish</code> com a pasta montada por <code>scripts/client/build_client_version.py</code>;
-            o launcher: <code>client-dist launcher --exe … --version …</code> (docs/future/game-launcher.md 4.7).
+            Uma versão nova é a atual mais as mudanças do rascunho abaixo, sem montar o cliente inteiro. O launcher publica-se com{' '}
+            <code>client-dist launcher --exe … --version …</code> (docs/future/game-launcher.md 4.7 e 4.10).
           </p>
         </>
       )}
+      {store && <DraftSection current={store.current} admin={admin} />}
       <div className="space-y-3">
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold">Notícias do launcher</h2>

@@ -490,3 +490,19 @@ fn the_adjusted_database_is_not_repaired_back() {
     let outcome = run_mode(&game, &store, Mode::Full, None).ok();
     assert_eq!(outcome.map(|o| o.downloaded), Some(0));
 }
+
+#[test]
+fn a_newer_published_version_turns_play_into_update() {
+    // Atualização obrigatória (08/11/2026): mais nova publicada ou pasta sem estado → Atualizar.
+    assert_eq!(play_gate(true, true, Some(5), Some(5), false), PlayGate::Play);
+    assert_eq!(play_gate(true, true, Some(6), Some(5), false), PlayGate::Play);
+    assert_eq!(play_gate(true, true, Some(4), Some(5), false), PlayGate::Update);
+    assert_eq!(play_gate(true, true, None, Some(5), false), PlayGate::Update);
+    // Sem resposta ainda: espera; servidor de atualização fora do ar: só quem tem estado joga.
+    assert_eq!(play_gate(true, true, Some(4), None, false), PlayGate::Wait);
+    assert_eq!(play_gate(true, true, Some(4), None, true), PlayGate::Play);
+    assert_eq!(play_gate(true, true, None, None, true), PlayGate::Wait);
+    // Pasta sem o jogo: instalar; sem pasta: esperar a escolha.
+    assert_eq!(play_gate(false, true, None, Some(5), false), PlayGate::Install);
+    assert_eq!(play_gate(false, false, None, Some(5), false), PlayGate::Wait);
+}

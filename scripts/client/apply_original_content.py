@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'content'))
 from content_overrides import COLUMNS  # noqa: E402
 from prepare_lab_client import PreparationError, connect, reject_original  # noqa: E402
 
-WORKSPACE = Path(__file__).resolve().parents[3]
+from prepare_lab_client import WORKSPACE  # noqa: E402  (VINDICTUS_WORKSPACE)
 ORIGINAL_CLIENT_DATABASE = WORKSPACE / 'TutorialRagezone/DB/client/sql/heroes.db3'
 ORIGINAL_CLIENT_SHA256 = 'c22ec7fe22f948250fc0e7dacf82acfdfe547141b03a0a6f10a1bda3cc436188'
 

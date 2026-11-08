@@ -1695,3 +1695,117 @@ async fn launcher_news_keep_hidden_items_out_of_the_feed() {
     drop(tx);
     cleanup_game_pool(admin, pool, schema).await;
 }
+
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
+async fn client_drafts_keep_one_open_draft_and_one_pending_job() {
+    // docs/future/game-launcher.md 4.10: drafts of the next client version and the builder's jobs.
+    use vindictus_server::infrastructure::client_drafts::{self as drafts, ItemRow};
+    let (admin, pool, schema) = isolated_game_pool().await;
+    let author = create_account(
+        &pool,
+        Username::parse("draft_author").unwrap(),
+        Zeroizing::new(b"correct horse battery".to_vec()),
+    )
+    .await
+    .unwrap();
+    let sha = |c: char| std::iter::repeat_n(c, 64).collect::<String>();
+    let item = |path: &str, action: &str, source: &str, new: Option<char>| ItemRow {
+        path: path.into(),
+        action: action.into(),
+        sha256: new.map(sha),
+        size: new.map(|_| 10),
+        before_sha256: Some(sha('0')),
+        source: source.into(),
+    };
+    assert!(drafts::open_draft(&pool).await.unwrap().is_none());
+    // The first change opens the draft on the published version; the second one reuses it.
+    let mut tx = pool.begin().await.unwrap();
+    let draft = drafts::lock_or_create(&mut tx, 5, Some(author))
+        .await
+        .unwrap();
+    drafts::upsert_item(&mut tx, draft.id, &item("nmcogame.dll", "put", "upload", Some('a')))
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    let mut tx = pool.begin().await.unwrap();
+    let again = drafts::lock_or_create(&mut tx, 6, None).await.unwrap();
+    assert_eq!((again.id, again.base_version), (draft.id, 5));
+    // Same path in another case replaces the change; a remove needs the published file.
+    drafts::upsert_item(&mut tx, draft.id, &item("NMCOGAME.DLL", "put", "upload", Some('b')))
+        .await
+        .unwrap();
+    let mut bad = item("bin/x.dll", "remove", "upload", None);
+    bad.before_sha256 = None;
+    let mut probe = pool.begin().await.unwrap();
+    assert!(drafts::upsert_item(&mut probe, draft.id, &bad).await.is_err());
+    drop(probe);
+    tx.commit().await.unwrap();
+    let items = drafts::items(&pool, draft.id).await.unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].sha256, Some(sha('b')));
+    // The builder's content replaces its own items and leaves the hand-made change alone.
+    let mut tx = pool.begin().await.unwrap();
+    let kept = drafts::replace_content_items(
+        &mut tx,
+        draft.id,
+        &[
+            item("sql/heroes.db3", "put", "content", Some('c')),
+            item("nmcogame.dll", "put", "content", Some('d')),
+            item("Vindictus.exe", "remove", "content", None),
+        ],
+    )
+    .await
+    .unwrap();
+    assert_eq!(kept, vec!["nmcogame.dll".to_owned()]);
+    let kept = drafts::replace_content_items(
+        &mut tx,
+        draft.id,
+        &[item("sql/heroes.db3", "put", "content", Some('e'))],
+    )
+    .await
+    .unwrap();
+    assert!(kept.is_empty());
+    tx.commit().await.unwrap();
+    let items = drafts::items(&pool, draft.id).await.unwrap();
+    assert_eq!(
+        items
+            .iter()
+            .map(|i| (i.path.as_str(), i.source.as_str()))
+            .collect::<Vec<_>>(),
+        // The application resolves the published spelling before; the table keeps what it gets.
+        vec![("NMCOGAME.DLL", "upload"), ("sql/heroes.db3", "content")]
+    );
+    // Jobs: one pending per kind; a claimed job is running, then finished.
+    let mut tx = pool.begin().await.unwrap();
+    let job = drafts::enqueue(&mut tx, "content", Some(author)).await.unwrap();
+    assert!(job.is_some());
+    assert!(drafts::enqueue(&mut tx, "content", None).await.unwrap().is_none());
+    tx.commit().await.unwrap();
+    let claimed = drafts::claim(&pool).await.unwrap();
+    assert_eq!(claimed.as_ref().map(|j| (j.id, j.state.as_str())), job.map(|id| (id, "running")));
+    assert!(drafts::claim(&pool).await.unwrap().is_none());
+    drafts::finish(&pool, job.unwrap(), true, "versão 5: 1 arquivo").await.unwrap();
+    let mut tx = pool.begin().await.unwrap();
+    assert!(drafts::enqueue(&mut tx, "content", None).await.unwrap().is_some());
+    tx.commit().await.unwrap();
+    assert!(drafts::claim(&pool).await.unwrap().is_some());
+    assert_eq!(drafts::fail_interrupted(&pool).await.unwrap(), 1);
+    let jobs = drafts::recent_jobs(&pool, 5).await.unwrap();
+    assert_eq!(
+        jobs.iter().map(|j| j.state.as_str()).collect::<Vec<_>>(),
+        vec!["failed", "done"]
+    );
+    // Publishing closes the draft; the next change opens a new one.
+    let mut tx = pool.begin().await.unwrap();
+    let open = drafts::lock_open(&mut tx).await.unwrap().unwrap();
+    drafts::close(&mut tx, open.id, Some(6)).await.unwrap();
+    tx.commit().await.unwrap();
+    assert!(drafts::open_draft(&pool).await.unwrap().is_none());
+    let mut tx = pool.begin().await.unwrap();
+    let next = drafts::lock_or_create(&mut tx, 6, None).await.unwrap();
+    assert_ne!(next.id, draft.id);
+    drafts::close(&mut tx, next.id, None).await.unwrap();
+    tx.commit().await.unwrap();
+    cleanup_game_pool(admin, pool, schema).await;
+}

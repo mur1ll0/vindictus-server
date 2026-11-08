@@ -7,6 +7,8 @@ pub mod admin_progression;
 pub mod admin_store;
 pub mod admin_tooltip;
 pub mod client_dist_store;
+pub mod client_drafts;
+pub mod client_tree;
 pub mod client_files;
 pub mod content_edits;
 pub mod game_links;

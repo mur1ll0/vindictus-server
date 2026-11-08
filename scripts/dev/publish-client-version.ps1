@@ -1,5 +1,9 @@
 # Publica uma versão do cliente para o launcher (docs/future/game-launcher.md 4.7 e 4.9).
 #
+# Desde 08/11/2026 o caminho normal é o rascunho do painel (4.10: "Versões do cliente" → Próxima versão),
+# que publica só os arquivos mudados, sem o 1.69 original nesta máquina. Este script fica para remontar uma
+# versão inteira a partir do original (≈ 25 min de montagem e ≈ 20 min de conferência dos 16 GB).
+#
 # 1. Monta a versão do zero a partir do 1.69 EU (scripts/client/build_client_version.py), com o
 #    conteúdo publicado no painel; arquivos iguais aos da última versão montada viram hard links
 #    somente leitura. O endereço do servidor não entra na versão: o launcher grava no heroes.db3 de

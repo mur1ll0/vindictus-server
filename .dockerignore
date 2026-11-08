@@ -14,6 +14,11 @@
 !scripts
 !scripts/dev
 !scripts/dev/Dockerfile.postgres-tests
+!scripts/client
+!scripts/content
+# The vendored Windows capstone would shadow the image's Linux one (patch_class_routing puts .deps first).
+scripts/client/.deps
+**/__pycache__
 !docs
 !docs/evidence
 !docs/evidence/database

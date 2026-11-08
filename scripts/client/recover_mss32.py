@@ -20,6 +20,12 @@ from prepare_lab_client import WORKSPACE, PreparationError, reject_original
 
 VOLUME = WORKSPACE / 'Vindictus1.69EN/Vindictus.z03'
 OFFSET = 1544037482
+# The server's import (scripts/dev/import-client-base.ps1) keeps only this record of the 1.9 GB volume: the
+# bytes from OFFSET on. Header, sizes, CRC and SHA-256 are checked the same way.
+SLICE = WORKSPACE / 'Vindictus1.69EN/Vindictus.z03.mss32'
+SLICE_BYTES = 256 * 1024
+if not VOLUME.is_file() and SLICE.is_file():
+    VOLUME, OFFSET = SLICE, 0
 NAME = b'en-EU\\Mss32.dll'
 CRC32 = 0xB67C7F6C
 COMPRESSED, SIZE = 174720, 374272

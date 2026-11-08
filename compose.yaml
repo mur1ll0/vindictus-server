@@ -115,6 +115,7 @@ services:
         --shop-list-output /shop-list/ShopList.aspx
         --content-edits-output /content-state/content-edits.json
         --admin-client-dist /client-dist --admin-client-dist-keys /client-dist-keys
+        --admin-client-staging /client-server/staging
         --advertise-host ${PUBLIC_HOST:-127.0.0.1} --endpoint-output /shop-list/EndPoint.txt
         < /run/secrets/lab_runtime_profile
     environment:
@@ -133,6 +134,8 @@ services:
       # private key, read only and mounted only here; the public `updates` service never sees the key.
       - ${CLIENT_DIST_DIR:-./.cache/client-dist}:/client-dist
       - ${CLIENT_DIST_KEYS_DIR:-./.cache/client-dist-keys}:/client-dist-keys:ro
+      # Drafts of the next client version (4.10): files uploaded in the panel wait here by SHA-256.
+      - ${CLIENT_SERVER_DIR:-./.cache/client-server}/staging:/client-server/staging
     secrets: [lab_runtime_profile]
     depends_on:
       postgres:
@@ -176,6 +179,36 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    restart: unless-stopped
+
+  # Client builder (docs/future/game-launcher.md 4.10, like pw-universal's pw-recursos): the server's own
+  # client tree in ${CLIENT_SERVER_DIR} (a bind mount, like the store: large, proprietary, kept by `down -v`),
+  # built once from the imported 1.69 original (scripts/dev/import-client-base.ps1) and refreshed with the
+  # published panel content when the panel asks; what changed goes to the draft of the next version, which
+  # the panel publishes. No port: it only takes jobs from PostgreSQL. Two CPUs at most (the host runs hot).
+  client-builder:
+    <<: *app
+    image: vindictus-client-builder:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: client-builder
+    command: [client-builder, worker, --store, /client-dist, --server-dir, /client-server,
+              --edits, /content-state/content-edits.json]
+    volumes:
+      - ${CLIENT_DIST_DIR:-./.cache/client-dist}:/client-dist:ro
+      - ${CLIENT_SERVER_DIR:-./.cache/client-server}:/client-server
+      - ./.cache/content-state:/content-state:ro
+      # The recipe's private inputs, already server data (the panel's item editor writes the assets).
+      - ./.cache/private-assets:/app/recipe/.cache/private-assets:ro
+      - ./.cache/private-content:/app/recipe/.cache/private-content:ro
+    cpus: 2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    stop_grace_period: 30s
     restart: unless-stopped
 
   # Client server list: the prepared client reads EndPoint.txt from 127.0.0.1:8081.

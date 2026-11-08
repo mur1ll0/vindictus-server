@@ -331,6 +331,148 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/client-versions/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The open draft of the next client version, its changes and the client builder's jobs. */
+        get: operations["client_versions_draft"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client-versions/draft/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply the published panel content to the server's client and put what changed in the draft (admin;
+         *     the client builder service does it in the background).
+         */
+        post: operations["client_versions_draft_content"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client-versions/draft/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discard the open draft (admin). */
+        post: operations["client_versions_draft_discard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client-versions/draft/drop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Take a path out of the draft (admin). */
+        post: operations["client_versions_draft_drop"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client-versions/draft/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Add or replace the file at `path` in the draft (admin; body = the file, up to 256 MiB). */
+        put: operations["client_versions_draft_file"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client-versions/draft/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish the draft as the next version (admin): the previous version plus its changes; launchers
+         *     must update before playing.
+         */
+        post: operations["client_versions_draft_publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client-versions/draft/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a published file for removal in the draft (admin): the launchers delete it. */
+        post: operations["client_versions_draft_remove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client-versions/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Published files of the current version whose path contains `search` (at most 200). */
+        get: operations["client_versions_files"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/client-versions/minimum": {
         parameters: {
             query?: never;
@@ -1446,6 +1588,35 @@ export interface components {
             /** Format: int64 */
             id: number;
         };
+        DraftOperation: {
+            /** Format: uuid */
+            operation_id: string;
+        };
+        DraftPath: {
+            /** Format: uuid */
+            operation_id: string;
+            path: string;
+        };
+        DraftPublished: {
+            /** Format: int32 */
+            version: number;
+        };
+        /** @description The open draft. */
+        DraftRow: {
+            author?: string | null;
+            /**
+             * Format: int32
+             * @description The published version it applies to.
+             */
+            base_version: number;
+            /**
+             * Format: int64
+             * @description Seconds since the Unix epoch.
+             */
+            created_unix: number;
+            /** Format: int64 */
+            id: number;
+        };
         DraftSaved: {
             /**
              * Format: int64
@@ -1459,6 +1630,14 @@ export interface components {
             edit: number;
             /** @description item (added item) or item_override (base item). */
             kind: string;
+        };
+        /** @description The open draft of the next version, its changes and the client builder's recent jobs. */
+        DraftView: {
+            draft?: null | components["schemas"]["DraftRow"];
+            items: components["schemas"]["ItemRow"][];
+            jobs: components["schemas"]["JobRow"][];
+            /** @description The panel can stage files (the server's client folder is mounted). */
+            staging: boolean;
         };
         EditRequest: {
             /** Format: int32 */
@@ -1885,6 +2064,19 @@ export interface components {
             /** Format: uuid */
             operation_id: string;
         };
+        /** @description One change of a draft. */
+        ItemRow: {
+            /** @description `put` (add or replace) or `remove`. */
+            action: string;
+            /** @description The published file it replaces or removes; none for a new path. */
+            before_sha256?: string | null;
+            path: string;
+            sha256?: string | null;
+            /** Format: int64 */
+            size?: number | null;
+            /** @description `upload` (panel) or `content` (the published panel content, applied by the client builder). */
+            source: string;
+        };
         ItemTooltip: {
             /** @description The category text (Weapon, Pants, Consumable, ...) or the raw Category. */
             category?: string | null;
@@ -1942,6 +2134,23 @@ export interface components {
              * @description Items of the class in every storage (bags, equipment, shared storage).
              */
             total: number;
+        };
+        JobQueued: {
+            /** Format: int64 */
+            job: number;
+        };
+        /** @description A client builder job, for the panel. */
+        JobRow: {
+            /** Format: int64 */
+            created_unix: number;
+            /** Format: int64 */
+            finished_unix?: number | null;
+            /** Format: int64 */
+            id: number;
+            kind: string;
+            message?: string | null;
+            /** @description `queued`, `running`, `done` or `failed`. */
+            state: string;
         };
         LauncherSessionResponse: {
             /**
@@ -2229,10 +2438,25 @@ export interface components {
             /** Format: uuid */
             operation_id: string;
         };
+        PublishDraft: {
+            /** @description Up to 4000 characters. */
+            notes?: string;
+            /** Format: uuid */
+            operation_id: string;
+            /** @description 1-200 characters, shown by the launcher. */
+            title: string;
+        };
         Published: {
             maintenance?: null | components["schemas"]["Plan"];
             /** Format: int64 */
             version: number;
+        };
+        /** @description One published file, for choosing what to replace or remove. */
+        PublishedFile: {
+            path: string;
+            sha256: string;
+            /** Format: int64 */
+            size: number;
         };
         QuestDropView: {
             /** Format: int32 */
@@ -2453,6 +2677,14 @@ export interface components {
              *     completed storylines start.
              */
             open: string[];
+            /**
+             * @description `change_phase` of the completed storylines, in walk order: applied to storylines the
+             *     character has open (not to the completed ones).
+             */
+            phase_changes: [
+                string,
+                string
+            ][];
             skills: string[];
             titles: number[];
         };
@@ -3571,6 +3803,327 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClientVersionsView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    client_versions_draft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    client_versions_draft_content: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftOperation"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobQueued"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    client_versions_draft_discard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftOperation"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    client_versions_draft_drop: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftPath"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    client_versions_draft_file: {
+        parameters: {
+            query: {
+                operation_id: string;
+                /** @description Game path, relative to the game folder ('/' or '\'). */
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": number[];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemRow"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    client_versions_draft_publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishDraft"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftPublished"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    client_versions_draft_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftPath"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemRow"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    client_versions_files: {
+        parameters: {
+            query?: {
+                /** @description Part of the path (case-insensitive); empty lists the first files. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishedFile"][];
                 };
             };
             403: {

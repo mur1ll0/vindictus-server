@@ -29,6 +29,8 @@ pub mod character_lobby;
 pub mod home_cafe_bonus;
 
 pub mod character_reservations;
+pub mod client_builder;
+pub mod client_drafts;
 pub mod client_versions;
 
 pub mod character_creation;
