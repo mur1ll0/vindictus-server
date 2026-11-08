@@ -328,6 +328,8 @@ async fn run(cli: Cli) -> Result<(), Error> {
         admin_client_dir,
         admin_client_keystream,
         admin_private_assets,
+        admin_client_dist,
+        admin_client_dist_keys,
         item_content_stamp,
         shop_list_output,
         content_edits_output,
@@ -546,6 +548,9 @@ async fn run(cli: Cli) -> Result<(), Error> {
                 }
                 state = state
                     .with_item_editor(admin_private_assets.clone(), item_content_stamp.clone());
+                if let (Some(store), Some(keys)) = (admin_client_dist, admin_client_dist_keys) {
+                    state = state.with_client_dist(store.clone(), keys.clone());
+                }
                 let app = admin::router(state, admin_ui_dir.as_deref());
                 Some(tokio::spawn(admin::serve(admin_listener, app)))
             }
@@ -1300,6 +1305,41 @@ async fn client_dist(command: vindictus_server::cli::ClientDistCommand) -> Resul
                 let report = store::verify(&dir, &public, deep)?;
                 serde_json::to_value(report)
                     .map_err(|_| Error::Configuration("verify report".into()))
+            }))
+            .await?
+        }
+        ClientDistCommand::Minimum {
+            store: dir,
+            keys,
+            minimum,
+        } => {
+            blocking(Box::new(move || {
+                let paths = store::StorePaths { store: dir, keys };
+                let (before, after) = store::set_minimum(&paths, minimum)?;
+                Ok(serde_json::json!({ "current": after.current, "minimum_before": before.minimum, "minimum": after.minimum }))
+            }))
+            .await?
+        }
+        ClientDistCommand::Withdraw {
+            store: dir,
+            keys,
+            title,
+        } => {
+            blocking(Box::new(move || {
+                let report = store::withdraw(&store::StorePaths { store: dir, keys }, &title)?;
+                serde_json::to_value(report).map_err(|_| Error::Configuration("withdraw report".into()))
+            }))
+            .await?
+        }
+        ClientDistCommand::Launcher {
+            store: dir,
+            keys,
+            exe,
+            version,
+        } => {
+            blocking(Box::new(move || {
+                let pointer = store::publish_launcher(&store::StorePaths { store: dir, keys }, &exe, &version)?;
+                serde_json::to_value(pointer.launcher).map_err(|_| Error::Configuration("launcher report".into()))
             }))
             .await?
         }

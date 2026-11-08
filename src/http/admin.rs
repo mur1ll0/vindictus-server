@@ -28,6 +28,7 @@ use zeroize::Zeroizing;
 
 mod accounts;
 mod characters;
+mod client_versions;
 mod content;
 mod items;
 mod models;
@@ -53,6 +54,8 @@ pub struct AdminState {
     private_assets: Option<std::sync::Arc<std::path::PathBuf>>,
     /// The host's item export stamp (.cache/private-content/item-content.json).
     item_stamp: Option<std::sync::Arc<std::path::PathBuf>>,
+    /// Update store and key folder of "Versões do cliente" (L5).
+    client_dist: Option<std::sync::Arc<crate::infrastructure::client_dist_store::StorePaths>>,
 }
 
 impl AdminState {
@@ -67,7 +70,15 @@ impl AdminState {
             client: None,
             private_assets: None,
             item_stamp: None,
+            client_dist: None,
         }
+    }
+    /// "Versões do cliente": the update store (read and written) and the folder of its private key.
+    pub fn with_client_dist(mut self, store: std::path::PathBuf, keys: std::path::PathBuf) -> Self {
+        self.client_dist = Some(std::sync::Arc::new(
+            crate::infrastructure::client_dist_store::StorePaths { store, keys },
+        ));
+        self
     }
     /// Item editor: where uploaded kits are kept and the host's item export stamp.
     pub fn with_item_editor(
@@ -178,7 +189,12 @@ impl AdminState {
         items::kit,
         items::status,
         items::costumes,
-        world::world
+        world::world,
+        client_versions::view,
+        client_versions::set_minimum,
+        client_versions::withdraw,
+        client_versions::add_news,
+        client_versions::set_news_hidden
     ),
     components(schemas(
         models::ItemModel,
@@ -274,7 +290,17 @@ impl AdminState {
         content::Operation,
         content::Publish,
         content::Published,
-        crate::infrastructure::maintenance::Plan
+        crate::infrastructure::maintenance::Plan,
+        crate::application::client_versions::ClientVersionsView,
+        crate::infrastructure::client_dist_store::StoreView,
+        crate::infrastructure::client_dist_store::VersionSummary,
+        crate::infrastructure::launcher_news::NewsRow,
+        client_versions::SetMinimum,
+        client_versions::WithdrawVersion,
+        client_versions::Withdrawn,
+        client_versions::NewNews,
+        client_versions::NewsCreated,
+        client_versions::NewsVisibility
     ))
 )]
 pub struct ApiDoc;
@@ -369,6 +395,20 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
         )
         .route("/api/content", get(content::content_state))
         .route("/api/world", get(world::world))
+        .route("/api/client-versions", get(client_versions::view))
+        .route(
+            "/api/client-versions/minimum",
+            post(client_versions::set_minimum),
+        )
+        .route(
+            "/api/client-versions/withdraw",
+            post(client_versions::withdraw),
+        )
+        .route("/api/client-versions/news", post(client_versions::add_news))
+        .route(
+            "/api/client-versions/news/{id}/hidden",
+            post(client_versions::set_news_hidden),
+        )
         .route("/api/item-editor/items", get(items::list).post(items::save))
         .route("/api/item-editor/costumes", get(items::costumes))
         .route("/api/item-editor/items/{item_class}", get(items::detail))

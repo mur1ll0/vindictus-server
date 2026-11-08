@@ -120,6 +120,11 @@ pub fn router(store: PathBuf, probes: Vec<Probe>) -> Router {
             &format!("/{}", layout::PUBLIC_KEY),
             file(layout::PUBLIC_KEY),
         )
+        .route_service(&format!("/{}", layout::NEWS), file(layout::NEWS))
+        .route_service(
+            &format!("/{}", layout::signature(layout::NEWS)),
+            file(&layout::signature(layout::NEWS)),
+        )
         .layer(SetResponseHeaderLayer::overriding(
             header::CACHE_CONTROL,
             HeaderValue::from_static("no-cache"),

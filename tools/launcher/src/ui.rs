@@ -8,6 +8,7 @@
 use crate::api::{Api, ApiError, Session};
 use crate::config::{Config, normalize_server};
 use crate::game;
+use crate::selfupdate;
 use crate::update;
 use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
@@ -48,6 +49,8 @@ const WM_LOGGED_OUT: u32 = WM_APP + 5;
 const WM_REMOTE: u32 = WM_APP + 6;
 const WM_PROGRESS: u32 = WM_APP + 7;
 const WM_UPDATED: u32 = WM_APP + 8;
+const WM_NEWS: u32 = WM_APP + 9;
+const WM_LAUNCHER: u32 = WM_APP + 10;
 
 const TIMER_STATUS: usize = 1;
 const TIMER_CLOSE: usize = 2;
@@ -68,6 +71,7 @@ const DC_HASDEFID: isize = 0x534B;
 struct Controls {
     window: HWND,
     status: HWND,
+    news: HWND,
     user_label: HWND,
     user: HWND,
     password_label: HWND,
@@ -113,6 +117,8 @@ struct State {
     updating: Option<Arc<AtomicBool>>,
     /// Espelho de `game_running` para a thread da atualização.
     game_flag: Arc<AtomicBool>,
+    /// Versão do launcher já baixada e conferida, à espera da troca.
+    launcher_staged: Option<String>,
 }
 
 thread_local! {
@@ -357,14 +363,101 @@ fn check_versions() {
     refresh();
     let Ok(base) = base else { return };
     let window = ctl().window;
+    let staged = ST.with(|s| s.borrow().launcher_staged.is_some());
     std::thread::spawn(move || {
         let fetch = update::HttpFetch::new(&base);
-        let remote = update::pinned_key()
-            .and_then(|key| update::remote(&fetch, &key))
-            .map(|r| (r.pointer.current, r.pointer.minimum))
-            .map_err(|e| e.message());
-        post(window, WM_REMOTE, remote);
+        let key = update::pinned_key();
+        let pointer = key.as_ref().map_err(|e| e.message()).and_then(|key| {
+            update::remote(&fetch, key)
+                .map(|r| r.pointer)
+                .map_err(|e| e.message())
+        });
+        post(
+            window,
+            WM_REMOTE,
+            pointer
+                .as_ref()
+                .map(|p| (p.current, p.minimum))
+                .map_err(Clone::clone),
+        );
+        let Ok(key) = key else { return };
+        if let Ok(items) = update::news(&fetch, &key) {
+            post(window, WM_NEWS, items);
+        }
+        // O launcher publicado: baixado uma vez, trocado quando der.
+        if let (Ok(pointer), Some(exe), false) = (pointer, selfupdate::current_exe(), staged)
+            && let Some(launcher) = selfupdate::wanted(&pointer, &exe)
+        {
+            let result = selfupdate::download(&fetch, &launcher, &exe, &AtomicBool::new(false))
+                .map(|()| launcher.version)
+                .map_err(|e| e.message());
+            post(window, WM_LAUNCHER, result);
+        }
     });
+}
+
+/// Data (dd/mm/aaaa) de segundos desde 1970, em UTC (algoritmo civil de Howard Hinnant).
+fn date(unix: u64) -> String {
+    let days = (unix / 86_400) as i64 + 719_468;
+    let era = days.div_euclid(146_097);
+    let doe = days - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!("{day:02}/{month:02}/{year}")
+}
+
+fn on_news(items: Vec<vindictus_client_dist::manifest::NewsItem>) {
+    let text = if items.is_empty() {
+        "Sem notícias.".to_owned()
+    } else {
+        items
+            .iter()
+            .map(|n| {
+                format!(
+                    "{}  {}\r\n{}",
+                    date(n.published_unix),
+                    n.title,
+                    n.body.replace("\r\n", "\n").replace('\n', "\r\n")
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\r\n\r\n")
+    };
+    set_text(ctl().news, &text);
+}
+
+/// Troca o exe e abre o novo; `false` se não deu (fica para a próxima abertura).
+fn restart_into_new() -> bool {
+    let Some(exe) = selfupdate::current_exe() else {
+        return false;
+    };
+    match selfupdate::swap(&exe) {
+        Ok(true) if selfupdate::restart(&exe) => {
+            unsafe { DestroyWindow(ctl().window) };
+            true
+        }
+        _ => false,
+    }
+}
+
+fn on_launcher(result: Result<String, String>) {
+    let Ok(version) = result else { return };
+    let idle = ST.with(|s| {
+        let s = s.borrow();
+        s.session.is_none() && !s.busy && s.updating.is_none() && !s.game_running && !s.closing
+    });
+    ST.with(|s| s.borrow_mut().launcher_staged = Some(version.clone()));
+    if idle && restart_into_new() {
+        return;
+    }
+    message(
+        &format!("Launcher {version} baixado: entra na próxima vez que abrir o launcher."),
+        Tone::Ok,
+    );
 }
 
 fn on_remote(remote: Result<(u32, u32), String>) {
@@ -977,6 +1070,14 @@ unsafe extern "system" fn procedure(
             on_updated(unsafe { take(lparam) });
             0
         }
+        WM_NEWS => {
+            on_news(unsafe { take(lparam) });
+            0
+        }
+        WM_LAUNCHER => {
+            on_launcher(unsafe { take(lparam) });
+            0
+        }
         WM_CLOSE => {
             on_close();
             0
@@ -1052,6 +1153,13 @@ pub fn run() {
     std::panic::set_hook(Box::new(|info| {
         error_box(&format!("Erro interno do launcher:\n{info}"))
     }));
+    if let Some(exe) = selfupdate::current_exe() {
+        selfupdate::cleanup(&exe);
+        // Um launcher novo baixado na última execução entra antes da janela abrir.
+        if matches!(selfupdate::swap(&exe), Ok(true)) && selfupdate::restart(&exe) {
+            return;
+        }
+    }
     let mut config = Config::load();
     config.server = config.server_base().unwrap_or(config.server);
     let last_login = config.last_login.clone();
@@ -1107,7 +1215,7 @@ pub fn run() {
             left: 0,
             top: 0,
             right: px(520),
-            bottom: px(416),
+            bottom: px(500),
         };
         AdjustWindowRect(&mut r, style, 0);
         let (width, height) = (r.right - r.left, r.bottom - r.top);
@@ -1167,48 +1275,57 @@ pub fn run() {
             normal,
         );
         let status = label("Servidor: verificando…", normal, (16, 54, 488, 20), 0);
-        label("", normal, (16, 80, 488, 2), SS_ETCHEDHORZ);
+        let news = b.make(
+            "EDIT",
+            "Notícias: verificando…",
+            (ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL) as u32 | WS_VSCROLL | WS_TABSTOP,
+            WS_EX_CLIENTEDGE,
+            (16, 80, 488, 76),
+            -1,
+            normal,
+        );
+        label("", normal, (16, 164, 488, 2), SS_ETCHEDHORZ);
 
-        let user_label = label("Login:", normal, (16, 98, 60, 20), 0);
-        let user = edit(&last_login, (80, 94, 180, 24), ID_USER, 0);
-        let password_label = label("Senha:", normal, (16, 128, 60, 20), 0);
-        let password = edit("", (80, 124, 180, 24), ID_PASSWORD, ES_PASSWORD);
+        let user_label = label("Login:", normal, (16, 182, 60, 20), 0);
+        let user = edit(&last_login, (80, 178, 180, 24), ID_USER, 0);
+        let password_label = label("Senha:", normal, (16, 212, 60, 20), 0);
+        let password = edit("", (80, 208, 180, 24), ID_PASSWORD, ES_PASSWORD);
         let login = button(
             "Entrar",
-            (272, 108, 100, 30),
+            (272, 192, 100, 30),
             ID_LOGIN,
             BS_DEFPUSHBUTTON,
             normal,
         );
-        let connected = label("", big, (16, 104, 360, 26), 0);
+        let connected = label("", big, (16, 188, 360, 26), 0);
         let logout = button(
             "Sair",
-            (404, 102, 100, 30),
+            (404, 186, 100, 30),
             ID_LOGOUT,
             BS_PUSHBUTTON,
             normal,
         );
 
-        label("Pasta do jogo:", normal, (16, 168, 90, 20), 0);
-        let folder = label("", normal, (108, 168, 300, 20), SS_PATHELLIPSIS);
+        label("Pasta do jogo:", normal, (16, 252, 90, 20), 0);
+        let folder = label("", normal, (108, 252, 300, 20), SS_PATHELLIPSIS);
         let choose_folder = button(
             "Escolher…",
-            (412, 162, 92, 28),
+            (412, 246, 92, 28),
             ID_FOLDER,
             BS_PUSHBUTTON,
             normal,
         );
-        let version = label("Atualização: verificando…", normal, (16, 200, 280, 20), 0);
+        let version = label("Atualização: verificando…", normal, (16, 284, 280, 20), 0);
         let verify = button(
             "Verificar arquivos",
-            (300, 194, 100, 28),
+            (300, 278, 100, 28),
             ID_VERIFY,
             BS_PUSHBUTTON,
             normal,
         );
         let update_button = button(
             "Atualizado",
-            (404, 194, 100, 28),
+            (404, 278, 100, 28),
             ID_UPDATE,
             BS_PUSHBUTTON,
             normal,
@@ -1218,15 +1335,15 @@ pub fn run() {
             "",
             0,
             0,
-            (16, 230, 488, 16),
+            (16, 314, 488, 16),
             -1,
             normal,
         );
         SendMessageW(progress, PBM_SETRANGE32, 0, 1000);
-        let play = button("Jogar", (16, 254, 488, 42), ID_PLAY, BS_PUSHBUTTON, big);
+        let play = button("Jogar", (16, 338, 488, 42), ID_PLAY, BS_PUSHBUTTON, big);
         let admin = button(
             "Abrir o jogo como administrador (só se ele não abrir sem)",
-            (16, 304, 488, 22),
+            (16, 388, 488, 22),
             ID_ADMIN,
             BS_AUTOCHECKBOX,
             normal,
@@ -1234,16 +1351,17 @@ pub fn run() {
         if as_admin {
             SendMessageW(admin, BM_SETCHECK, BST_CHECKED as WPARAM, 0);
         }
-        let message = label("", normal, (16, 330, 488, 36), SS_EDITCONTROL);
-        label("", normal, (16, 372, 488, 2), SS_ETCHEDHORZ);
-        label("Servidor:", normal, (16, 387, 60, 20), 0);
-        let server_edit = edit(&server, (80, 383, 324, 24), ID_SERVER, 0);
-        let save = button("Salvar", (412, 382, 92, 26), ID_SAVE, BS_PUSHBUTTON, normal);
+        let message = label("", normal, (16, 414, 488, 36), SS_EDITCONTROL);
+        label("", normal, (16, 456, 488, 2), SS_ETCHEDHORZ);
+        label("Servidor:", normal, (16, 471, 60, 20), 0);
+        let server_edit = edit(&server, (80, 467, 324, 24), ID_SERVER, 0);
+        let save = button("Salvar", (412, 466, 92, 26), ID_SAVE, BS_PUSHBUTTON, normal);
 
         CTL.with(|c| {
             c.set(Controls {
                 window,
                 status,
+                news,
                 user_label,
                 user,
                 password_label,

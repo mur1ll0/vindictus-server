@@ -9,12 +9,14 @@
 //! - `ui`: a janela. É o único módulo com `unsafe` (chamadas Win32); o resto é código seguro.
 //!
 //! - `update`: instalar, atualizar, verificar e reparar o cliente pelo serviço `updates` (L3).
+//! - `selfupdate`: o próprio launcher, quando o servidor publica uma versão nova (L5).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![deny(unsafe_code)]
 
 mod api;
 mod config;
 mod game;
+mod selfupdate;
 #[allow(unsafe_code)]
 mod ui;
 mod update;
@@ -24,7 +26,67 @@ fn main() {
     if args.first().map(String::as_str) == Some("--update") {
         std::process::exit(headless(&args[1..]));
     }
+    if args.first().map(String::as_str) == Some("--self-update") {
+        std::process::exit(headless_self_update(&args[1..]));
+    }
     ui::run();
+}
+
+/// Sem janela: `vindictus-launcher.exe --self-update --log <arquivo> [--updates <url>]` baixa o launcher
+/// publicado (se for mais novo) e faz a troca, sem reabrir; o resultado vai para o log.
+fn headless_self_update(args: &[String]) -> i32 {
+    use std::io::Write;
+    let value = |name: &str| {
+        args.iter()
+            .position(|a| a == name)
+            .and_then(|i| args.get(i + 1))
+            .cloned()
+    };
+    let Some(log) = value("--log") else { return 2 };
+    let Ok(mut out) = std::fs::File::create(&log) else {
+        return 2;
+    };
+    let config = config::Config::load();
+    let updates =
+        value("--updates").map_or_else(|| config.updates_base(), |u| config::normalize_server(&u));
+    let Some(exe) = selfupdate::current_exe() else {
+        return 2;
+    };
+    selfupdate::cleanup(&exe);
+    let result = updates
+        .map_err(update::UpdateError::Offline)
+        .and_then(|base| {
+            let fetch = update::HttpFetch::new(&base);
+            let key = update::pinned_key()?;
+            let pointer = update::remote(&fetch, &key)?.pointer;
+            match selfupdate::wanted(&pointer, &exe) {
+                None => Ok(None),
+                Some(launcher) => {
+                    selfupdate::download(
+                        &fetch,
+                        &launcher,
+                        &exe,
+                        &std::sync::atomic::AtomicBool::new(false),
+                    )?;
+                    selfupdate::swap(&exe)?;
+                    Ok(Some(launcher.version))
+                }
+            }
+        });
+    match result {
+        Ok(Some(version)) => {
+            let _ = writeln!(out, "ok trocado {} -> {version}", selfupdate::VERSION);
+            0
+        }
+        Ok(None) => {
+            let _ = writeln!(out, "ok atual {}", selfupdate::VERSION);
+            0
+        }
+        Err(e) => {
+            let _ = writeln!(out, "erro: {} ({e:?})", e.message());
+            1
+        }
+    }
 }
 
 /// Sem janela, para diagnóstico e testes do exe real (o mesmo código do botão):

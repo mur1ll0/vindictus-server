@@ -10,6 +10,7 @@ pub mod client_dist_store;
 pub mod client_files;
 pub mod content_edits;
 pub mod game_links;
+pub mod launcher_news;
 pub mod maintenance;
 pub mod model_kit;
 pub mod postgres;

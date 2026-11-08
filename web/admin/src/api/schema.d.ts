@@ -314,6 +314,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/client-versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Published client versions, minimum, launcher and news. */
+        get: operations["client_versions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client-versions/minimum": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Oldest client version allowed to play (admin): the launcher asks the player to update below it. */
+        post: operations["client_versions_minimum"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client-versions/news": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A launcher news item (admin or GM); the signed feed is rewritten at once. */
+        post: operations["client_versions_add_news"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client-versions/news/{id}/hidden": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Hide a news item from the launcher, or show it again (admin or GM). */
+        post: operations["client_versions_news_hidden"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client-versions/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Withdraw the current version (admin): publishes N+1 with the files of N-1; nothing is deleted. */
+        post: operations["client_versions_withdraw"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/content": {
         parameters: {
             query?: never;
@@ -1273,6 +1358,13 @@ export interface components {
             /** Format: int32 */
             title_id: number;
         };
+        /** @description The page: the store's versions and the news. */
+        ClientVersionsView: {
+            news: components["schemas"]["NewsRow"][];
+            store?: null | components["schemas"]["StoreView"];
+            /** @description Why the store could not be read (no secret in it). */
+            store_error?: string | null;
+        };
         ContentEdit: {
             /** @description UTC, RFC 3339. */
             created_at: string;
@@ -1934,6 +2026,37 @@ export interface components {
             /** Format: uuid */
             operation_id: string;
         };
+        NewNews: {
+            /** @description 1-2000 characters; line breaks kept. */
+            body: string;
+            /** Format: uuid */
+            operation_id: string;
+            /** @description 1-120 characters. */
+            title: string;
+        };
+        NewsCreated: {
+            /** Format: int64 */
+            id: number;
+        };
+        /** @description One news item as the panel lists it. */
+        NewsRow: {
+            author?: string | null;
+            body: string;
+            hidden: boolean;
+            /** Format: int64 */
+            id: number;
+            /**
+             * Format: int64
+             * @description Seconds since the Unix epoch.
+             */
+            published_unix: number;
+            title: string;
+        };
+        NewsVisibility: {
+            hidden: boolean;
+            /** Format: uuid */
+            operation_id: string;
+        };
         Operation: {
             /** Format: uuid */
             operation_id: string;
@@ -2224,6 +2347,15 @@ export interface components {
             role?: string | null;
             username: string;
         };
+        SetMinimum: {
+            /**
+             * Format: int32
+             * @description 1 to the current version.
+             */
+            minimum: number;
+            /** Format: uuid */
+            operation_id: string;
+        };
         SetPassword: {
             /** Format: uuid */
             operation_id: string;
@@ -2287,6 +2419,21 @@ export interface components {
         Sorted: {
             /** @description Items that changed place. */
             moved: number;
+        };
+        /** @description The store as the panel shows it. */
+        StoreView: {
+            /** Format: int32 */
+            current: number;
+            launcher_sha256?: string | null;
+            launcher_version?: string | null;
+            /** Format: int32 */
+            minimum: number;
+            /**
+             * Format: int64
+             * @description Bytes of objects/ and deltas/ on disk.
+             */
+            store_bytes: number;
+            versions: components["schemas"]["VersionSummary"][];
         };
         StoredKit: {
             /** @description Asset folder id (`kit_<16 hex of the zip's SHA-256>`). */
@@ -2419,6 +2566,42 @@ export interface components {
             enhance: number;
             prefix?: null | components["schemas"]["EnchantChoice"];
             suffix?: null | components["schemas"]["EnchantChoice"];
+        };
+        /** @description One published version, for the panel. */
+        VersionSummary: {
+            /** Format: int64 */
+            bytes: number;
+            /** Format: int64 */
+            created_unix: number;
+            deltas: number;
+            files: number;
+            /**
+             * Format: int64
+             * @description Download to install it from nothing.
+             */
+            install_bytes: number;
+            notes: string;
+            /** @description Files of the previous version it no longer has. */
+            removed: number;
+            title: string;
+            /**
+             * Format: int64
+             * @description Download to update from the previous version (deltas where there are).
+             */
+            update_bytes?: number | null;
+            /** Format: int32 */
+            version: number;
+        };
+        WithdrawVersion: {
+            /** Format: uuid */
+            operation_id: string;
+        };
+        Withdrawn: {
+            /**
+             * Format: int32
+             * @description The new current version (with the files of the one before the withdrawn).
+             */
+            version: number;
         };
         WorldView: {
             channel?: null | components["schemas"]["ChannelView"];
@@ -3364,6 +3547,204 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    client_versions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientVersionsView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    client_versions_minimum: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetMinimum"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    client_versions_add_news: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewNews"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewsCreated"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    client_versions_news_hidden: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description News id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewsVisibility"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    client_versions_withdraw: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WithdrawVersion"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Withdrawn"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

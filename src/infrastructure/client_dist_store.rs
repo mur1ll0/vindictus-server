@@ -195,10 +195,9 @@ struct DeltaPlan {
 /// only below codec::DELTA_KEEP_PERCENT of the object. The old form comes from the store's object.
 fn plan_deltas(
     store: &Path,
-    tree: &Path,
     previous: &Manifest,
     files: &[FileEntry],
-    keystream: &[u8; codec::KEYSTREAM_SIZE],
+    new_form: &dyn Fn(&FileEntry) -> Result<Vec<u8>, StoreError>,
 ) -> Result<DeltaPlan, StoreError> {
     let before: HashMap<&str, &FileEntry> = previous
         .files
@@ -235,9 +234,7 @@ fn plan_deltas(
             &fs::read(store.join(layout::object(&old.sha256)))?,
             old.size,
         )?;
-        let mut new_form = fs::read(tree.join(&file.path))?;
-        codec::apply(file.transform, keystream, 0, &mut new_form);
-        let delta = codec::delta(&old_form, &new_form)?;
+        let delta = codec::delta(&old_form, &new_form(file)?)?;
         if !codec::delta_worth(delta.len() as u64, file.object_size) {
             plan.changed_without_delta += 1;
             plan.update_download_bytes += file.object_size;
@@ -442,7 +439,12 @@ pub fn publish(request: &PublishRequest<'_>) -> Result<PublishReport, StoreError
     let deltas = match &previous {
         Some(pointer) => {
             let before = read_manifest(request.store, pointer.current, &public)?;
-            let plan = plan_deltas(request.store, request.tree, &before, &files, &keystream)?;
+            let from_tree = |file: &FileEntry| -> Result<Vec<u8>, StoreError> {
+                let mut form = fs::read(request.tree.join(&file.path))?;
+                codec::apply(file.transform, &keystream, 0, &mut form);
+                Ok(form)
+            };
+            let plan = plan_deltas(request.store, &before, &files, &from_tree)?;
             report.deltas = plan.deltas.len();
             report.delta_bytes = plan.bytes;
             report.changed_without_delta = plan.changed_without_delta;
@@ -482,13 +484,10 @@ pub fn publish(request: &PublishRequest<'_>) -> Result<PublishReport, StoreError
         current: version,
         minimum,
         manifest_sha256: sha256_hex(&manifest_bytes),
+        // A published launcher stays published.
+        launcher: previous.as_ref().and_then(|p| p.launcher.clone()),
     };
-    let pointer_bytes = pointer.to_bytes()?;
-    write_atomic(
-        &request.store.join(layout::signature(layout::POINTER)),
-        &sign::sign(&key, &pointer_bytes),
-    )?;
-    write_atomic(&request.store.join(layout::POINTER), &pointer_bytes)?;
+    write_pointer(request.store, &key, &pointer)?;
     report.seconds = started.elapsed().as_secs();
     Ok(report)
 }
@@ -729,6 +728,81 @@ mod tests {
     }
 
     #[test]
+    fn the_panel_operations_sign_what_they_change() {
+        let temp = std::env::temp_dir().join(format!("client-dist-panel-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&temp);
+        tree(&temp);
+        let (store, keys, client, ks) = (
+            temp.join("store"),
+            temp.join("keys"),
+            temp.join("client"),
+            temp.join("ks.bin"),
+        );
+        let public = keygen(&keys).unwrap_or_default();
+        assert!(publish(&request(&temp, &store, &keys, &client, &ks)).is_ok());
+        fs::write(client.join("Vindictus.exe"), b"MZ exe v2").ok();
+        assert!(publish(&request(&temp, &store, &keys, &client, &ks)).is_ok());
+        let paths = StorePaths {
+            store: store.clone(),
+            keys: keys.clone(),
+        };
+        assert_eq!(
+            set_minimum(&paths, 2)
+                .ok()
+                .map(|(b, a)| (b.minimum, a.minimum)),
+            Some((1, 2))
+        );
+        assert!(set_minimum(&paths, 3).is_err());
+        let launcher = temp.join("launcher.exe");
+        fs::write(&launcher, b"MZ launcher").ok();
+        assert!(publish_launcher(&paths, &launcher, "0.2.0").is_ok());
+        assert!(publish_launcher(&paths, &launcher, "latest").is_err());
+        let withdrawn = withdraw(&paths, "Volta").ok();
+        assert_eq!(
+            withdrawn.as_ref().map(|r| (r.version, r.minimum)),
+            Some((3, 2))
+        );
+        let v1 = fs::read(store.join("manifests/1.json"))
+            .ok()
+            .and_then(|b| Manifest::parse(&b).ok());
+        let v3 = fs::read(store.join("manifests/3.json"))
+            .ok()
+            .and_then(|b| Manifest::parse(&b).ok());
+        assert_eq!(v1.map(|m| m.files), v3.map(|m| m.files));
+        assert!(
+            write_news(
+                &paths,
+                vec![vindictus_client_dist::manifest::NewsItem {
+                    id: 1,
+                    title: "Olá".into(),
+                    body: "Primeira notícia.".into(),
+                    published_unix: 1
+                }]
+            )
+            .is_ok()
+        );
+        let view = list_versions(&store, &public).ok();
+        assert_eq!(
+            view.as_ref().map(|v| (
+                v.current,
+                v.minimum,
+                v.versions.len(),
+                v.launcher_version.clone()
+            )),
+            Some((3, 2, 3, Some("0.2.0".into())))
+        );
+        // The launcher survives a later publish.
+        assert!(publish(&request(&temp, &store, &keys, &client, &ks)).is_ok());
+        assert_eq!(
+            list_versions(&store, &public)
+                .ok()
+                .and_then(|v| v.launcher_version),
+            Some("0.2.0".into())
+        );
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    #[test]
     fn a_changed_file_gets_a_delta_but_the_index_does_not() {
         let temp = std::env::temp_dir().join(format!("client-dist-delta-{}", std::process::id()));
         let _ = fs::remove_dir_all(&temp);
@@ -774,4 +848,316 @@ mod tests {
         );
         let _ = fs::remove_dir_all(&temp);
     }
+}
+
+/// Signs and writes `versao.json` (the signature first: a reader never pairs the new pointer with an
+/// old signature that verifies).
+fn write_pointer(
+    store: &Path,
+    key: &ed25519_dalek::SigningKey,
+    pointer: &VersionPointer,
+) -> Result<(), StoreError> {
+    let bytes = pointer.to_bytes()?;
+    VersionPointer::parse(&bytes)?;
+    write_atomic(
+        &store.join(layout::signature(layout::POINTER)),
+        &sign::sign(key, &bytes),
+    )?;
+    write_atomic(&store.join(layout::POINTER), &bytes)?;
+    Ok(())
+}
+
+fn current_pointer(
+    store: &Path,
+    key: &ed25519_dalek::SigningKey,
+) -> Result<VersionPointer, StoreError> {
+    read_pointer(store, &key.verifying_key())?
+        .ok_or_else(|| refused("the store has no published version"))
+}
+
+/// The store and the key folder the panel works on (L5).
+#[derive(Debug, Clone)]
+pub struct StorePaths {
+    pub store: PathBuf,
+    pub keys: PathBuf,
+}
+
+/// Changes the oldest version a client may play with (re-signs `versao.json`).
+pub fn set_minimum(
+    paths: &StorePaths,
+    minimum: u32,
+) -> Result<(VersionPointer, VersionPointer), StoreError> {
+    let key = load_key(&paths.keys)?;
+    let before = current_pointer(&paths.store, &key)?;
+    if minimum == 0 || minimum > before.current {
+        return Err(refused(
+            "the minimum version must be between 1 and the current one",
+        ));
+    }
+    let after = VersionPointer {
+        minimum,
+        ..before.clone()
+    };
+    write_pointer(&paths.store, &key, &after)?;
+    Ok((before, after))
+}
+
+/// Withdraws the current version N: publishes N+1 with the files of N-1 (objects already in the store),
+/// with deltas from N; the minimum stays (it never exceeds the new current). Nothing is deleted.
+pub fn withdraw(paths: &StorePaths, title: &str) -> Result<PublishReport, StoreError> {
+    let started = Instant::now();
+    let key = load_key(&paths.keys)?;
+    let public = key.verifying_key();
+    let pointer = current_pointer(&paths.store, &key)?;
+    if pointer.current < 2 {
+        return Err(refused("the first version cannot be withdrawn"));
+    }
+    let current = read_manifest(&paths.store, pointer.current, &public)?;
+    let restored = read_manifest(&paths.store, pointer.current - 1, &public)?;
+    let version = pointer.current + 1;
+    let from_store = |file: &FileEntry| -> Result<Vec<u8>, StoreError> {
+        Ok(codec::decompress(
+            &fs::read(paths.store.join(layout::object(&file.sha256)))?,
+            file.size,
+        )?)
+    };
+    let plan = plan_deltas(&paths.store, &current, &restored.files, &from_store)?;
+    let created_unix = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let manifest = Manifest {
+        version,
+        title: title.chars().take(200).collect(),
+        notes: format!(
+            "Retirada da versão {}: volta ao conteúdo da versão {}.",
+            pointer.current,
+            pointer.current - 1
+        ),
+        created_unix,
+        deltas: plan.deltas,
+        ..restored.clone()
+    };
+    manifest.check()?;
+    let bytes = manifest.to_bytes()?;
+    let name = layout::manifest(version);
+    write_atomic(&paths.store.join(&name), &bytes)?;
+    write_atomic(
+        &paths.store.join(layout::signature(&name)),
+        &sign::sign(&key, &bytes),
+    )?;
+    let after = VersionPointer {
+        current: version,
+        minimum: pointer.minimum.min(version),
+        manifest_sha256: sha256_hex(&bytes),
+        ..pointer
+    };
+    write_pointer(&paths.store, &key, &after)?;
+    let unique: HashMap<&str, u64> = manifest
+        .files
+        .iter()
+        .filter(|f| !f.preserve)
+        .map(|f| (f.sha256.as_str(), f.object_size))
+        .collect();
+    Ok(PublishReport {
+        version,
+        minimum: after.minimum,
+        files: manifest.files.len(),
+        bytes: manifest.files.iter().map(|f| f.size).sum(),
+        objects_written: 0,
+        objects_written_bytes: 0,
+        objects_reused: manifest.files.len(),
+        install_download_bytes: manifest.keystream.object_size + unique.values().sum::<u64>(),
+        levels: BTreeMap::new(),
+        by_transform: BTreeMap::new(),
+        seconds: started.elapsed().as_secs(),
+        deltas: manifest.deltas.len(),
+        delta_bytes: plan.bytes,
+        changed_without_delta: plan.changed_without_delta,
+        update_download_bytes: Some(plan.update_download_bytes),
+    })
+}
+
+/// Publishes a launcher executable for self-update: its object and the pointer's `launcher`.
+pub fn publish_launcher(
+    paths: &StorePaths,
+    exe: &Path,
+    version: &str,
+) -> Result<VersionPointer, StoreError> {
+    let key = load_key(&paths.keys)?;
+    let pointer = current_pointer(&paths.store, &key)?;
+    if vindictus_client_dist::manifest::version_parts(version).is_none() {
+        return Err(refused("the launcher version must look like 1.2.3"));
+    }
+    let data = fs::read(exe)?;
+    if data.len() < 2
+        || &data[..2] != b"MZ"
+        || data.len() as u64 > vindictus_client_dist::manifest::MAX_LAUNCHER_SIZE
+    {
+        return Err(refused(
+            "the launcher must be a Windows executable up to 64 MB",
+        ));
+    }
+    let sha = sha256_hex(&data);
+    let size = data.len() as u64;
+    let keystream = [0u8; codec::KEYSTREAM_SIZE];
+    let (object_size, _) = store_object(&paths.store, &sha, data, Transform::None, &keystream)?;
+    let after = VersionPointer {
+        launcher: Some(vindictus_client_dist::manifest::LauncherRef {
+            version: version.into(),
+            sha256: sha,
+            size,
+            object_size,
+        }),
+        ..pointer
+    };
+    write_pointer(&paths.store, &key, &after)?;
+    Ok(after)
+}
+
+/// Signs and writes `news.json` (newest first, at most MAX_NEWS items).
+pub fn write_news(
+    paths: &StorePaths,
+    items: Vec<vindictus_client_dist::manifest::NewsItem>,
+) -> Result<(), StoreError> {
+    let key = load_key(&paths.keys)?;
+    let feed = vindictus_client_dist::manifest::NewsFeed {
+        format: FORMAT,
+        items: items
+            .into_iter()
+            .take(vindictus_client_dist::manifest::MAX_NEWS)
+            .collect(),
+    };
+    let bytes = feed.to_bytes()?;
+    vindictus_client_dist::manifest::NewsFeed::parse(&bytes)?;
+    write_atomic(
+        &paths.store.join(layout::signature(layout::NEWS)),
+        &sign::sign(&key, &bytes),
+    )?;
+    write_atomic(&paths.store.join(layout::NEWS), &bytes)?;
+    Ok(())
+}
+
+/// One published version, for the panel.
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct VersionSummary {
+    pub version: u32,
+    pub title: String,
+    pub notes: String,
+    pub created_unix: u64,
+    pub files: usize,
+    pub bytes: u64,
+    /// Download to install it from nothing.
+    pub install_bytes: u64,
+    /// Download to update from the previous version (deltas where there are).
+    pub update_bytes: Option<u64>,
+    pub deltas: usize,
+    /// Files of the previous version it no longer has.
+    pub removed: usize,
+}
+
+/// The store as the panel shows it.
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct StoreView {
+    pub current: u32,
+    pub minimum: u32,
+    pub launcher_version: Option<String>,
+    pub launcher_sha256: Option<String>,
+    pub versions: Vec<VersionSummary>,
+    /// Bytes of objects/ and deltas/ on disk.
+    pub store_bytes: u64,
+}
+
+fn folder_bytes(folder: &Path) -> u64 {
+    let mut total = 0;
+    let mut pending = vec![folder.to_path_buf()];
+    while let Some(dir) = pending.pop() {
+        let Ok(entries) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            match entry.file_type() {
+                Ok(kind) if kind.is_dir() => pending.push(entry.path()),
+                Ok(_) => total += entry.metadata().map(|m| m.len()).unwrap_or(0),
+                Err(_) => {}
+            }
+        }
+    }
+    total
+}
+
+/// Every published version (signatures checked with the store's own key file).
+pub fn list_versions(store: &Path, public_hex: &str) -> Result<StoreView, StoreError> {
+    let public = sign::verifying_key(public_hex)?;
+    let pointer = read_pointer(store, &public)?
+        .ok_or_else(|| refused("the store has no published version"))?;
+    let mut versions = Vec::new();
+    let mut previous: Option<Manifest> = None;
+    for version in 1..=pointer.current {
+        let manifest = read_manifest(store, version, &public)?;
+        let unique: HashMap<&str, u64> = manifest
+            .files
+            .iter()
+            .filter(|f| !f.preserve)
+            .map(|f| (f.sha256.as_str(), f.object_size))
+            .collect();
+        let update_bytes = previous.as_ref().map(|before| {
+            let had: std::collections::HashSet<&str> =
+                before.files.iter().map(|f| f.sha256.as_str()).collect();
+            let deltas: HashMap<&str, u64> = manifest
+                .deltas
+                .iter()
+                .map(|d| (d.to_sha256.as_str(), d.delta_size))
+                .collect();
+            let mut counted = std::collections::HashSet::new();
+            manifest
+                .files
+                .iter()
+                .filter(|f| {
+                    !f.preserve
+                        && !had.contains(f.sha256.as_str())
+                        && counted.insert(f.sha256.as_str())
+                })
+                .map(|f| {
+                    deltas
+                        .get(f.sha256.as_str())
+                        .copied()
+                        .unwrap_or(f.object_size)
+                })
+                .sum()
+        });
+        let removed = previous.as_ref().map_or(0, |before| {
+            let kept: std::collections::HashSet<String> = manifest
+                .files
+                .iter()
+                .map(|f| f.path.to_ascii_lowercase())
+                .collect();
+            before
+                .files
+                .iter()
+                .filter(|f| !f.preserve && !kept.contains(&f.path.to_ascii_lowercase()))
+                .count()
+        });
+        versions.push(VersionSummary {
+            version,
+            title: manifest.title.clone(),
+            notes: manifest.notes.clone(),
+            created_unix: manifest.created_unix,
+            files: manifest.files.len(),
+            bytes: manifest.files.iter().map(|f| f.size).sum(),
+            install_bytes: manifest.keystream.object_size + unique.values().sum::<u64>(),
+            update_bytes,
+            deltas: manifest.deltas.len(),
+            removed,
+        });
+        previous = Some(manifest);
+    }
+    Ok(StoreView {
+        current: pointer.current,
+        minimum: pointer.minimum,
+        launcher_version: pointer.launcher.as_ref().map(|l| l.version.clone()),
+        launcher_sha256: pointer.launcher.map(|l| l.sha256),
+        versions,
+        store_bytes: folder_bytes(&store.join("objects")) + folder_bytes(&store.join("deltas")),
+    })
 }

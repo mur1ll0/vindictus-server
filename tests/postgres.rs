@@ -1644,3 +1644,34 @@ mod content_edits;
 
 #[path = "support/messenger_friends.rs"]
 mod messenger_friends;
+
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
+async fn launcher_news_keep_hidden_items_out_of_the_feed() {
+    use vindictus_server::infrastructure::launcher_news;
+    let (admin, pool, schema) = isolated_game_pool().await;
+    let author = create_account(
+        &pool,
+        Username::parse("news_author").unwrap(),
+        Zeroizing::new(b"correct horse battery".to_vec()),
+    )
+    .await
+    .unwrap();
+    let mut tx = pool.begin().await.unwrap();
+    let first = launcher_news::insert(&mut tx, "Manutenção", "Volta às 20h.", author).await.unwrap();
+    let second = launcher_news::insert(&mut tx, "Evento", "Fairy Tail no ar.\nAté domingo.", author).await.unwrap();
+    assert!(launcher_news::set_hidden(&mut tx, first, true).await.unwrap());
+    assert!(!launcher_news::set_hidden(&mut tx, 999_999, true).await.unwrap());
+    let feed = launcher_news::visible(&mut tx, 20).await.unwrap();
+    assert_eq!(feed.iter().map(|n| n.id).collect::<Vec<_>>(), vec![second]);
+    tx.commit().await.unwrap();
+    let all = launcher_news::list(&pool, 100).await.unwrap();
+    assert_eq!(all.len(), 2);
+    assert!(all.iter().all(|n| n.author.as_deref() == Some("news_author")));
+    assert!(all.iter().any(|n| n.id == first && n.hidden));
+    // The bounds of the panel are also the table's.
+    let mut tx = pool.begin().await.unwrap();
+    assert!(launcher_news::insert(&mut tx, "", "x", author).await.is_err());
+    drop(tx);
+    cleanup_game_pool(admin, pool, schema).await;
+}

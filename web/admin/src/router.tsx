@@ -5,6 +5,7 @@ import { Layout } from '@/components/Layout';
 import { AccountsPage } from '@/pages/Accounts';
 import { AuditPage } from '@/pages/Audit';
 import { CashShopPage } from '@/pages/CashShop';
+import { ClientVersionsPage } from '@/pages/ClientVersions';
 import { TuningPage } from '@/pages/Tuning';
 import { WorldPage } from '@/pages/World';
 import { ContentPage } from '@/pages/Content';
@@ -102,6 +103,12 @@ const itemsRoute = createRoute({
   beforeLoad: staffOnly,
   component: ItemEditorPage,
 });
+const clientVersionsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/versoes-do-cliente',
+  beforeLoad: staffOnly,
+  component: ClientVersionsPage,
+});
 const worldRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/mapas',
@@ -134,6 +141,7 @@ export function makeRouter(queryClient: QueryClient) {
         itemsRoute,
         modelsRoute,
         worldRoute,
+        clientVersionsRoute,
         auditRoute,
         characterRoute,
         myAccountRoute,

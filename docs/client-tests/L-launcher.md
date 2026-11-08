@@ -63,3 +63,9 @@ Pré-condição: o serviço `updates` no ar (rebuild do Docker com o compose de 
 - [ ] **LV5 (verificar e reparar):** com o jogo fechado, apagar `bin\engine.dll` da pasta instalada e mudar um byte de um `.hfs` qualquer → "Verificar arquivos" → no fim "2 baixados" → Jogar funciona. Mudar `cfg\config_env.cfg` (opções) não é desfeito.
 - [ ] **LV6 (já tenho o cliente):** escolher uma cópia do 1.69 já usada (sem a pasta `.vindictus-update`) → "Já tenho o cliente" → baixa só o que difere (≈ 1,9 GB para a v3 a partir da v1 montada) → Jogar.
 Relato: passo, o texto da linha de mensagem e, se falhar, o `vindictus-launcher.exe --update <pasta> --log l3.log` do mesmo caso.
+
+### LV7–LV8 — notícias, autoatualização e painel "Versões do cliente" (L5, 07/11/2026)
+Pré-condição: Docker reconstruído em 07/11 (L5); launcher 0.2.0 (`tools/launcher/build.ps1`) já publicado no armazém (`client-dist launcher`); conta de admin no painel.
+- [ ] **LV7 (painel):** painel → "Versões do cliente" → as versões 1–3 com tamanhos de instalação e de atualização, mínima 1 e launcher 0.2.0 → "Nova notícia" (título e duas linhas) → aparece na lista → abrir o launcher: a notícia aparece no quadro do topo → "Ocultar" no painel → reabrir o launcher: some. (Opcional, só com cópias de teste) "Versão mínima" = 3 e conferir que um cliente na versão 1 não abre Jogar até atualizar; depois voltar a 1.
+- [ ] **LV8 (autoatualização):** com um launcher mais antigo que o publicado (o operador publica um exe novo com `client-dist launcher --exe … --version 0.2.1`), abrir o launcher sem fazer login → ele se fecha e reabre sozinho na versão nova; com login aberto, a mensagem "Launcher … baixado: entra na próxima vez" e a troca na próxima abertura. Ao lado do exe não deve sobrar `.old` depois da segunda abertura.
+Relato: o que aparece na linha de mensagem e na lista do painel; para o LV8, o log de `vindictus-launcher.exe --self-update --log l5.log` no mesmo caso.

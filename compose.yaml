@@ -112,6 +112,7 @@ services:
         --admin-private-assets /private-assets --item-content-stamp /content/item-content.json
         --shop-list-output /shop-list/ShopList.aspx
         --content-edits-output /content-state/content-edits.json
+        --admin-client-dist /client-dist --admin-client-dist-keys /client-dist-keys
         < /run/secrets/lab_runtime_profile
     environment:
       <<: *app-environment
@@ -125,6 +126,10 @@ services:
       - ./.cache/content-state:/content-state
       # Item editor: uploaded model kits (never versioned); the host packs them into the client copy.
       - ./.cache/private-assets:/private-assets
+      # "Versões do cliente" (L5): the update store (minimum version, withdraw, news) and the folder of its
+      # private key, read only and mounted only here; the public `updates` service never sees the key.
+      - ${CLIENT_DIST_DIR:-./.cache/client-dist}:/client-dist
+      - ${CLIENT_DIST_KEYS_DIR:-./.cache/client-dist-keys}:/client-dist-keys:ro
     secrets: [lab_runtime_profile]
     depends_on:
       postgres:

@@ -814,7 +814,7 @@ dependencies = [
 
 [[package]]
 name = "vindictus-launcher"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "ed25519-dalek",
  "embed-resource",

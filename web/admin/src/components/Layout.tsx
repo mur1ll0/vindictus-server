@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
-import { Box, FileStack, Gem, Shirt, History, LogOut, Map as MapIcon, Moon, Shield, SlidersHorizontal, Store, Sun, UserRound, Users } from 'lucide-react';
+import { Box, FileStack, Gem, HardDriveDownload, Shirt, History, LogOut, Map as MapIcon, Moon, Shield, SlidersHorizontal, Store, Sun, UserRound, Users } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { logout, sessionQuery } from '@/api/session';
 import { roleLabel } from '@/components/forms';
@@ -19,6 +19,7 @@ const STAFF: Item[] = [
   { to: '/itens', label: 'Editor de itens', icon: <Shirt /> },
   { to: '/modelos', label: 'Modelos 3D', icon: <Box /> },
   { to: '/mapas', label: 'Mapas e canais', icon: <MapIcon /> },
+  { to: '/versoes-do-cliente', label: 'Versões do cliente', icon: <HardDriveDownload /> },
   { to: '/auditoria', label: 'Auditoria', icon: <History /> },
 ];
 const OWN: Item[] = [{ to: '/minha-conta', label: 'Minha conta', icon: <UserRound /> }];

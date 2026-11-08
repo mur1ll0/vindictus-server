@@ -29,6 +29,7 @@ pub mod character_lobby;
 pub mod home_cafe_bonus;
 
 pub mod character_reservations;
+pub mod client_versions;
 
 pub mod character_creation;
 pub mod character_name_check;

@@ -54,6 +54,36 @@ pub enum ClientDistCommand {
         #[arg(long)]
         deep: bool,
     },
+    /// Oldest client version allowed to play (re-signs versao.json).
+    Minimum {
+        #[arg(long)]
+        store: PathBuf,
+        #[arg(long)]
+        keys: PathBuf,
+        #[arg(long)]
+        minimum: u32,
+    },
+    /// Withdraw the current version: publishes N+1 with the files of N-1 (nothing is deleted).
+    Withdraw {
+        #[arg(long)]
+        store: PathBuf,
+        #[arg(long)]
+        keys: PathBuf,
+        #[arg(long, default_value = "Versão retirada")]
+        title: String,
+    },
+    /// Publish a launcher executable for self-update (vindictus-launcher.exe of tools/launcher/build.ps1).
+    Launcher {
+        #[arg(long)]
+        store: PathBuf,
+        #[arg(long)]
+        keys: PathBuf,
+        #[arg(long)]
+        exe: PathBuf,
+        /// Its version (the `version` of tools/launcher/Cargo.toml).
+        #[arg(long)]
+        version: String,
+    },
     /// Read-only HTTP of the store on its own listener (port 8090 in compose).
     Serve {
         #[arg(long)]
@@ -123,6 +153,12 @@ pub enum Command {
         /// are kept; never versioned.
         #[arg(long, requires = "admin_listen")]
         admin_private_assets: Option<std::path::PathBuf>,
+        /// "Versões do cliente" (L5): the update store (CLIENT_DIST_DIR), read and written by the panel.
+        #[arg(long, requires_all = ["admin_listen", "admin_client_dist_keys"])]
+        admin_client_dist: Option<std::path::PathBuf>,
+        /// The folder of the store's private key (client-dist keygen), mounted only into the panel.
+        #[arg(long, requires = "admin_client_dist")]
+        admin_client_dist_keys: Option<std::path::PathBuf>,
         /// Item editor: the host's item export stamp (.cache/private-content/item-content.json,
         /// scripts/content/refresh_item_content.py). A published item version newer than it
         /// is not recorded as applied at start.

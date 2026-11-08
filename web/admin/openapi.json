@@ -1378,6 +1378,259 @@
         }
       }
     },
+    "/api/client-versions": {
+      "get": {
+        "tags": [
+          "client_versions"
+        ],
+        "summary": "Published client versions, minimum, launcher and news.",
+        "operationId": "client_versions",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientVersionsView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/client-versions/minimum": {
+      "post": {
+        "tags": [
+          "client_versions"
+        ],
+        "summary": "Oldest client version allowed to play (admin): the launcher asks the player to update below it.",
+        "operationId": "client_versions_minimum",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetMinimum"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/client-versions/news": {
+      "post": {
+        "tags": [
+          "client_versions"
+        ],
+        "summary": "A launcher news item (admin or GM); the signed feed is rewritten at once.",
+        "operationId": "client_versions_add_news",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewNews"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewsCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/client-versions/news/{id}/hidden": {
+      "post": {
+        "tags": [
+          "client_versions"
+        ],
+        "summary": "Hide a news item from the launcher, or show it again (admin or GM).",
+        "operationId": "client_versions_news_hidden",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "News id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewsVisibility"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/client-versions/withdraw": {
+      "post": {
+        "tags": [
+          "client_versions"
+        ],
+        "summary": "Withdraw the current version (admin): publishes N+1 with the files of N-1; nothing is deleted.",
+        "operationId": "client_versions_withdraw",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawVersion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Withdrawn"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/content": {
       "get": {
         "tags": [
@@ -4208,6 +4461,39 @@
           }
         }
       },
+      "ClientVersionsView": {
+        "type": "object",
+        "description": "The page: the store's versions and the news.",
+        "required": [
+          "news"
+        ],
+        "properties": {
+          "news": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NewsRow"
+            }
+          },
+          "store": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/StoreView",
+                "description": "None when the store is not configured or has no published version yet."
+              }
+            ]
+          },
+          "store_error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the store could not be read (no secret in it)."
+          }
+        }
+      },
       "ContentEdit": {
         "type": "object",
         "required": [
@@ -6130,6 +6416,93 @@
           }
         }
       },
+      "NewNews": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "title",
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string",
+            "description": "1-2000 characters; line breaks kept."
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "description": "1-120 characters."
+          }
+        }
+      },
+      "NewsCreated": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "NewsRow": {
+        "type": "object",
+        "description": "One news item as the panel lists it.",
+        "required": [
+          "id",
+          "title",
+          "body",
+          "published_unix",
+          "hidden"
+        ],
+        "properties": {
+          "author": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "published_unix": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Seconds since the Unix epoch."
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "NewsVisibility": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "hidden"
+        ],
+        "properties": {
+          "hidden": {
+            "type": "boolean"
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "Operation": {
         "type": "object",
         "required": [
@@ -7073,6 +7446,25 @@
           }
         }
       },
+      "SetMinimum": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "minimum"
+        ],
+        "properties": {
+          "minimum": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 to the current version.",
+            "minimum": 0
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "SetPassword": {
         "type": "object",
         "required": [
@@ -7253,6 +7645,52 @@
             "type": "integer",
             "description": "Items that changed place.",
             "minimum": 0
+          }
+        }
+      },
+      "StoreView": {
+        "type": "object",
+        "description": "The store as the panel shows it.",
+        "required": [
+          "current",
+          "minimum",
+          "versions",
+          "store_bytes"
+        ],
+        "properties": {
+          "current": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "launcher_sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "launcher_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "minimum": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "store_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes of objects/ and deltas/ on disk.",
+            "minimum": 0
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VersionSummary"
+            }
           }
         }
       },
@@ -7691,6 +8129,98 @@
                 "$ref": "#/components/schemas/EnchantChoice"
               }
             ]
+          }
+        }
+      },
+      "VersionSummary": {
+        "type": "object",
+        "description": "One published version, for the panel.",
+        "required": [
+          "version",
+          "title",
+          "notes",
+          "created_unix",
+          "files",
+          "bytes",
+          "install_bytes",
+          "deltas",
+          "removed"
+        ],
+        "properties": {
+          "bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "created_unix": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "deltas": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "files": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "install_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Download to install it from nothing.",
+            "minimum": 0
+          },
+          "notes": {
+            "type": "string"
+          },
+          "removed": {
+            "type": "integer",
+            "description": "Files of the previous version it no longer has.",
+            "minimum": 0
+          },
+          "title": {
+            "type": "string"
+          },
+          "update_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Download to update from the previous version (deltas where there are).",
+            "minimum": 0
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "WithdrawVersion": {
+        "type": "object",
+        "required": [
+          "operation_id"
+        ],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "Withdrawn": {
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The new current version (with the files of the one before the withdrawn).",
+            "minimum": 0
           }
         }
       },
