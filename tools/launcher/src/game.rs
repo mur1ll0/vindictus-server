@@ -54,9 +54,11 @@ pub fn messenger_ini(server_base: &str) -> Option<String> {
     if host.is_empty() || host == "[]" {
         return None;
     }
-    Some(format!("[messenger]
+    Some(format!(
+        "[messenger]
 address={host}:{MESSENGER_PORT}
-"))
+"
+    ))
 }
 
 /// Grava o `nmcogame.ini` na pasta do jogo antes de abrir; sem ele (ou se falhar) o jogo abre
@@ -91,21 +93,27 @@ mod tests {
     fn the_messenger_ini_uses_the_server_host() {
         assert_eq!(
             messenger_ini("http://192.168.0.10:27090").as_deref(),
-            Some("[messenger]
+            Some(
+                "[messenger]
 address=192.168.0.10:47611
-")
+"
+            )
         );
         assert_eq!(
             messenger_ini("https://jogo.example/base").as_deref(),
-            Some("[messenger]
+            Some(
+                "[messenger]
 address=jogo.example:47611
-")
+"
+            )
         );
         assert_eq!(
             messenger_ini("http://[::1]:27090").as_deref(),
-            Some("[messenger]
+            Some(
+                "[messenger]
 address=[::1]:47611
-")
+"
+            )
         );
         assert_eq!(messenger_ini("ftp://x"), None);
     }

@@ -20,7 +20,13 @@ pub struct Config {
     /// permissões do usuário (`game::start`).
     #[serde(default)]
     pub game_as_admin: bool,
+    /// Serviço de atualização (`updates`, L3). Vazio: o host do servidor na porta 8090.
+    #[serde(default)]
+    pub updates: String,
 }
+
+/// Porta do serviço `updates` no compose (`docs/future/game-launcher.md` 4.2).
+pub const UPDATES_PORT: u16 = 8090;
 
 fn exe_folder() -> PathBuf {
     std::env::current_exe()
@@ -63,6 +69,23 @@ impl Config {
     pub fn server_base(&self) -> Result<String, String> {
         normalize_server(&self.server)
     }
+
+    /// Serviço de atualização: o configurado, ou o host do servidor na porta 8090 (mesmo esquema).
+    pub fn updates_base(&self) -> Result<String, String> {
+        if !self.updates.trim().is_empty() {
+            return normalize_server(&self.updates);
+        }
+        let server = self.server_base()?;
+        let (scheme, rest) = server
+            .split_once("://")
+            .ok_or("Endereço do servidor inválido.")?;
+        let authority = rest.split('/').next().unwrap_or(rest);
+        let host = match authority.strip_prefix('[') {
+            Some(v6) => format!("[{}]", v6.split(']').next().unwrap_or_default()),
+            None => authority.split(':').next().unwrap_or_default().to_owned(),
+        };
+        normalize_server(&format!("{scheme}://{host}:{UPDATES_PORT}"))
+    }
 }
 
 pub fn normalize_server(text: &str) -> Result<String, String> {
@@ -94,5 +117,21 @@ mod tests {
         assert!(normalize_server("127.0.0.1:27090").is_err());
         assert!(normalize_server("http://").is_err());
         assert!(normalize_server("http://a b").is_err());
+    }
+
+    #[test]
+    fn the_update_service_follows_the_server_host() {
+        let mut config = Config {
+            server: "http://127.0.0.1:27090".into(),
+            ..Config::default()
+        };
+        assert_eq!(config.updates_base(), Ok("http://127.0.0.1:8090".into()));
+        config.server = "https://jogo.example".into();
+        assert_eq!(
+            config.updates_base(),
+            Ok("https://jogo.example:8090".into())
+        );
+        config.updates = "https://updates.example/".into();
+        assert_eq!(config.updates_base(), Ok("https://updates.example".into()));
     }
 }

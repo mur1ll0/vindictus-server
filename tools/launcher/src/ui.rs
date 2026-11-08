@@ -8,9 +8,11 @@
 use crate::api::{Api, ApiError, Session};
 use crate::config::{Config, normalize_server};
 use crate::game;
+use crate::update;
 use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use windows_sys::Win32::Foundation::*;
 use windows_sys::Win32::Graphics::Gdi::*;
 use windows_sys::Win32::System::Com::{COINIT_APARTMENTTHREADED, CoInitializeEx};
@@ -33,6 +35,8 @@ const ID_LOGOUT: i32 = 113;
 const ID_FOLDER: i32 = 120;
 const ID_PLAY: i32 = 130;
 const ID_ADMIN: i32 = 131;
+const ID_UPDATE: i32 = 132;
+const ID_VERIFY: i32 = 133;
 const ID_SERVER: i32 = 140;
 const ID_SAVE: i32 = 141;
 
@@ -41,6 +45,9 @@ const WM_LOGGED_IN: u32 = WM_APP + 2;
 const WM_GAME_STARTED: u32 = WM_APP + 3;
 const WM_GAME_EXITED: u32 = WM_APP + 4;
 const WM_LOGGED_OUT: u32 = WM_APP + 5;
+const WM_REMOTE: u32 = WM_APP + 6;
+const WM_PROGRESS: u32 = WM_APP + 7;
+const WM_UPDATED: u32 = WM_APP + 8;
 
 const TIMER_STATUS: usize = 1;
 const TIMER_CLOSE: usize = 2;
@@ -72,6 +79,10 @@ struct Controls {
     choose_folder: HWND,
     play: HWND,
     admin: HWND,
+    version: HWND,
+    update: HWND,
+    verify: HWND,
+    progress: HWND,
     message: HWND,
     server: HWND,
     save: HWND,
@@ -94,6 +105,14 @@ struct State {
     game_running: bool,
     closing: bool,
     online: Option<bool>,
+    /// Versão do cliente na pasta (`.vindictus-update/estado.json`); `None` sem estado.
+    local: Option<u32>,
+    /// Versão publicada e mínima (`versao.json` assinado); `None` sem resposta.
+    remote: Option<(u32, u32)>,
+    /// Instalando, atualizando ou verificando; o flag cancela.
+    updating: Option<Arc<AtomicBool>>,
+    /// Espelho de `game_running` para a thread da atualização.
+    game_flag: Arc<AtomicBool>,
 }
 
 thread_local! {
@@ -240,20 +259,54 @@ fn refresh() {
         show(c.logout, logged);
         set_text(c.connected, &format!("Conectado como {}", s.user));
         let idle = !s.busy && !s.closing;
-        for h in [
-            c.user,
-            c.password,
-            c.login,
-            c.server,
-            c.save,
-            c.choose_folder,
-            c.admin,
-        ] {
+        for h in [c.user, c.password, c.login, c.server, c.save, c.admin] {
             enable(h, idle);
         }
+        enable(c.choose_folder, idle && s.updating.is_none());
         enable(c.logout, idle && !s.game_running);
         let folder_ok = game::is_game_folder(Path::new(&s.config.game_folder));
-        enable(c.play, idle && logged && !s.game_running && folder_ok);
+        let updating = s.updating.is_some();
+        // Abaixo da mínima publicada o jogo não abre; sem estado (cópia antiga) abre, e "Verificar
+        // arquivos" registra a versão.
+        let below_minimum =
+            matches!((s.local, s.remote), (Some(local), Some((_, minimum))) if local < minimum);
+        enable(
+            c.play,
+            idle && logged && !s.game_running && folder_ok && !updating && !below_minimum,
+        );
+        let has_folder = !s.config.game_folder.is_empty();
+        let (update_text, update_on) = if updating {
+            ("Cancelar", true)
+        } else {
+            match (folder_ok, s.local, s.remote) {
+                (false, _, Some(_)) if has_folder => ("Instalar o jogo aqui", true),
+                (true, Some(local), Some((current, _))) if local < current => ("Atualizar", true),
+                (true, None, Some(_)) => ("Já tenho o cliente", true),
+                _ => ("Atualizado", false),
+            }
+        };
+        set_text(c.update, update_text);
+        enable(
+            c.update,
+            update_on && (updating || (idle && !s.game_running)),
+        );
+        enable(
+            c.verify,
+            idle && !updating && !s.game_running && folder_ok && s.remote.is_some(),
+        );
+        set_text(
+            c.version,
+            &match (s.local, s.remote) {
+                (Some(l), Some((r, _))) if l >= r => format!("Cliente: versão {l} (atual)"),
+                (Some(l), Some((r, _))) => format!("Cliente: versão {l}; publicada: {r}"),
+                (None, Some((r, _))) if folder_ok => {
+                    format!("Cliente sem registro; publicada: {r}")
+                }
+                (None, Some((r, _))) => format!("Publicada: versão {r}"),
+                (Some(l), None) => format!("Cliente: versão {l}; atualização fora do ar"),
+                (None, None) => "Atualização: verificando…".into(),
+            },
+        );
         set_text(
             c.play,
             if s.game_running {
@@ -287,6 +340,136 @@ fn set_busy(on: bool) {
 }
 
 // ---------------------------------------------------------------- ações
+
+/// Versão local (estado na pasta) e a publicada (assinatura conferida) numa thread.
+fn check_versions() {
+    let (folder, base) = ST.with(|s| {
+        let s = s.borrow();
+        (
+            PathBuf::from(&s.config.game_folder),
+            s.config.updates_base(),
+        )
+    });
+    let local = (!folder.as_os_str().is_empty())
+        .then(|| update::local_state(&folder))
+        .flatten();
+    ST.with(|s| s.borrow_mut().local = local.map(|l| l.version));
+    refresh();
+    let Ok(base) = base else { return };
+    let window = ctl().window;
+    std::thread::spawn(move || {
+        let fetch = update::HttpFetch::new(&base);
+        let remote = update::pinned_key()
+            .and_then(|key| update::remote(&fetch, &key))
+            .map(|r| (r.pointer.current, r.pointer.minimum))
+            .map_err(|e| e.message());
+        post(window, WM_REMOTE, remote);
+    });
+}
+
+fn on_remote(remote: Result<(u32, u32), String>) {
+    ST.with(|s| s.borrow_mut().remote = remote.ok());
+    refresh();
+}
+
+/// Instalar, "já tenho o cliente", atualizar ou verificar (`full`); com uma em curso, cancela.
+fn on_update(full: bool) {
+    if let Some(cancel) = ST.with(|s| s.borrow().updating.clone()) {
+        cancel.store(true, Ordering::Relaxed);
+        message("Cancelando…", Tone::Normal);
+        return;
+    }
+    let (folder, base, game_flag) = ST.with(|s| {
+        let s = s.borrow();
+        (
+            PathBuf::from(&s.config.game_folder),
+            s.config.updates_base(),
+            s.game_flag.clone(),
+        )
+    });
+    let base = match base {
+        Ok(base) => base,
+        Err(e) => return message(&e, Tone::Error),
+    };
+    let cancel = Arc::new(AtomicBool::new(false));
+    ST.with(|s| s.borrow_mut().updating = Some(cancel.clone()));
+    set_progress(0, 1);
+    message("Preparando…", Tone::Normal);
+    refresh();
+    let window = ctl().window;
+    let mode = if full {
+        update::Mode::Full
+    } else {
+        update::Mode::Changes
+    };
+    std::thread::spawn(move || {
+        let fetch = update::HttpFetch::new(&base);
+        let last = std::cell::Cell::new((String::new(), u64::MAX));
+        let report = |p: update::Progress| {
+            // No máximo uma mensagem por milésimo e por arquivo novo.
+            let step = (p.done * 1000).checked_div(p.total).unwrap_or(0);
+            let (file, shown) = last.take();
+            if step != shown || file != p.file {
+                post(window, WM_PROGRESS, p.clone());
+            }
+            last.set((p.file, step));
+        };
+        let running = || game_flag.load(Ordering::Relaxed);
+        let result = update::pinned_key()
+            .and_then(|key| {
+                update::run(
+                    &folder, &fetch, &key, mode, None, &cancel, &running, &report,
+                )
+            })
+            .map_err(|e| e.message());
+        post(window, WM_UPDATED, result);
+    });
+}
+
+fn set_progress(done: u64, total: u64) {
+    let position = (done * 1000).checked_div(total).unwrap_or(0).min(1000);
+    unsafe { SendMessageW(ctl().progress, PBM_SETPOS, position as WPARAM, 0) };
+}
+
+fn megabytes(bytes: u64) -> String {
+    format!("{:.1} MB", bytes as f64 / 1_048_576.0)
+}
+
+fn on_progress(p: update::Progress) {
+    set_progress(p.done, p.total);
+    let file = p.file.rsplit('/').next().unwrap_or(&p.file).to_owned();
+    message(
+        &format!(
+            "{}: {} de {}  {file}",
+            p.phase,
+            megabytes(p.done),
+            megabytes(p.total)
+        ),
+        Tone::Normal,
+    );
+}
+
+fn on_updated(result: Result<update::Outcome, String>) {
+    ST.with(|s| s.borrow_mut().updating = None);
+    match result {
+        Ok(o) => {
+            set_progress(1, 1);
+            message(
+                &format!(
+                    "Cliente na versão {}: {} arquivos conferidos, {} baixados ({}), {} por delta.",
+                    o.version,
+                    o.checked,
+                    o.downloaded,
+                    megabytes(o.downloaded_bytes),
+                    o.deltas
+                ),
+                Tone::Ok,
+            );
+        }
+        Err(e) => message(&e, Tone::Error),
+    }
+    check_versions();
+}
 
 fn check_status() {
     let Ok(api) = api() else {
@@ -419,7 +602,9 @@ fn on_play() {
         Ok(api) => api,
         Err(e) => return message(&e, Tone::Error),
     };
-    let server = ST.with(|s| s.borrow().config.server_base()).unwrap_or_default();
+    let server = ST
+        .with(|s| s.borrow().config.server_base())
+        .unwrap_or_default();
     set_busy(true);
     message("Abrindo o jogo…", Tone::Normal);
     let window = ctl().window;
@@ -467,7 +652,11 @@ fn on_toggle_admin() {
 fn on_game_started(result: Result<(), (bool, String)>) {
     match result {
         Ok(()) => {
-            ST.with(|s| s.borrow_mut().game_running = true);
+            ST.with(|s| {
+                let mut s = s.borrow_mut();
+                s.game_running = true;
+                s.game_flag.store(true, Ordering::Relaxed);
+            });
             message(
                 "Jogo aberto. Clique em Start Game quando quiser: o login vale enquanto o launcher estiver aberto.",
                 Tone::Ok,
@@ -484,7 +673,11 @@ fn on_game_started(result: Result<(), (bool, String)>) {
 }
 
 fn on_game_exited() {
-    ST.with(|s| s.borrow_mut().game_running = false);
+    ST.with(|s| {
+        let mut s = s.borrow_mut();
+        s.game_running = false;
+        s.game_flag.store(false, Ordering::Relaxed);
+    });
     message("Jogo fechado.", Tone::Normal);
     refresh();
 }
@@ -528,6 +721,20 @@ fn on_close() {
     if closing {
         unsafe { DestroyWindow(ctl().window) };
         return;
+    }
+    if let Some(cancel) = ST.with(|s| s.borrow().updating.clone()) {
+        let answer = unsafe {
+            MessageBoxW(
+                ctl().window,
+                wide("A atualização está em andamento. Ela continua de onde parou na próxima vez.\n\nFechar o launcher?").as_ptr(),
+                wide(TITLE).as_ptr(),
+                MB_YESNO | MB_ICONQUESTION,
+            )
+        };
+        if answer != IDYES {
+            return;
+        }
+        cancel.store(true, Ordering::Relaxed);
     }
     if game_running && logged {
         let answer = unsafe {
@@ -584,23 +791,22 @@ fn on_choose_folder() {
     let Some(folder) = choose_folder() else {
         return;
     };
-    if !game::is_game_folder(&folder) {
-        message(
-            "Essa pasta não tem o Vindictus.exe e o bin\\client.dll. Escolha a pasta do jogo.",
-            Tone::Error,
-        );
-        return;
-    }
+    let is_game = game::is_game_folder(&folder);
     let saved = ST.with(|s| {
         let mut s = s.borrow_mut();
         s.config.game_folder = folder.to_string_lossy().into_owned();
         s.config.save()
     });
     match saved {
-        Ok(()) => message("Pasta do jogo salva.", Tone::Ok),
+        Ok(()) if is_game => message("Pasta do jogo salva.", Tone::Ok),
+        Ok(()) => message(
+            "Essa pasta ainda não tem o jogo: \"Instalar o jogo aqui\" baixa o cliente nela.",
+            Tone::Normal,
+        ),
         Err(e) => message(&e, Tone::Error),
     }
     refresh();
+    check_versions();
 }
 
 fn on_save_server() {
@@ -626,6 +832,7 @@ fn on_save_server() {
     }
     refresh();
     check_status();
+    check_versions();
 }
 
 fn open_url(url: &str) {
@@ -670,6 +877,8 @@ unsafe extern "system" fn procedure(
                     ID_LOGOUT => on_logout_clicked(),
                     ID_PLAY => on_play(),
                     ID_ADMIN => on_toggle_admin(),
+                    ID_UPDATE => on_update(false),
+                    ID_VERIFY => on_update(true),
                     ID_FOLDER => on_choose_folder(),
                     ID_SAVE => on_save_server(),
                     ID_PANEL => on_open(false),
@@ -719,7 +928,12 @@ unsafe extern "system" fn procedure(
         }
         WM_TIMER => {
             match wparam {
-                TIMER_STATUS => check_status(),
+                TIMER_STATUS => {
+                    check_status();
+                    if ST.with(|s| s.borrow().updating.is_none()) {
+                        check_versions();
+                    }
+                }
                 TIMER_CLOSE => unsafe {
                     DestroyWindow(window);
                 },
@@ -749,6 +963,18 @@ unsafe extern "system" fn procedure(
         WM_LOGGED_OUT => {
             let () = unsafe { take(lparam) };
             on_logged_out();
+            0
+        }
+        WM_REMOTE => {
+            on_remote(unsafe { take(lparam) });
+            0
+        }
+        WM_PROGRESS => {
+            on_progress(unsafe { take(lparam) });
+            0
+        }
+        WM_UPDATED => {
+            on_updated(unsafe { take(lparam) });
             0
         }
         WM_CLOSE => {
@@ -838,7 +1064,7 @@ pub fn run() {
         CoInitializeEx(std::ptr::null(), COINIT_APARTMENTTHREADED as u32);
         let iccx = INITCOMMONCONTROLSEX {
             dwSize: std::mem::size_of::<INITCOMMONCONTROLSEX>() as u32,
-            dwICC: ICC_STANDARD_CLASSES,
+            dwICC: ICC_STANDARD_CLASSES | ICC_PROGRESS_CLASS,
         };
         InitCommonControlsEx(&iccx);
 
@@ -881,7 +1107,7 @@ pub fn run() {
             left: 0,
             top: 0,
             right: px(520),
-            bottom: px(364),
+            bottom: px(416),
         };
         AdjustWindowRect(&mut r, style, 0);
         let (width, height) = (r.right - r.left, r.bottom - r.top);
@@ -972,10 +1198,35 @@ pub fn run() {
             BS_PUSHBUTTON,
             normal,
         );
-        let play = button("Jogar", (16, 202, 488, 42), ID_PLAY, BS_PUSHBUTTON, big);
+        let version = label("Atualização: verificando…", normal, (16, 200, 280, 20), 0);
+        let verify = button(
+            "Verificar arquivos",
+            (300, 194, 100, 28),
+            ID_VERIFY,
+            BS_PUSHBUTTON,
+            normal,
+        );
+        let update_button = button(
+            "Atualizado",
+            (404, 194, 100, 28),
+            ID_UPDATE,
+            BS_PUSHBUTTON,
+            normal,
+        );
+        let progress = b.make(
+            "msctls_progress32",
+            "",
+            0,
+            0,
+            (16, 230, 488, 16),
+            -1,
+            normal,
+        );
+        SendMessageW(progress, PBM_SETRANGE32, 0, 1000);
+        let play = button("Jogar", (16, 254, 488, 42), ID_PLAY, BS_PUSHBUTTON, big);
         let admin = button(
             "Abrir o jogo como administrador (só se ele não abrir sem)",
-            (16, 252, 488, 22),
+            (16, 304, 488, 22),
             ID_ADMIN,
             BS_AUTOCHECKBOX,
             normal,
@@ -983,11 +1234,11 @@ pub fn run() {
         if as_admin {
             SendMessageW(admin, BM_SETCHECK, BST_CHECKED as WPARAM, 0);
         }
-        let message = label("", normal, (16, 278, 488, 36), SS_EDITCONTROL);
-        label("", normal, (16, 320, 488, 2), SS_ETCHEDHORZ);
-        label("Servidor:", normal, (16, 335, 60, 20), 0);
-        let server_edit = edit(&server, (80, 331, 324, 24), ID_SERVER, 0);
-        let save = button("Salvar", (412, 330, 92, 26), ID_SAVE, BS_PUSHBUTTON, normal);
+        let message = label("", normal, (16, 330, 488, 36), SS_EDITCONTROL);
+        label("", normal, (16, 372, 488, 2), SS_ETCHEDHORZ);
+        label("Servidor:", normal, (16, 387, 60, 20), 0);
+        let server_edit = edit(&server, (80, 383, 324, 24), ID_SERVER, 0);
+        let save = button("Salvar", (412, 382, 92, 26), ID_SAVE, BS_PUSHBUTTON, normal);
 
         CTL.with(|c| {
             c.set(Controls {
@@ -1004,6 +1255,10 @@ pub fn run() {
                 choose_folder,
                 play,
                 admin,
+                version,
+                update: update_button,
+                verify,
+                progress,
                 message,
                 server: server_edit,
                 save,
@@ -1019,6 +1274,7 @@ pub fn run() {
             password
         });
         check_status();
+        check_versions();
         SetTimer(window, TIMER_STATUS, STATUS_EVERY_MS, None);
 
         let mut msg: MSG = std::mem::zeroed();

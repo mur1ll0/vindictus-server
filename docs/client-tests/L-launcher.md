@@ -56,3 +56,10 @@ Pré-condição: as pastas `.cache/client-versions/v1`, `v2` e `v3` montadas por
 - [ ] **LV2 (v2, + Delia)**: o mesmo que o LV1, e criar uma Delia pela grade (botão voltar e nome na customização, Create → estalagem → cidade), pular na cidade (arma nas costas) e uma missão com a guarda. A Miri não aparece na grade.
 - [ ] **LV3 (v3, + Miri)**: o mesmo que o LV2, e entrar com uma Miri (corrente, Flamebreath, transformação). Deve ser igual à cópia de laboratório, sem os itens de teste do editor (`fiona_inner_lab`, `fiona_inner_fringe`, `fiona_inner_zero`, `evy_inner_zero`).
 Relato: versão, passo e o que apareceu de diferente; uma queda junto com o `.mdmp` de `Documents`.
+
+### LV4–LV6 — instalar, atualizar e verificar pelo launcher (L3, 07/11/2026)
+Pré-condição: o serviço `updates` no ar (rebuild do Docker com o compose de 07/11, ou `vindictus-server client-dist serve --store .cache/client-dist --bind 127.0.0.1:8090` no host) com as versões 1–3 publicadas; o launcher novo (`tools/launcher/build.ps1`) copiado para uma pasta própria, por exemplo `D:\VindictusLauncher\`; ≈ 16 GB livres. A cópia `.cache/play-client` não é usada.
+- [ ] **LV4 (instalar):** abrir o launcher → "Escolher…" → uma pasta vazia → a linha da versão mostra "Publicada: versão 3" → "Instalar o jogo aqui" → a barra avança (verificando, baixando) → no fim "Cliente na versão 3: … baixados …" → login → Jogar → Start Game → seleção → cidade. Fechar o launcher no meio e abrir de novo: "Instalar o jogo aqui" continua de onde parou.
+- [ ] **LV5 (verificar e reparar):** com o jogo fechado, apagar `bin\engine.dll` da pasta instalada e mudar um byte de um `.hfs` qualquer → "Verificar arquivos" → no fim "2 baixados" → Jogar funciona. Mudar `cfg\config_env.cfg` (opções) não é desfeito.
+- [ ] **LV6 (já tenho o cliente):** escolher uma cópia do 1.69 já usada (sem a pasta `.vindictus-update`) → "Já tenho o cliente" → baixa só o que difere (≈ 1,9 GB para a v3 a partir da v1 montada) → Jogar.
+Relato: passo, o texto da linha de mensagem e, se falhar, o `vindictus-launcher.exe --update <pasta> --log l3.log` do mesmo caso.

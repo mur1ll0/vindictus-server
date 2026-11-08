@@ -8,8 +8,7 @@
 //! - `game`: pasta do jogo e o processo do cliente com `-launcher_ticket`.
 //! - `ui`: a janela. É o único módulo com `unsafe` (chamadas Win32); o resto é código seguro.
 //!
-//! Atualização e instalação do cliente (L1–L3, serviço `updates`) entram depois, sobre a mesma
-//! janela.
+//! - `update`: instalar, atualizar, verificar e reparar o cliente pelo serviço `updates` (L3).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![deny(unsafe_code)]
 
@@ -18,7 +17,86 @@ mod config;
 mod game;
 #[allow(unsafe_code)]
 mod ui;
+mod update;
 
 fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("--update") {
+        std::process::exit(headless(&args[1..]));
+    }
     ui::run();
+}
+
+/// Sem janela, para diagnóstico e testes do exe real (o mesmo código do botão):
+/// `vindictus-launcher.exe --update <pasta> --log <arquivo> [--updates <url>] [--version N] [--verify]`.
+/// Instala ou atualiza a pasta e escreve o progresso e o resultado no log (o exe não tem console).
+fn headless(args: &[String]) -> i32 {
+    use std::io::Write;
+    use std::sync::atomic::AtomicBool;
+    let value = |name: &str| {
+        args.iter()
+            .position(|a| a == name)
+            .and_then(|i| args.get(i + 1))
+            .cloned()
+    };
+    let (Some(folder), Some(log)) = (args.first().cloned(), value("--log")) else {
+        return 2;
+    };
+    let Ok(mut out) = std::fs::File::create(&log) else {
+        return 2;
+    };
+    let config = config::Config::load();
+    let updates =
+        value("--updates").map_or_else(|| config.updates_base(), |u| config::normalize_server(&u));
+    let version = value("--version").and_then(|v| v.parse().ok());
+    let mode = if args.iter().any(|a| a == "--verify") {
+        update::Mode::Full
+    } else {
+        update::Mode::Changes
+    };
+    let result = updates
+        .map_err(update::UpdateError::Offline)
+        .and_then(|base| {
+            let fetch = update::HttpFetch::new(&base);
+            let key = update::pinned_key()?;
+            let last = std::cell::Cell::new((String::new(), 0u64));
+            let report = |p: update::Progress| {
+                let step = (p.done * 20).checked_div(p.total).unwrap_or(0);
+                let (phase, shown) = last.take();
+                if phase != p.phase || step != shown {
+                    let _ = writeln!(&out, "{} {}/{} {}", p.phase, p.done, p.total, p.file);
+                }
+                last.set((p.phase.to_owned(), step));
+            };
+            update::run(
+                std::path::Path::new(&folder),
+                &fetch,
+                &key,
+                mode,
+                version,
+                &AtomicBool::new(false),
+                &|| false,
+                &report,
+            )
+        });
+    match result {
+        Ok(o) => {
+            let _ = writeln!(
+                out,
+                "ok version={} checked={} downloaded={} bytes={} deltas={} fallbacks={} preserved={}",
+                o.version,
+                o.checked,
+                o.downloaded,
+                o.downloaded_bytes,
+                o.deltas,
+                o.delta_fallbacks,
+                o.preserved_kept
+            );
+            0
+        }
+        Err(e) => {
+            let _ = writeln!(out, "erro: {} ({e:?})", e.message());
+            1
+        }
+    }
 }
