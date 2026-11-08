@@ -33,11 +33,25 @@ struct Entry {
 }
 
 /// Passport → account of the recent game logins.
-#[derive(Default)]
 pub struct Passports {
     entries: Mutex<HashMap<[u8; 32], Entry>>,
+    /// Bumped on every accepted login: messenger sessions waiting for their launcher ticket
+    /// re-check it.
+    changed: tokio::sync::watch::Sender<u64>,
+}
+impl Default for Passports {
+    fn default() -> Self {
+        Self {
+            entries: Mutex::default(),
+            changed: tokio::sync::watch::channel(0).0,
+        }
+    }
 }
 impl Passports {
+    /// Wakes when a login is remembered.
+    pub fn subscribe(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.changed.subscribe()
+    }
     /// After an accepted game login.
     pub fn remember(&self, passport: &str, account: Account, now: Instant) {
         let mut entries = self.entries.lock().unwrap_or_else(PoisonError::into_inner);
@@ -48,6 +62,8 @@ impl Passports {
             entries.remove(&oldest);
         }
         entries.insert(digest(passport), Entry { account, at: now });
+        drop(entries);
+        self.changed.send_modify(|n| *n = n.wrapping_add(1));
     }
     /// The account of a messenger LoginAuth's passport, while it is fresh.
     pub fn account(&self, passport: &str, now: Instant) -> Option<Account> {
@@ -103,7 +119,14 @@ pub enum Frame {
         code: u32,
         envelope: Vec<u8>,
     },
+    /// 4, DLL → server, once after connecting: the `-launcher_ticket` of the game's command
+    /// line (ASCII). A launcher-started game logs in with `NGM_disable` and never calls
+    /// LoginAuth/LoginMessenger, so its game login's ticket authenticates the messenger.
+    Ticket(String),
 }
+
+/// The longest launcher ticket the tunnel accepts (tickets are 24 characters).
+pub const MAX_TICKET: usize = 64;
 
 /// The largest frame payload (an envelope of `protocol::nm::MAX_ENVELOPE` plus its fields).
 pub const MAX_FRAME: usize = crate::protocol::nm::MAX_ENVELOPE + 64;
@@ -111,6 +134,13 @@ pub const MAX_FRAME: usize = crate::protocol::nm::MAX_ENVELOPE + 64;
 impl Frame {
     pub fn encode(&self) -> Vec<u8> {
         let mut payload = Vec::new();
+        if let Self::Ticket(ticket) = self {
+            payload.push(4);
+            payload.extend_from_slice(ticket.as_bytes());
+            let mut out = (payload.len() as u32).to_le_bytes().to_vec();
+            out.extend_from_slice(&payload);
+            return out;
+        }
         let (kind, a, b, envelope): (u8, u32, u32, &[u8]) = match self {
             Self::Call {
                 seq,
@@ -123,6 +153,7 @@ impl Frame {
                 code,
                 envelope,
             } => (3, *target, *code, envelope),
+            Self::Ticket(_) => return Vec::new(),
         };
         payload.push(kind);
         payload.extend_from_slice(&a.to_le_bytes());
@@ -139,6 +170,12 @@ impl Frame {
     /// A frame's payload (after its length prefix).
     pub fn decode(payload: &[u8]) -> Option<Self> {
         let (&kind, rest) = payload.split_first()?;
+        if kind == 4 {
+            let valid = !rest.is_empty()
+                && rest.len() <= MAX_TICKET
+                && rest.iter().all(u8::is_ascii_alphanumeric);
+            return valid.then(|| Self::Ticket(String::from_utf8_lossy(rest).into_owned()));
+        }
         let word = |b: &[u8], at: usize| {
             b.get(at..at + 4)
                 .map(|w| u32::from_le_bytes([w[0], w[1], w[2], w[3]]))
@@ -212,6 +249,47 @@ pub mod code {
 pub struct Session {
     pub account: Option<Account>,
     pub online: bool,
+    /// The launcher ticket the DLL sent (kept until it authenticates).
+    pub ticket: Option<zeroize::Zeroizing<String>>,
+    /// Logged in by the launcher ticket: online while the game runs (the engine's own
+    /// LogoutMessenger calls belong to the Nexon login it does not use).
+    pub launcher: bool,
+}
+impl Session {
+    /// A launcher-started game: once its game login is accepted, the ticket logs the session
+    /// in as LoginAuth + LoginMessenger would. True when it logged in now.
+    pub fn launcher_login(&mut self, passports: &Passports, now: Instant) -> bool {
+        if self.account.is_some() {
+            return false;
+        }
+        let Some(account) = self
+            .ticket
+            .as_deref()
+            .and_then(|t| passports.account(t, now))
+        else {
+            return false;
+        };
+        self.account = Some(account);
+        self.online = true;
+        self.launcher = true;
+        self.ticket = None;
+        true
+    }
+    fn waiting_for_ticket(&self) -> bool {
+        self.account.is_none() && self.ticket.is_some()
+    }
+}
+
+/// Event MessengerReply(result 0) to the game window: the engine then asks for its info and
+/// friend list, as after LoginMessenger.
+fn messenger_reply_event() -> Frame {
+    let mut fields = crate::protocol::nm::Writer::default();
+    fields.u32(0);
+    Frame::Event {
+        target: 0,
+        code: code::EVENT_MESSENGER_REPLY,
+        envelope: crate::protocol::nm::event(&fields),
+    }
 }
 
 /// What a call does: its reply and the events to push after it.
@@ -264,7 +342,9 @@ pub fn handle(
             }
         }
         code::LOGOUT_MESSENGER => {
-            session.online = false;
+            if !session.launcher {
+                session.online = false;
+            }
             answer(true)
         }
         code::GET_FRIEND_LIST if session.online => {
@@ -368,6 +448,47 @@ mod service_tests {
         assert_eq!(nm::open(&list.envelope).unwrap().len(), 8 + 12);
         assert!(!handle(&mut s, &passports, 0x6001, &[], now).ok);
     }
+
+    #[test]
+    fn a_launcher_ticket_logs_in_once_the_game_login_is_accepted() {
+        let ticket = Frame::Ticket("lt0abc".to_owned());
+        let bytes = ticket.encode();
+        assert_eq!(bytes, [7, 0, 0, 0, 4, b'l', b't', b'0', b'a', b'b', b'c']);
+        assert_eq!(Frame::decode(&bytes[4..]), Some(ticket));
+        assert_eq!(Frame::decode(&[4]), None);
+        assert_eq!(Frame::decode(b"\x04a b"), None);
+        assert_eq!(Frame::decode(&[&[4u8][..], &[b'a'; MAX_TICKET + 1]].concat()), None);
+
+        let passports = Passports::default();
+        let woken = passports.subscribe();
+        let now = Instant::now();
+        let mut s = Session {
+            ticket: Some(zeroize::Zeroizing::new("lt0abc".to_owned())),
+            ..Session::default()
+        };
+        assert!(s.waiting_for_ticket());
+        assert!(!s.launcher_login(&passports, now));
+        passports.remember(
+            "lt0abc",
+            Account {
+                nexon_sn: 31,
+                nexon_id: "owner".to_owned(),
+            },
+            now,
+        );
+        assert!(woken.has_changed().unwrap());
+        assert!(s.launcher_login(&passports, now));
+        assert!(s.online && s.launcher && s.ticket.is_none());
+        assert_eq!(s.account.as_ref().map(|a| a.nexon_sn), Some(31));
+        assert!(!s.launcher_login(&passports, now));
+        // The engine's startup LogoutMessenger does not end a launcher session.
+        assert!(handle(&mut s, &passports, code::LOGOUT_MESSENGER, &[], now).ok);
+        assert!(s.online);
+        let Frame::Event { target, code, .. } = messenger_reply_event() else {
+            panic!("event");
+        };
+        assert_eq!((target, code), (0, code::EVENT_MESSENGER_REPLY));
+    }
 }
 
 /// The laboratory messenger listener (published like the relay; `nmcogame.ini` points at it).
@@ -399,8 +520,8 @@ pub async fn serve(listener: tokio::net::TcpListener, service: std::sync::Arc<Se
 }
 
 async fn connection(stream: tokio::net::TcpStream, service: &Service) -> std::io::Result<()> {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let (mut read, mut write) = stream.into_split();
+    use tokio::io::AsyncWriteExt;
+    let (read, mut write) = stream.into_split();
     let (outbox, mut queued) = tokio::sync::mpsc::channel::<Vec<u8>>(OUTBOX);
     let writer = tokio::spawn(async move {
         while let Some(bytes) = queued.recv().await {
@@ -409,51 +530,48 @@ async fn connection(stream: tokio::net::TcpStream, service: &Service) -> std::io
             }
         }
     });
+    // Frames are read by their own task so a session waiting for its launcher ticket also wakes
+    // when the game login is accepted.
+    let (frames_in, mut frames) = tokio::sync::mpsc::channel::<std::io::Result<Frame>>(4);
+    let reader = tokio::spawn(read_frames(read, frames_in));
     let context = std::sync::Arc::new(Context::default());
     let mut session = Session::default();
     let mut joined: Option<(i32, u64)> = None;
+    let mut logins = service.passports.subscribe();
+    let mut watching = true;
     let result: std::io::Result<()> = async {
         loop {
-            let mut len = [0u8; 4];
-            tokio::time::timeout(IDLE, read.read_exact(&mut len))
-                .await
-                .map_err(|_| std::io::ErrorKind::TimedOut)??;
-            let len = u32::from_le_bytes(len) as usize;
-            if len == 0 || len > MAX_FRAME {
-                return Err(std::io::ErrorKind::InvalidData.into());
-            }
-            let mut payload = vec![0u8; len];
-            read.read_exact(&mut payload).await?;
-            let Some(Frame::Call {
-                seq,
-                code,
-                envelope,
-            }) = Frame::decode(&payload)
-            else {
-                return Err(std::io::ErrorKind::InvalidData.into());
-            };
-            let a = service.call(&mut session, &context, code, &envelope).await;
-            tracing::info!(code, ok = a.ok, "messenger call processed; values omitted");
-            let mut out = Frame::Reply {
-                seq,
-                ok: a.ok,
-                envelope: a.envelope,
-            }
-            .encode();
-            for (target, code, envelope) in a.events {
-                out.extend(
-                    Frame::Event {
-                        target,
-                        code,
-                        envelope,
+            tokio::select! {
+                frame = frames.recv() => {
+                    let frame = frame.unwrap_or_else(|| Err(std::io::ErrorKind::UnexpectedEof.into()))?;
+                    match frame {
+                        Frame::Ticket(ticket) => session.ticket = Some(zeroize::Zeroizing::new(ticket)),
+                        Frame::Call { seq, code, envelope } => {
+                            let a = service.call(&mut session, &context, code, &envelope).await;
+                            tracing::info!(code, ok = a.ok, "messenger call processed; values omitted");
+                            let mut out = Frame::Reply { seq, ok: a.ok, envelope: a.envelope }.encode();
+                            for (target, code, envelope) in a.events {
+                                out.extend(Frame::Event { target, code, envelope }.encode());
+                            }
+                            outbox
+                                .send(out)
+                                .await
+                                .map_err(|_| std::io::Error::from(std::io::ErrorKind::BrokenPipe))?;
+                        }
+                        _ => return Err(std::io::ErrorKind::InvalidData.into()),
                     }
-                    .encode(),
-                );
+                }
+                changed = logins.changed(), if watching && session.waiting_for_ticket() => {
+                    watching = changed.is_ok();
+                }
             }
-            outbox
-                .send(out)
-                .await
-                .map_err(|_| std::io::Error::from(std::io::ErrorKind::BrokenPipe))?;
+            if session.launcher_login(&service.passports, Instant::now()) {
+                tracing::info!("messenger logged in by the launcher ticket; values omitted");
+                outbox
+                    .send(messenger_reply_event().encode())
+                    .await
+                    .map_err(|_| std::io::Error::from(std::io::ErrorKind::BrokenPipe))?;
+            }
             let me = session.account.as_ref().map(|a| a.nexon_sn);
             match (session.online, joined, me) {
                 (true, None, Some(sn)) => {
@@ -474,6 +592,7 @@ async fn connection(stream: tokio::net::TcpStream, service: &Service) -> std::io
         }
     }
     .await;
+    reader.abort();
     if let Some((sn, id)) = joined
         && service.hub.leave(sn, id)
     {
@@ -485,6 +604,34 @@ async fn connection(stream: tokio::net::TcpStream, service: &Service) -> std::io
     drop(outbox);
     let _ = writer.await;
     result
+}
+
+/// Reads tunnel frames until the connection fails; the failure is the last item sent.
+async fn read_frames(
+    mut read: tokio::net::tcp::OwnedReadHalf,
+    frames: tokio::sync::mpsc::Sender<std::io::Result<Frame>>,
+) {
+    use tokio::io::AsyncReadExt;
+    loop {
+        let frame = async {
+            let mut len = [0u8; 4];
+            tokio::time::timeout(IDLE, read.read_exact(&mut len))
+                .await
+                .map_err(|_| std::io::ErrorKind::TimedOut)??;
+            let len = u32::from_le_bytes(len) as usize;
+            if len == 0 || len > MAX_FRAME {
+                return Err(std::io::ErrorKind::InvalidData.into());
+            }
+            let mut payload = vec![0u8; len];
+            read.read_exact(&mut payload).await?;
+            Frame::decode(&payload).ok_or_else(|| std::io::ErrorKind::InvalidData.into())
+        }
+        .await;
+        let failed = frame.is_err();
+        if frames.send(frame).await.is_err() || failed {
+            break;
+        }
+    }
 }
 
 /// What the engine of one connection reveals: its game code (the GetGameServerName argument)
@@ -1202,6 +1349,63 @@ mod listener_tests {
         assert_eq!((seq, ok), (5, true));
         stream.write_all(&[0, 0, 0, 0]).await.unwrap();
         assert_eq!(stream.read(&mut len).await.unwrap(), 0);
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn the_game_login_wakes_a_tunnel_waiting_with_its_ticket() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let passports = std::sync::Arc::new(Passports::default());
+        let service = Service::new(passports.clone(), None);
+        let server = tokio::spawn(serve(listener, std::sync::Arc::new(service)));
+        let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+        stream
+            .write_all(&Frame::Ticket("lt0abc".to_owned()).encode())
+            .await
+            .unwrap();
+        // The ticket frame has no reply; a call after it still gets its own.
+        stream
+            .write_all(
+                &Frame::Call {
+                    seq: 1,
+                    code: code::INITIALIZE,
+                    envelope: Vec::new(),
+                }
+                .encode(),
+            )
+            .await
+            .unwrap();
+        let mut len = [0u8; 4];
+        stream.read_exact(&mut len).await.unwrap();
+        let mut payload = vec![0u8; u32::from_le_bytes(len) as usize];
+        stream.read_exact(&mut payload).await.unwrap();
+        assert!(matches!(
+            Frame::decode(&payload),
+            Some(Frame::Reply { seq: 1, ok: true, .. })
+        ));
+        passports.remember(
+            "lt0abc",
+            Account {
+                nexon_sn: 31,
+                nexon_id: "owner".to_owned(),
+            },
+            Instant::now(),
+        );
+        tokio::time::timeout(Duration::from_secs(5), stream.read_exact(&mut len))
+            .await
+            .unwrap()
+            .unwrap();
+        let mut payload = vec![0u8; u32::from_le_bytes(len) as usize];
+        stream.read_exact(&mut payload).await.unwrap();
+        assert!(matches!(
+            Frame::decode(&payload),
+            Some(Frame::Event {
+                target: 0,
+                code: code::EVENT_MESSENGER_REPLY,
+                ..
+            })
+        ));
         server.abort();
     }
 }

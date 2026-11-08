@@ -90,11 +90,38 @@ pub fn address(ini: Option<&str>) -> String {
     .unwrap_or_else(|| DEFAULT_ADDRESS.to_owned())
 }
 
+/// The longest launcher ticket sent (the server's bound; tickets are 24 characters).
+const MAX_TICKET: usize = 64;
+
+/// `-launcher_ticket <t>` from the game's arguments: ASCII letters and digits only.
+pub fn launcher_ticket(args: impl IntoIterator<Item = std::ffi::OsString>) -> Option<String> {
+    let mut args = args.into_iter();
+    args.find(|a| a.to_str().is_some_and(|a| a.eq_ignore_ascii_case("-launcher_ticket")))?;
+    let ticket = args.next()?.into_string().ok()?;
+    (!ticket.is_empty()
+        && ticket.len() <= MAX_TICKET
+        && ticket.bytes().all(|b| b.is_ascii_alphanumeric()))
+    .then_some(ticket)
+}
+
+/// Frame 4 (Ticket): a launcher-started game never calls LoginAuth/LoginMessenger, so the
+/// server logs the tunnel in with the ticket once the game login accepts it.
+pub fn ticket_frame(ticket: &str) -> Vec<u8> {
+    let mut payload = vec![4u8];
+    payload.extend_from_slice(ticket.as_bytes());
+    let mut out = (payload.len() as u32).to_le_bytes().to_vec();
+    out.extend_from_slice(&payload);
+    out
+}
+
 fn connect() -> Option<TcpStream> {
     let ini = std::fs::read_to_string("nmcogame.ini").ok();
     let target: SocketAddr = address(ini.as_deref()).to_socket_addrs().ok()?.next()?;
-    let stream = TcpStream::connect_timeout(&target, CONNECT).ok()?;
+    let mut stream = TcpStream::connect_timeout(&target, CONNECT).ok()?;
     let _ = stream.set_nodelay(true);
+    if let Some(ticket) = launcher_ticket(std::env::args_os()) {
+        stream.write_all(&ticket_frame(&ticket)).ok()?;
+    }
     Some(stream)
 }
 
@@ -206,6 +233,19 @@ mod tests {
         assert_eq!(parse(&call[4..]), None);
         assert_eq!(address(None), DEFAULT_ADDRESS);
         assert_eq!(address(Some("[messenger]\r\naddress = 10.0.0.5:47611\r\n")), "10.0.0.5:47611");
+    }
+
+    #[test]
+    fn launcher_ticket_comes_from_the_command_line() {
+        let args = |v: &[&str]| v.iter().map(std::ffi::OsString::from).collect::<Vec<_>>();
+        assert_eq!(
+            launcher_ticket(args(&["Vindictus.exe", "-lang", "en", "-launcher_ticket", "lt0abc"])),
+            Some("lt0abc".to_owned())
+        );
+        assert_eq!(launcher_ticket(args(&["Vindictus.exe", "-launcher_ticket"])), None);
+        assert_eq!(launcher_ticket(args(&["Vindictus.exe", "-launcher_ticket", "a b"])), None);
+        assert_eq!(launcher_ticket(args(&["Vindictus.exe"])), None);
+        assert_eq!(ticket_frame("lt1"), [4, 0, 0, 0, 4, b'l', b't', b'1']);
     }
 
     #[test]

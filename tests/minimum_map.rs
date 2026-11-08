@@ -251,6 +251,13 @@ fn model<'a>(kind: Kind, v: &'a Value) -> Option<Message<'a>> {
             cafe_type: v["CafeType"].as_i64().unwrap() as i32,
             is_otp: v["IsOTP"].as_bool().unwrap(),
         },
+        Kind::Chat => Message::Chat {
+            message: v["Message"].as_str(),
+        },
+        Kind::NotifyChat => Message::NotifyChat {
+            name: v["Name"].as_str(),
+            message: v["Message"].as_str(),
+        },
         Kind::Identify => Message::Identify {
             id: v["ID"].as_i64().unwrap(),
             key: v["Key"].as_i64().unwrap() as i32,

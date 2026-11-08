@@ -226,3 +226,10 @@ Pré-condição: servidor reconstruído (porta 47611 publicada); o `nmcogame.dll
 9. [ ] (MS4) B fecha a janela → A vê B sair da conversa; A sai do jogo com conversa aberta → B vê A sair.
 10. [ ] (MS5) Abrindo pelo launcher, aparece `nmcogame.ini` na pasta do jogo com o endereço do servidor do launcher e a porta 47611.
 Relato: o que apareceu em cada passo e os dois `nmcogame-lab.log`.
+
+### CH — Cidade com dois computadores: ver o outro, chat do canal e amigos pelo launcher (correções de 08/11)
+Pré-condição: Docker reconstruído em 08/11; os dois clientes instalados/atualizados pelo launcher para a versão com o `nmcogame.dll` novo (ou a cópia `.cache/play-client`), abertos pelo launcher (Jogar) em computadores diferentes; A e B no Ch.1 da mesma cidade.
+1. [ ] A e B no mesmo ponto da cidade → cada um vê o outro (personagem, roupa e nome); quando um anda, o outro vê o movimento; ao sair para a seleção, o personagem some para o outro.
+2. [ ] A escreve no chat no modo Channel (e no modo normal) → A e B veem a mensagem com o nome de A. Anote se um jogador longe (outra área da cidade) também vê: no original o chat do canal vai só a quem enxerga a área de quem fala.
+3. [ ] A abre a Comunidade → a lista de amigos carrega (sem erro); A adiciona B pelo nome do personagem → B recebe o pedido; B aceita → os dois aparecem na lista, online. Repetir com B fechando o jogo → A vê B offline.
+4. [ ] Anote se o pedido de amizade ou a lista falham e envie os dois `nmcogame-lab.log` (linha `tunnel connected` e as chamadas 0x4003/0x4001).

@@ -628,6 +628,23 @@ impl Channel {
         Ok(out)
     }
 
+    /// The newest NotifyLook of a member (`Player.RecentLook`).
+    pub fn look_packet(&self, cid: i64) -> Option<&OutgoingPacket> {
+        self.players.get(&cid).map(|p| &p.look_packet)
+    }
+
+    /// Executes `Player.Chat(msg)` (`AddComponent(new Chat(cid, chatter, msg))`): a temporal
+    /// component of sight degree 1, so its appear message (NotifyChat) goes to the observers of
+    /// the partitions visible from the speaker's partition (the speaker included) and nothing
+    /// stays in sight.
+    pub fn chat(&self, cid: i64, packet: &OutgoingPacket) -> BTreeMap<i64, Vec<OutgoingPacket>> {
+        let mut out = BTreeMap::new();
+        if let Some(player) = self.players.get(&cid) {
+            self.broadcast_degree1(player.cur_partition, packet, &mut out);
+        }
+        out
+    }
+
     /// Executes `Player.UpdateLook(summary)` (`ApplyModifier(new UpdateLook(cid, summary))`):
     /// the Look component takes the new NotifyLook and `NotifyModified` sends it, as its
     /// DifferenceMessage, to the observers of the visible partitions.

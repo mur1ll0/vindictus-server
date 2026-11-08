@@ -194,6 +194,55 @@ async fn write(stream: &mut TcpStream, packet: OutgoingPacket) -> Result<(), Run
         .map_err(|_| RuntimeError::Timeout)??;
     Ok(())
 }
+/// `Server.server_ClientAccept`: the first packet of every channel connection is the type
+/// converter of `ServiceCore.EndPointNetwork.Messages` (the frontend's registration). Without
+/// it the client cannot map the numbered categories the channel sends (NotifyLook,
+/// NotifyAction, NotifyChat) and keeps sending its own messages as GUID-prefixed category 0.
+async fn type_converter(stream: &mut TcpStream) -> Result<(), RuntimeError> {
+    let body = crate::protocol::converter::encode_converter(
+        Some(crate::protocol::server_profile::REGISTERED_CLASSES),
+        DEFAULT_MAX_BODY,
+    )
+    .map_err(|_| RuntimeError::Message)?;
+    write(
+        stream,
+        OutgoingPacket {
+            category: 0,
+            body,
+        },
+    )
+    .await
+}
+/// `Player.Chat`: NotifyChat {Name = RecentLook.CharacterID, Message} for the speaker's sight.
+fn chat_packets(
+    channel: &Channel,
+    cid: i64,
+    message: Option<&str>,
+) -> Result<BTreeMap<i64, Vec<OutgoingPacket>>, RuntimeError> {
+    let look = channel.look_packet(cid).ok_or(RuntimeError::Message)?;
+    let chatter = match wire::decode(Kind::NotifyLook, &look.body, DEFAULT_MAX_BODY) {
+        Ok(Some(Message::NotifyLook { look: Some(summary), .. })) => {
+            summary.character_id.unwrap_or("").to_owned()
+        }
+        _ => String::new(),
+    };
+    let body = wire::encode(
+        Kind::NotifyChat,
+        Some(&Message::NotifyChat {
+            name: Some(&chatter),
+            message,
+        }),
+        DEFAULT_MAX_BODY,
+    )
+    .map_err(|_| RuntimeError::Message)?;
+    Ok(channel.chat(
+        cid,
+        &OutgoingPacket {
+            category: Kind::NotifyChat.category(),
+            body: body.to_vec(),
+        },
+    ))
+}
 async fn failed(stream: &mut TcpStream, reason: &str) -> Result<(), RuntimeError> {
     let body = wire::encode(
         Kind::IdentifyFailed,
@@ -219,6 +268,7 @@ pub async fn connection(
     if super::lab_peer::effective_peer(stream.peer_addr()?.ip()).is_none() {
         return Err(RuntimeError::Profile);
     }
+    type_converter(&mut stream).await?;
     let mut cid = None;
     let token = uuid::Uuid::new_v4();
     let mut receiver = PlainReceiver::new(DEFAULT_MAX_BODY);
@@ -260,7 +310,7 @@ pub async fn connection(
                     let id = cid.ok_or(RuntimeError::Message)?;
                     let mut state = runtime.state.lock().await;
                     if state.peers.get(&id).is_none_or(|p| p.token != token) { return Ok(()); }
-                    let Some(kind) = [Kind::MovePartition, Kind::UpdateAction].into_iter().find(|k|
+                    let Some(kind) = [Kind::MovePartition, Kind::UpdateAction, Kind::Chat].into_iter().find(|k|
                         frame.category_id == k.category() || (frame.category_id == 0 && frame.body.get(..16) == Some(k.type_id().as_bytes().as_slice()))
                     ) else {
                         // Unimplemented channel services are observed, not treated as protocol errors.
@@ -270,6 +320,7 @@ pub async fn connection(
                     let output = match wire::decode_ingress(kind, frame.category_id, &frame.body, DEFAULT_MAX_BODY).map_err(|_| RuntimeError::Message)? {
                         Some(Message::MovePartition { target_partition_id }) => state.channel.move_partition(id, target_partition_id),
                         Some(Message::UpdateAction { data }) => state.channel.update_action(id, data),
+                        Some(Message::Chat { message }) => Ok(chat_packets(&state.channel, id, message)?),
                         _ => return Err(RuntimeError::Message),
                     }.map_err(|_| RuntimeError::Message)?;
                     state.broadcast(output);
@@ -323,4 +374,76 @@ pub async fn run(
     let _ = stop.send(true);
     while tasks.join_next().await.is_some() {}
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A MapFile `.dat` with the given partitions and no links.
+    fn map(partitions: &[i64]) -> crate::domain::map_partition::MapFile {
+        let mut bytes = vec![0u8; 24];
+        bytes.extend_from_slice(&(partitions.len() as i32).to_le_bytes());
+        for p in partitions {
+            bytes.extend_from_slice(&p.to_le_bytes());
+        }
+        crate::domain::map_partition::MapFile::parse("town", &bytes).unwrap()
+    }
+
+    #[test]
+    fn chat_reaches_the_speakers_sight_only() {
+        let mut channel = Channel::new(Topology::from_maps(&[map(&[5, 6])]));
+        for (cid, partition) in [(1, 5), (2, 5), (3, 6)] {
+            let look = Channel::encode_look_summary(cid, None).unwrap();
+            channel
+                .enter_with_look_packet(cid, partition, look, wire::ActionSync::default())
+                .unwrap();
+        }
+        let out = chat_packets(&channel, 1, Some("hello")).unwrap();
+        assert_eq!(out.keys().copied().collect::<Vec<_>>(), [1, 2]);
+        let packet = &out[&2][0];
+        assert_eq!(packet.category, Kind::NotifyChat.category());
+        let decoded = wire::decode(Kind::NotifyChat, &packet.body, DEFAULT_MAX_BODY).unwrap();
+        assert!(matches!(
+            decoded,
+            Some(Message::NotifyChat {
+                name: Some(""),
+                message: Some("hello")
+            })
+        ));
+        assert!(chat_packets(&channel, 9, Some("x")).is_err());
+    }
+
+    #[tokio::test]
+    async fn the_type_converter_is_the_first_packet() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let runtime = Arc::new(Runtime::new(Topology::from_maps(&[map(&[5])])));
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .connect_lazy("postgres://lab@127.0.0.1:1/none")
+            .unwrap();
+        let (_stop, shutdown) = watch::channel(false);
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let _ = connection(stream, runtime, pool, shutdown).await;
+        });
+        let mut client = TcpStream::connect(address).await.unwrap();
+        let expected = crate::protocol::converter::encode_converter(
+            Some(crate::protocol::server_profile::REGISTERED_CLASSES),
+            DEFAULT_MAX_BODY,
+        )
+        .unwrap();
+        let mut receiver = PlainReceiver::new(DEFAULT_MAX_BODY);
+        let mut buffer = [0u8; 4096];
+        let frame = loop {
+            let n = client.read(&mut buffer).await.unwrap();
+            assert_ne!(n, 0);
+            if let Some(frame) = receiver.push(&buffer[..n]).unwrap().into_iter().next() {
+                break frame;
+            }
+        };
+        assert_eq!(frame.category_id, 0);
+        assert_eq!(frame.body, expected);
+        server.abort();
+    }
 }

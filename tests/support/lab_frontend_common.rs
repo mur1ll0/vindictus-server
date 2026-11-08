@@ -127,7 +127,7 @@ pub async fn open(
             ),
             (
                 "ingame_cashshop_purchaseURL",
-                Some(vindictus_server::infrastructure::lab_web_shop::PURCHASE_URL)
+                Some(vindictus_server::infrastructure::lab_web_shop::purchase_url().as_str())
             ),
             ("S3_CharacterCreation", Some("3.09.00"))
         ]

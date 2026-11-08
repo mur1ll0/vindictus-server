@@ -18,9 +18,13 @@ pub enum Kind {
     IdentifyFailed,
     MovePartition,
     UpdateAction,
+    /// ServiceCore.EndPointNetwork.Chat (client → channel server).
+    Chat,
     Disappeared,
     NotifyLook,
     NotifyAction,
+    /// ServiceCore.EndPointNetwork.NotifyChat (channel server → client).
+    NotifyChat,
     SelectCharacter,
     LoginOk,
     CharacterCommonInfo,
@@ -38,9 +42,11 @@ impl Kind {
             Self::IdentifyFailed => 366,
             Self::MovePartition => 368,
             Self::UpdateAction => 369,
+            Self::Chat => 370,
             Self::Disappeared => 372,
             Self::NotifyLook => 373,
             Self::NotifyAction => 374,
+            Self::NotifyChat => 375,
             Self::SelectCharacter => 481,
             Self::LoginOk => 483,
             Self::CharacterCommonInfo => 609,
@@ -58,9 +64,11 @@ impl Kind {
             Self::IdentifyFailed => 0x42fa5d33_391e_320b_85db_0c61e1b7f6ba,
             Self::MovePartition => 0xd3cf4e65_f3a6_37f4_aae6_d8819a02e728,
             Self::UpdateAction => 0xbb98e908_edbe_32d5_89c2_eb38d6508cad,
+            Self::Chat => 0x7b774037_48dc_3a89_9bfc_4467a1978c43,
             Self::Disappeared => 0x4f13a705_3f02_37cb_b869_ebfbf3852ce2,
             Self::NotifyLook => 0x711f48ae_c601_344c_bb5a_9320b001f809,
             Self::NotifyAction => 0x86b97474_ac74_3722_bda1_a8ba43968733,
+            Self::NotifyChat => 0xdc46777e_8e6a_37fa_ac81_1247b40b35e4,
             Self::SelectCharacter => 0x1f34c672_5581_353f_9944_d5ab72e808a5,
             Self::LoginOk => 0xe301ee14_10c2_3886_8533_fbba9ef1cbe1,
             Self::CharacterCommonInfo => 0x9756914f_6753_3228_b0b8_38b30dc1a612,
@@ -119,6 +127,15 @@ pub enum Message<'a> {
     UpdateAction {
         data: ActionSync,
     },
+    /// Chat: Message.
+    Chat {
+        message: Option<&'a str>,
+    },
+    /// NotifyChat: Name, Message.
+    NotifyChat {
+        name: Option<&'a str>,
+        message: Option<&'a str>,
+    },
     Disappeared {
         id: i64,
     },
@@ -166,6 +183,8 @@ impl Message<'_> {
             Self::IdentifyFailed(_) => Kind::IdentifyFailed,
             Self::MovePartition { .. } => Kind::MovePartition,
             Self::UpdateAction { .. } => Kind::UpdateAction,
+            Self::Chat { .. } => Kind::Chat,
+            Self::NotifyChat { .. } => Kind::NotifyChat,
             Self::Disappeared { .. } => Kind::Disappeared,
             Self::NotifyLook { .. } => Kind::NotifyLook,
             Self::NotifyAction { .. } => Kind::NotifyAction,
@@ -290,6 +309,13 @@ pub fn encode(
             Message::UpdateAction { data } => {
                 write_action(&mut w, data)?;
             }
+            Message::Chat { message } => {
+                w.nullable(message.map(str::as_bytes))?;
+            }
+            Message::NotifyChat { name, message } => {
+                w.nullable(name.map(str::as_bytes))?;
+                w.nullable(message.map(str::as_bytes))?;
+            }
             Message::Disappeared { id } => {
                 w.append(&id.to_be_bytes())?;
             }
@@ -396,6 +422,13 @@ pub fn decode<'a>(
             },
             Kind::UpdateAction => Message::UpdateAction {
                 data: read_action(&mut r)?,
+            },
+            Kind::Chat => Message::Chat {
+                message: r.string()?,
+            },
+            Kind::NotifyChat => Message::NotifyChat {
+                name: r.string()?,
+                message: r.string()?,
             },
             Kind::Disappeared => Message::Disappeared {
                 id: i64::from_be_bytes(r.fixed()?),
