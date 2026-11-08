@@ -9,7 +9,9 @@ pub const EXCLUDED_DIRS: &[&str] = &[
     "hfs_extracted",
     "lab-backup",
     "passport",
-    "BlackCipher",
+    // Not BlackCipher: Vindictus.exe imports NGClient.aes, which refuses to start the game without
+    // BlackCipher/*.aes ("add an exemption for Nexon Game Security", LV of 08/11/2026). Its logs
+    // already fall under *.log.
     "downloads",
     "DownloadLists",
     "__pycache__",
@@ -138,10 +140,14 @@ mod tests {
             "bin/config_material.txt",
             "vindictus-launcher.exe",
             "sql/heroes.db3.pre-story-goals",
+            "BlackCipher/BlackCipher.log",
         ] {
             assert!(excluded(path), "{path}");
         }
         for path in [
+            "BlackCipher/BlackCipher.aes",
+            "BlackCipher/config.bc",
+            "NGClient.aes",
             "Vindictus.exe",
             "bin/client.dll",
             "sql/heroes.db3",

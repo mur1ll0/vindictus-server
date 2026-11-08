@@ -52,7 +52,9 @@ TEST_ITEMS = ('fiona_inner_lab', 'fiona_inner_fringe', 'fiona_inner_zero', 'evy_
 
 # Exclusions (game-launcher.md 4.3 item 6, D-L3 and the additions of 07/11/2026): folders anywhere in the
 # tree, then globs over the relative path (or the file name when the glob has no '/').
-EXCLUDED_DIRS = ('hfs_extracted', 'lab-backup', 'passport', 'BlackCipher', 'downloads', 'DownloadLists', '__pycache__')
+# Not BlackCipher: Vindictus.exe imports NGClient.aes, which refuses to start the game without BlackCipher/*.aes
+# (LV of 08/11/2026); its logs already fall under *.log.
+EXCLUDED_DIRS = ('hfs_extracted', 'lab-backup', 'passport', 'downloads', 'DownloadLists', '__pycache__')
 EXCLUDED_GLOBS = ('l0-*', '*.bak', '*.pre-*.bak', '*.log', 'npp_*_std*.log', 'fmod.log', '*.nexon', '*.partial',
                   'NMService.exe', '_eu_AdBalloonExt.exe', 'VindictusLauncher.exe', 'bcdedit.exe', 'start*.bat',
                   'maps/graphs/*.ain', 'demoheader.tmp', 'hfs-keystream.bin', 'cfg/config_pendingkey_concmd.cfg',

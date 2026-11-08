@@ -78,3 +78,10 @@ Pré-condição: `.env` com `PUBLISH_ADDRESS=0.0.0.0` e `PUBLIC_HOST=192.168.1.1
 - [ ] Loja do cash shop abre e lista os produtos; uma missão curta até o fim (relay).
 - [ ] (Com este PC também no jogo) os dois personagens se veem na cidade; party e uma missão juntos (roteiro B5 multijogador).
 Relato: passo e mensagem; se não conectar, o resultado de `Test-NetConnection 192.168.1.13 -Port 27015` (e 8090, 27090) no outro PC.
+
+### LV10 — BlackCipher na instalação limpa (08/11/2026)
+Relato do operador: instalação nova pelo launcher em `F:\Games\Vindictus1.69`; ao clicar em Jogar, "Launcher Error: Please add an exemption for Nexon Game Security (BlackCipher.aes) to your firewall or anti-virus settings and try again". Causa: a pasta `BlackCipher/` estava nas exclusões das versões, e o `NGClient.aes` que o `Vindictus.exe` carrega exige os `.aes` dela (a cópia `.cache/play-client` tem a pasta). Corrigido nas regras da receita e do `client-dist` e publicado como versão 4.
+Pré-condição: versão 4 publicada (`scripts/dev/publish-client-version.ps1`, 08/11); jogo fechado.
+- [ ] Abrir o launcher da pasta `F:\Games\Vindictus1.69` → "Publicada: versão 4" → atualizar → baixa só a pasta `BlackCipher` (≈ 18 MB) → "Cliente na versão 4".
+- [ ] Jogar → o jogo abre sem o aviso do BlackCipher → Start Game → seleção → cidade.
+Relato: a mensagem do launcher e, se o aviso voltar, o conteúdo de `BlackCipher\NGClient.log` da pasta instalada.

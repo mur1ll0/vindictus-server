@@ -3983,3 +3983,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: roteiro LV9 (outro PC da rede de casa) e LV1–LV8.
 - Commits: (este)
 - Pendente / próxima ação: LV9 num segundo PC; multijogador entre PCs (roteiro B5); publicação de conteúdo pelo painel gerar a versão sozinha; gate L6.
+
+## 2026-11-08 — Launcher: BlackCipher na instalação limpa (versão 4)
+- Feito: relato do operador: cliente instalado pelo launcher em `F:\Games\Vindictus1.69` mostrava ao Jogar "Please add an exemption for Nexon Game Security (BlackCipher.aes) to your firewall or anti-virus settings". Causa: `BlackCipher/` estava nas exclusões (D-L3) da receita (`scripts/client/build_client_version.py`) e do `client-dist` (`crates/client-dist/src/rules.rs`); o `Vindictus.exe` importa o `NGClient.aes`, que exige `BlackCipher/*.aes` (a cópia `.cache/play-client` tem a pasta, com logs de uso de 07/11; os `.aes` são iguais ao original). A pasta saiu das duas listas (logs seguem fora por `*.log`), testes atualizados, `docs/future/game-launcher.md` 4.3 item 6, roteiro LV10 em `docs/client-tests/L-launcher.md`. Docker reconstruído e versão 4 publicada com `scripts/dev/publish-client-version.ps1`.
+- Verificação: `py -3.13 -m unittest test_build_client_version` 6 OK; `cargo test -p vindictus-client-dist` 22 OK; `cargo clippy -p vindictus-client-dist --all-targets -D warnings` exit 0; Docker build 0, up 0; publicação: versão 4, 3.562 arquivos, 4 objetos novos (`BlackCipher/BlackCall.aes`, `BlackCipher.aes`, `BlackXchg.aes`, `config.bc`; 16.538.232 bytes), 3.558 reaproveitados, `versao.json` atual 4. Logs em `.cache/verification/blackcipher/`.
+- Cliente: LV10 em `docs/client-tests/L-launcher.md` (pendente: atualizar `F:\Games\Vindictus1.69` para a 4 e jogar).
+- Commits: (este commit)
+- Pendente / próxima ação: LV10 no cliente; depois LV9 (segundo PC).

@@ -10,7 +10,7 @@ from prepare_lab_client import PreparationError
 
 class RulesTest(unittest.TestCase):
     def test_exclusions_of_the_launcher_plan(self):
-        for path in ('hfs_extracted/scripts/a.txt', 'lab-backup/x.hfs', 'passport/a.py', 'BlackCipher/b.dll',
+        for path in ('hfs_extracted/scripts/a.txt', 'lab-backup/x.hfs', 'passport/a.py', 'BlackCipher/BlackCipher.log',
                      'downloads/x', 'DownloadLists/y', 'bin/client.dll.b284ba719047556b.bak',
                      'bin/engine.dll.51ea90e70b93ad04.pre-iocpsign.bak', 'fmod.log', 'npp_api_stdout.log',
                      'nmcogame.dll.nexon', 'NMService.exe', '_eu_AdBalloonExt.exe', 'VindictusLauncher.exe',
@@ -21,7 +21,8 @@ class RulesTest(unittest.TestCase):
                      'scaleform/CreateCharacterDialog.gfx.ac5543b072761a3f.pre-classes.bak',
                      'sql/heroes.db3.0123.before-endpoint.bak', 'bin/client.partial'):
             self.assertTrue(recipe.excluded(path), path)
-        for path in ('Vindictus.exe', 'Mss32.dll', 'nmcogame.dll', 'bin/client.dll', 'sql/heroes.db3',
+        for path in ('BlackCipher/BlackCipher.aes', 'BlackCipher/config.bc', 'NGClient.aes',
+                     'Vindictus.exe', 'Mss32.dll', 'nmcogame.dll', 'bin/client.dll', 'sql/heroes.db3',
                      'hfs/E608DF10F284E19AB75FD7D0D8AE9CCF87831041.hfs', 'maps/t01.bsp', 'cfg/config_env.cfg',
                      'scaleform/CreateCharacterDialog.gfx', 'hfs/RENOMEADo_9FB527B373DCBD159552ADD1710487A724237AF9.hfs'):
             self.assertFalse(recipe.excluded(path), path)
