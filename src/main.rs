@@ -56,6 +56,9 @@ async fn entry() -> std::process::ExitCode {
 }
 
 async fn run(cli: Cli) -> Result<(), Error> {
+    if let Command::ClientDist { command } = &cli.command {
+        return client_dist(command.clone()).await;
+    }
     if let Command::ProbeFrontend { bind } = &cli.command {
         if !bind.ip().is_loopback() {
             return Err(vindictus_server::infrastructure::frontend::ProbeError::NonLoopback.into());
@@ -755,7 +758,8 @@ async fn run(cli: Cli) -> Result<(), Error> {
     let config = Config::from_env()?;
     let pool = postgres::pool(&config)?;
     match cli.command {
-        Command::ProbeFrontend { .. }
+        Command::ClientDist { .. }
+        | Command::ProbeFrontend { .. }
         | Command::InspectRewardPolicy { .. }
         | Command::InspectFionaInventory { .. }
         | Command::InspectItemColors { .. }
@@ -1238,6 +1242,80 @@ async fn maintenance_stop(
         version = plan.version,
         "scheduled maintenance reached; stopping to apply the content version"
     );
+}
+
+async fn client_dist(command: vindictus_server::cli::ClientDistCommand) -> Result<(), Error> {
+    use vindictus_server::cli::ClientDistCommand;
+    use vindictus_server::infrastructure::client_dist_store as store;
+    let blocking = |work: Box<dyn FnOnce() -> Result<serde_json::Value, Error> + Send>| async move {
+        tokio::task::spawn_blocking(work)
+            .await
+            .map_err(|_| Error::Configuration("client-dist worker failed".into()))?
+    };
+    let printed = match command {
+        ClientDistCommand::Keygen { keys } => {
+            blocking(Box::new(move || {
+                Ok(serde_json::json!({ "public_key": store::keygen(&keys)? }))
+            }))
+            .await?
+        }
+        ClientDistCommand::Publish {
+            store: dir,
+            keys,
+            tree,
+            keystream,
+            title,
+            notes,
+            minimum,
+            threads,
+        } => {
+            blocking(Box::new(move || {
+                let report = store::publish(&store::PublishRequest {
+                    store: &dir,
+                    keys: &keys,
+                    tree: &tree,
+                    keystream: &keystream,
+                    title: &title,
+                    notes: &notes,
+                    minimum,
+                    threads,
+                })?;
+                serde_json::to_value(report)
+                    .map_err(|_| Error::Configuration("publish report".into()))
+            }))
+            .await?
+        }
+        ClientDistCommand::Verify {
+            store: dir,
+            public_key,
+            deep,
+        } => {
+            blocking(Box::new(move || {
+                let public = match public_key {
+                    Some(key) => key,
+                    None => std::fs::read_to_string(
+                        dir.join(vindictus_client_dist::layout::PUBLIC_KEY),
+                    )?,
+                };
+                let report = store::verify(&dir, &public, deep)?;
+                serde_json::to_value(report)
+                    .map_err(|_| Error::Configuration("verify report".into()))
+            }))
+            .await?
+        }
+        ClientDistCommand::Serve {
+            store: dir,
+            bind,
+            probes,
+        } => {
+            let listener = tokio::net::TcpListener::bind(bind).await?;
+            tracing::info!(address = %listener.local_addr()?, store = %dir.display(), "client-dist update service listening (read only)");
+            vindictus_server::http::updates::serve(listener, dir, probes, shutdown()).await?;
+            return Ok(());
+        }
+    };
+    println!("{printed}");
+    Ok(())
 }
 
 async fn shutdown() {

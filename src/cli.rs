@@ -13,6 +13,59 @@ pub struct Cli {
     pub command: Command,
 }
 
+/// Subcommands of `client-dist`. None opens the database.
+#[derive(Debug, Clone, Subcommand)]
+pub enum ClientDistCommand {
+    /// Create the Ed25519 key pair (refuses to replace one); prints the public key to pin in the launcher.
+    Keygen {
+        /// Folder of the private key, outside the served store.
+        #[arg(long)]
+        keys: PathBuf,
+    },
+    /// Publish a client tree (scripts/client/build_client_version.py output) as the next version.
+    Publish {
+        #[arg(long)]
+        store: PathBuf,
+        #[arg(long)]
+        keys: PathBuf,
+        #[arg(long)]
+        tree: PathBuf,
+        /// The 4096-byte pack keystream (published as an object of the manifest).
+        #[arg(long)]
+        keystream: PathBuf,
+        #[arg(long)]
+        title: String,
+        #[arg(long, default_value = "")]
+        notes: String,
+        /// Oldest version still accepted (default: the previous one's, or 1).
+        #[arg(long)]
+        minimum: Option<u32>,
+        /// Compression threads (1-4; the operator machine runs hot: default 2).
+        #[arg(long, default_value_t = 2)]
+        threads: usize,
+    },
+    /// Check signatures and objects of a store (`--deep` decompresses every object).
+    Verify {
+        #[arg(long)]
+        store: PathBuf,
+        /// Public key (64 hex digits); default: the store's updates.ed25519.pub.
+        #[arg(long)]
+        public_key: Option<String>,
+        #[arg(long)]
+        deep: bool,
+    },
+    /// Read-only HTTP of the store on its own listener (port 8090 in compose).
+    Serve {
+        #[arg(long)]
+        store: PathBuf,
+        #[arg(long, default_value = "127.0.0.1:8090")]
+        bind: std::net::SocketAddr,
+        /// Service reported by status.json, `name=host:port` (repeatable).
+        #[arg(long = "probe")]
+        probes: Vec<crate::http::updates::Probe>,
+    },
+}
+
 // Parsed once at start; the lab-frontend flags make it the largest variant.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Subcommand)]
@@ -150,6 +203,11 @@ pub enum Command {
     },
     /// Apply embedded PostgreSQL migrations. Does not import SQL Server backups.
     Migrate,
+    /// Client distribution of the launcher (docs/future/game-launcher.md 4.2-4.7): keys, publish, verify, serve.
+    ClientDist {
+        #[command(subcommand)]
+        command: ClientDistCommand,
+    },
     /// Read-only reward diagnostic. Reads private policy from stdin and prints counts/digest only.
     InspectRewardPolicy {
         #[arg(long, required = true)]

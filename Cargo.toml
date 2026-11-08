@@ -6,6 +6,10 @@ rust-version = "1.98"
 publish = false
 description = "Preservation research foundation; legacy game protocol migration remains incomplete"
 
+[workspace]
+members = [".", "crates/client-dist"]
+resolver = "3"
+
 [dependencies]
 argon2 = "0.5.3"
 axum = "0.8.6"
@@ -27,12 +31,18 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
 utoipa = { version = "5.4.0", features = ["uuid"] }
 uuid = { version = "1.18.1", features = ["v4", "serde"] }
+vindictus-client-dist = { path = "crates/client-dist" }
+ed25519-dalek = { version = "2.2.0", features = ["rand_core"] }
 zeroize = { version = "1.8.2", features = ["serde"] }
 
 [dev-dependencies]
 tokio = { version = "1.47.1", features = ["test-util"] }
 http-body-util = "0.1.3"
 tower = { version = "0.5.2", features = ["util"] }
+
+# zstd level 19 of the client distribution (client-dist publish) runs in C: optimized even in dev builds.
+[profile.dev.package.zstd-sys]
+opt-level = 3
 
 [profile.release]
 lto = "thin"

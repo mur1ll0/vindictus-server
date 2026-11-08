@@ -53,9 +53,9 @@ function Invoke-VerificationCheck {
 Push-Location $taskProject
 try {
     Invoke-VerificationCheck -Name 'format' -Executable cargo -Arguments @('fmt','--all','--','--check')
-    Invoke-VerificationCheck -Name 'clippy' -Executable cargo -Arguments @('clippy','--all-targets','--all-features','--locked','--','-D','warnings')
-    Invoke-VerificationCheck -Name 'rust-tests' -Executable cargo -Arguments @('test','--all-targets','--locked')
-    Invoke-VerificationCheck -Name 'doc-tests' -Executable cargo -Arguments @('test','--doc','--locked')
+    Invoke-VerificationCheck -Name 'clippy' -Executable cargo -Arguments @('clippy','--workspace','--all-targets','--all-features','--locked','--','-D','warnings')
+    Invoke-VerificationCheck -Name 'rust-tests' -Executable cargo -Arguments @('test','--workspace','--all-targets','--locked')
+    Invoke-VerificationCheck -Name 'doc-tests' -Executable cargo -Arguments @('test','--workspace','--doc','--locked')
     Invoke-VerificationCheck -Name 'build' -Executable cargo -Arguments @('build','--locked')
     if ($DatabaseIntegration) {
         if ($DatabaseIntegrationDocker) {

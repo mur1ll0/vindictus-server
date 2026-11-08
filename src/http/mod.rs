@@ -1,5 +1,6 @@
 //! Operational HTTP interface. No game protocol or public account endpoints.
 pub mod admin;
+pub mod updates;
 
 use crate::infrastructure::postgres;
 use axum::{Json, Router, extract::State, http::StatusCode, routing::get};

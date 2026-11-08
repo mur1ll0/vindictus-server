@@ -3,6 +3,8 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
+    ClientDist(#[from] crate::infrastructure::client_dist_store::StoreError),
+    #[error(transparent)]
     MailReference(#[from] crate::infrastructure::mail_reference::MailError),
 
     #[error(transparent)]

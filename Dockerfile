@@ -2,6 +2,7 @@
 FROM rust:1.98-bookworm@sha256:93ce27a88655056a51dbdd8f5f2d7ddc071c7b0070fb288a37b5a285fc83971e AS builder
 WORKDIR /build
 COPY Cargo.toml Cargo.lock build.rs ./
+COPY crates ./crates
 COPY src ./src
 COPY migrations ./migrations
 RUN --mount=type=cache,target=/usr/local/cargo/registry \

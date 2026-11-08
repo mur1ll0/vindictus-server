@@ -149,6 +149,27 @@ services:
     stop_grace_period: 30s
     restart: unless-stopped
 
+  # Update service of the launcher (docs/future/game-launcher.md 4.2, L1): read-only HTTP of the published
+  # client store (signed versao.json and manifests, objects and deltas with Range, status.json). The store is
+  # large and proprietary: a bind mount outside the image, the Git and named volumes (a `down -v` keeps it).
+  # The private key is never mounted here; publishing runs apart (`client-dist publish --keys ...`).
+  # status.json probes the server and the game's web shop port (27015 would open a login session).
+  updates:
+    <<: *app
+    command: [client-dist, serve, --store, /client-dist, --bind, "0.0.0.0:8090",
+              --probe, "server=server:8080", --probe, "game=game:27080"]
+    volumes:
+      - ${CLIENT_DIST_DIR:-./.cache/client-dist}:/client-dist:ro
+    ports:
+      - 127.0.0.1:${UPDATES_HOST_PORT:-8090}:8090
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --show-error, -o, /dev/null, http://127.0.0.1:8090/status.json]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
   # Client server list: the prepared client reads EndPoint.txt from 127.0.0.1:8081.
   bootstrap:
     image: busybox:1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e

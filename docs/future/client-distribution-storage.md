@@ -237,6 +237,22 @@ Sem `packs/`. Os objetos nunca são apagados ao reverter; uma limpeza explícita
 | Importar a base no servidor (CPU) | ≈ 37 min numa thread com o nível adaptativo (52 min só com zstd 19); metade com 2 threads; uma vez só |
 | Publicar v2→v3 (CPU) | ≈ 6 s de compressão adaptativa + ≈ 8 s de SHA-256 da árvore; 1.824 MB enviados |
 
+## 6.1 Tamanhos reais (publicação do L1, 07/11/2026)
+
+As três versões montadas pela receita (`build_client_version.py`) foram publicadas por `client-dist publish` (zstd adaptativo + `hfs-xor`, duas threads) num armazém novo e conferidas por `client-dist verify --deep` (3.543 objetos restaurados com o SHA-256 certo):
+
+| Item | Estudo (extrapolado) | Real |
+|---|---|---|
+| Instalar a v1 (13.851 MB no disco) | 9.121 MB (69,1 %) | **10.328 MB (74,6 %)** |
+| Instalar a v3 (15.770 MB no disco) | 10.937–10.962 MB (72,7 %) | **12.224 MB (77,5 %)** |
+| Atualizar v1→v2, só objetos inteiros | 41 MB | **22 MB** (10 objetos) |
+| Atualizar v2→v3, só objetos inteiros | ≈ 1.816 MB | **1.935 MB** (150 objetos) |
+| Servidor, v1+v2+v3 (sem deltas) | ≈ 11,0 GB | **12,29 GB** |
+| CPU da importação da v1 | ≈ 26 min com 2 threads | ≈ 30 min com 2 threads (máquina do operador) |
+
+- A diferença vem da extrapolação (ponto 3 da seção 8): 1.809 arquivos, 6.336 MB (46 % da v1), ficam acima de 97 % no zstd 3 e quase não comprimem (`.comp` de materiais e modelos guardados em zlib pelo próprio jogo). A amostra pesava menos esses pacotes. O `hfs-xor` funciona: num pacote de mapa, o zlib cai de 100 % para 88,7 % e o zstd 19 para 83,8 %.
+- Quem mais ganharia com a fase 2 (`hfs-comp`, 4.3) é justamente esse grupo de 6,3 GB.
+
 ## 7. Ajustes para `game-launcher.md` 4.3 (aplicados em 02/11/2026)
 
 - 4.3.2: nível 19 **sem** `--long=27` (sem ganho por arquivo, 100 MB de memória).
@@ -249,7 +265,7 @@ Sem `packs/`. Os objetos nunca são apagados ao reverter; uma limpeza explícita
 
 1. **Velocidade no Windows 7 de 32 bits:** não medida (só o pico de memória vale para 32 bits). Medir a descompressão do zstd 19 e o XOR do launcher real no gate do L.
 2. **Divisão v1/v2/v3:** a cópia de laboratório só tem o estado final; os números por passo usam a divisão suposta na seção 3. A receita `build_client_version.py` (4.7) dirá os conjuntos exatos.
-3. **Extrapolação:** amostra de 970 MB (6,5 % do cliente), ponderada por bytes; materiais e modelos têm muitos pacotes pequenos e a amostra deles é de 32–36 MB. Como os dois são 100 % `.comp`, a razão quase não varia, mas a conta exata só sai da importação real.
+3. **Extrapolação (medida em 07/11/2026, seção 6.1: os tamanhos reais ficaram ≈ 12 % acima):** amostra de 970 MB (6,5 % do cliente), ponderada por bytes; materiais e modelos têm muitos pacotes pequenos e a amostra deles é de 32–36 MB. Como os dois são 100 % `.comp`, a razão quase não varia, mas a conta exata só sai da importação real.
 4. **`hfs-comp` (fase 2):** a reprodução bit a bit valeu para 1.392 de 1.392 `.comp` da amostra com o zlib do Python; falta conferir todos os `.comp` do cliente e o deflate do Rust que o launcher usar (zlib clássico; zlib-ng e `miniz_oxide` geram outros bytes).
 5. **`7B71CFAE5FFE3D99A91CE97CC5D80A3C4776F540.hfs`** no laboratório tem o mesmo tamanho do original (3.131 bytes), mas começa com `INDX` e não é um pacote HF; o original é. Precisa ser explicado (algum passo de laboratório escreveu nele?) antes de a receita da v2 ou v3 publicá-lo.
 6. **HTTP/2 ou muitas conexões:** não medido. Com 3.613 objetos, HTTP/1.1 com keep-alive e 2 conexões deve bastar; medir no gate com o servidor real.
