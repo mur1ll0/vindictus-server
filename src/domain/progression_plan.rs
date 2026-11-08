@@ -147,6 +147,9 @@ pub struct StoryPlan {
     pub give_quests: Vec<String>,
     pub titles: Vec<i32>,
     pub skills: Vec<String>,
+    /// `change_phase` of the completed storylines, in walk order: applied to storylines the
+    /// character has open (not to the completed ones).
+    pub phase_changes: Vec<(String, String)>,
 }
 
 /// The main story a character of `level` would have played, given the cleared quests.
@@ -187,6 +190,8 @@ pub fn story_plan(
         for q in &line.links.gives {
             add(&mut out.give_quests, q);
         }
+        out.phase_changes
+            .extend(line.links.phase_changes.iter().cloned());
         for s in line
             .links
             .skills
@@ -282,6 +287,7 @@ mod tests {
             gives: gives.iter().map(|s| (*s).to_owned()).collect(),
             titles: vec![7],
             skills: vec!["skill_a".into()],
+            phase_changes: vec![("side".into(), "B".into())],
         };
         let first = links(&["second", "side"], &["q1"], &["q2"]);
         let second = links(&["third"], &["q2"], &[]);
@@ -311,6 +317,8 @@ mod tests {
         // The next main storyline waits for q9; the side one only opens.
         assert_eq!(plan.open, ["side", "third"]);
         assert_eq!(plan.give_quests, ["q2"]);
+        // change_phase of each completed storyline, in walk order.
+        assert_eq!(plan.phase_changes, [("side".to_owned(), "B".to_owned()), ("side".to_owned(), "B".to_owned())]);
         assert_eq!(
             (plan.titles, plan.skills),
             (vec![7], vec!["skill_a".to_owned()])

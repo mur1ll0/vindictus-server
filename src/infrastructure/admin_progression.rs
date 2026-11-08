@@ -273,6 +273,22 @@ async fn apply_story(
         .execute(&mut **tx)
         .await?;
     }
+    // change_phase of the completed storylines (StoryEntity.ChangePhase on an open progress):
+    // without it a skipped script leaves e.g. S6NT_99_Dwyn_rochest at A, hiding Gwynn.
+    for (line, phase) in &story.phase_changes {
+        if story.complete.contains(line) {
+            continue;
+        }
+        sqlx::query(&format!(
+            "UPDATE game_story_progress SET phase_utf16=$3,last_update_units300={NOW_UNITS}
+             WHERE cid=$1 AND story_line_utf16=$2 AND phase_utf16 IS NOT NULL"
+        ))
+        .bind(cid)
+        .bind(utf16(line))
+        .bind(utf16(phase))
+        .execute(&mut **tx)
+        .await?;
+    }
     for title in &story.titles {
         super::minimum_growth::acquire_title(tx, owner, assets, cid, *title, ctx).await?;
     }

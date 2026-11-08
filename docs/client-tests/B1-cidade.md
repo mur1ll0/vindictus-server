@@ -122,3 +122,11 @@ Pré-condição: cópia do cliente alinhada (`py -3.13 scripts/client/align_stor
 - [ ] "A Job for Shayla (1)" não aparece como entregável enquanto falta o Gold Gnoll Leather.
 - [ ] As partes (2) e (3) aparecem entregáveis só com `white_gnoll_heart` e `red_gnoll_skin` na bolsa, e a conversa com a Shayla as conclui.
 
+
+### RO — Rochester: chegada de carruagem, fala de story sector, Gwynn e região (correções de 08/11)
+Pré-condição: Docker reconstruído com as correções de 08/11; personagem que ainda não completou a cena de chegada (`S0NT_99_CutScene` na fase A, como a MiriLab) e com a missão de falar com a Gwynn (`E6M_04_never_back`). A `S6NT_99_Dwyn_rochest` da MiriLab foi passada para B no banco em 08/11 (o avanço do painel não aplicava o `change_phase` da E6M_02).
+1. [ ] Viajar de Colhen para Rochester de carruagem → a cena de chegada toca; ao fim, a fala do soldado abre e carrega (sem ficar travada); "Tchau" fecha.
+2. [ ] Voltar a Colhen e ir de novo a Rochester → a cena **não** toca mais.
+3. [ ] Ir à Royal Army Base → a Gwynn está lá; falar com ela avança a missão `E6M_04_never_back`.
+4. [ ] Em Rochester, sair para a seleção e entrar de novo → o personagem aparece em Rochester (antes voltava a Colhen).
+5. [ ] Usar o "alcançar nível" do painel numa personagem nova até depois da E6M_02 → a Gwynn aparece na base sem ajuste manual.

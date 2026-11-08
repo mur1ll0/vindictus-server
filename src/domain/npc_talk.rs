@@ -1673,6 +1673,64 @@ impl<'a> Talker<'a> {
         }
     }
 
+    /// StoryEntity.TalkTo_StorySector: the StorySectorTalk of the NPC in the current phase of
+    /// the storyline (e.g. the soldier after the Rochester arrival scene, S0NT_99_CutScene,
+    /// whose talk completes the hidden storyline so the scene plays once).
+    fn talk_to_story_sector(&mut self, npc: &str, line_id: &str) -> Result<(), TalkError> {
+        let line = self.scripts.story_line(line_id);
+        let phase_id = self
+            .state
+            .progress
+            .iter()
+            .find(|p| p.story_line == line_id)
+            .map(|p| p.phase.clone());
+        let (Some(line), Some(phase_id)) = (line, phase_id) else {
+            self.add(entity(
+                "talk",
+                Some(&format!("no storyline!!! : {line_id}")),
+                None,
+            ));
+            return self.default_push();
+        };
+        if !NpcScripts::is_story_enabled(&line.info, self.policy)
+            .map_err(|_| TalkError::Unsupported("feature".into()))?
+        {
+            if line.phase("FeatureOff").is_none() {
+                self.add(entity(
+                    "talk",
+                    Some(&format!("invalid storyline!!! : {line_id}")),
+                    None,
+                ));
+                return self.default_push();
+            }
+            return Err(TalkError::Unsupported("GotoPhase".into()));
+        }
+        let Some(phase) = phase_id.as_deref().and_then(|ph| line.phase(ph)) else {
+            self.add(entity(
+                "talk",
+                Some(&format!("no storyline!!! : {line_id}")),
+                None,
+            ));
+            return self.default_push();
+        };
+        let content = phase
+            .story_sector_talks
+            .iter()
+            .find(|(id, _)| id == npc)
+            .map(|(_, talk)| talk.content);
+        match content {
+            Some(content) => self.process(content, K::DefaultPush),
+            None => {
+                self.add(entity(
+                    "talk",
+                    Some(&format!("no talk for this NPC!!! : {line_id} : {npc}")),
+                    None,
+                ));
+                self.default_push()
+            }
+        }
+    }
+
     /// StoryEntity.TalkTo (QueryNpcTalkProcessor after the CanStartQuery/DEV checks).
     pub fn talk_to(
         mut self,
@@ -1755,7 +1813,9 @@ impl<'a> Talker<'a> {
             return Ok(());
         }
         if command == Some("story_sector") {
-            return Err(TalkError::Unsupported("story_sector".into()));
+            // The original falls through to TalkTo_StoryLine/Command afterwards, but with the
+            // query already pushed (QueryResult null) that branch sends nothing.
+            return self.talk_to_story_sector(npc, &story_line);
         }
         if story_line != "default" {
             self.talk_to_story_line(&building, npc, &story_line)

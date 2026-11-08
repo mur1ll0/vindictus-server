@@ -32,7 +32,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 
 | Roteiro | Situação |
 |---|---|
-| `docs/client-tests/B1-cidade.md` + `B2-fases.md` | Nenhuma entrada testada formalmente (missões já jogadas em sessões de diagnóstico de 22/10). RL1 (barco repetido sem trava, 31/10; patch `patch_engine_iocp_sign.py` já aplicado). |
+| `docs/client-tests/B1-cidade.md` + `B2-fases.md` | Nenhuma entrada testada formalmente (missões já jogadas em sessões de diagnóstico de 22/10). RL1 (barco repetido sem trava, 31/10; patch `patch_engine_iocp_sign.py` já aplicado). RO (Rochester, 08/11: fala de story sector, cena de chegada uma vez, Gwynn, região no relogin). |
 | `docs/client-tests/B3-equipamento.md` | Nenhuma entrada testada (inclui DY1, ampola de tintura). |
 | `docs/client-tests/B4-painel.md` | B4.2-L aceito; demais pendentes (inclui I2 editor de itens, I3 modelo substituto, P3 progressão, S1–S3 exclusão de personagem). |
 | `docs/client-tests/B5-pets.md` | P1–P9 pendentes (P9: pets no Depot, 30/10). |

@@ -3997,3 +3997,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: entrada CH em `docs/client-tests/B5-social.md`; pendente (exige a versão do cliente com o `nmcogame.dll` novo pelo launcher).
 - Commits: (este)
 - Pendente / próxima ação: publicar a versão do cliente com o `nmcogame.dll` novo e o operador testar a entrada CH; Rochester (cinemática repetida, diálogo travado, Gwynn ausente) em diagnóstico.
+
+## 2026-11-08 — RO: Rochester (fala de story sector, cena de chegada, Gwynn, EnterRegion)
+- Feito: relato do operador com a MiriLab (cena de chegada de carruagem a cada viagem, fala travada depois dela, Gwynn ausente na Royal Army Base). Logs: `minimum NPC talk branch not completed ... Unsupported("story_sector")` e `EnterRegion` (273) sem handler. Causas: (1) `StoryEntity.TalkTo_StorySector` não migrado — a fala do soldado (`S0NT_99_CutScene`, só StorySectorTalk na fase A, `complete_storyline`) era recusada, a história oculta não fechava e a cena voltava; agora `npc_talk::talk_to_story_sector` roda a StorySectorTalk da fase atual (mensagens do original quando faltam storyline/fase/fala). (2) `S6NT_99_Dwyn_rochest` fase A tem `DeleteNpc DWYN_ROCHEST`; só o `change_phase` da E6M_02 a leva a B, e o "alcançar nível" do painel completava a E6M_02 sem aplicá-lo — `StoryLinks.phase_changes`, `StoryPlan.phase_changes` e `apply_story` aplicam os `change_phase` das histórias completadas às abertas. MiriLab corrigida no banco com autorização do operador (S6NT_99_Dwyn_rochest → B). (3) `EnterRegion` → `SetRegion` (RegionCode ≠ 1 grava `region_code`; relogin volta à cidade certa).
+- Verificação: `cargo test --test npc_talk` 15 ok (novos: story sector completa a cena; NPC sem fala recebe a mensagem do original; change_phase nos StoryLinks); `cargo test --lib -- progression_plan` 3 ok; `cargo clippy --lib --tests -D warnings` limpo. Feito em worktree (`../vs-rochester`) porque a sessão da distribuição do cliente edita a mesma pasta.
+- Cliente: entrada RO em `docs/client-tests/B1-cidade.md`; pendente (rebuild do Docker).
+- Commits: (este)
+- Pendente / próxima ação: rebuild do Docker e o operador testar RO e CH.

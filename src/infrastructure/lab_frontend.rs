@@ -57,6 +57,8 @@ use tokio::{
 use zeroize::Zeroizing;
 
 pub const MAX_CONNECTIONS: usize = 8;
+/// ServiceCore.EndPointNetwork.EnterRegion (server_profile registration).
+const ENTER_REGION_CATEGORY: i32 = 273;
 pub const ADMISSION_TIMEOUT: Duration = Duration::from_secs(30);
 /// Bound on a connection that has not finished login and the second password. The
 /// original Initial state has no timeout, and the client connects as soon as its login
@@ -7975,6 +7977,29 @@ impl Connection {
                 // NGSecurityConn is NULL after unavailable service. PingPong=false has no pending ping.
                 return Ok(());
             }
+        }
+        // InGame EnterRegion(RegionCode): RegionCode != 1 → SetRegion → CharacterInfo.RegionCode,
+        // the region LoginOk returns, so a relog after a carriage trip starts in that town.
+        if super::channel_server::registered_category(category, body) == Some(ENTER_REGION_CATEGORY)
+            && let Some(cid) = self.selected.as_ref().map(|s| s.cid)
+        {
+            let fields = if category == 0 { body.get(16..) } else { Some(body) };
+            let region = match fields {
+                Some([1, a, b, c, d]) => i32::from_be_bytes([*a, *b, *c, *d]),
+                _ => return Err(RuntimeError::Message),
+            };
+            if region != 1
+                && sqlx::query("UPDATE game_character_info SET region_code=$2 WHERE id=$1")
+                    .bind(cid)
+                    .bind(region)
+                    .execute(pool)
+                    .await
+                    .is_err()
+            {
+                // SetRegion has no OnFail callback in the source.
+                tracing::warn!("region save failed; values omitted");
+            }
+            return Ok(());
         }
         self.log_unhandled(category, body);
         Ok(())

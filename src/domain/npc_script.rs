@@ -811,7 +811,8 @@ pub struct Phase {
 /// What a storyline's script refers to anywhere in its phases: the storylines it starts
 /// (`start_storyline` arg1), the quests it waits for (`quest_cleared`, `QuestCleared`), the
 /// quests it gives (`give_quest` arg1) and its title and skill rewards (`acquire_title`,
-/// `give_skill` arg1). The panel's "reach a level" walks the main story with them.
+/// `give_skill` arg1) and the phases it moves other storylines to (`change_phase` arg1, arg2).
+/// The panel's "reach a level" walks the main story with them.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct StoryLinks {
     pub starts: Vec<String>,
@@ -819,6 +820,9 @@ pub struct StoryLinks {
     pub gives: Vec<String>,
     pub titles: Vec<i32>,
     pub skills: Vec<String>,
+    /// (storyline, phase) in script order, e.g. E6M_02 moving S6NT_99_Dwyn_rochest to B
+    /// (the phase that stops hiding Gwynn at the Royal Army Base).
+    pub phase_changes: Vec<(String, String)>,
 }
 impl StoryLinks {
     pub fn of(root: &Element) -> Self {
@@ -846,6 +850,18 @@ impl StoryLinks {
                     push(&mut links.requires, (!text.is_empty()).then_some(text));
                 }
                 "give_skill" => push(&mut links.skills, arg1),
+                "change_phase" => {
+                    let mut parts = text.split(',').map(str::trim);
+                    let line = arg1.map(str::to_owned);
+                    let phase = e
+                        .attribute("arg2")
+                        .map(str::trim)
+                        .or_else(|| parts.nth(1))
+                        .filter(|a| !a.is_empty());
+                    if let (Some(line), Some(phase)) = (line, phase) {
+                        links.phase_changes.push((line, phase.to_owned()));
+                    }
+                }
                 "acquire_title" => {
                     if let Some(id) = arg1.and_then(|a| a.parse().ok())
                         && !links.titles.contains(&id)

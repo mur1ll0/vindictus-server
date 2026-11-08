@@ -1748,3 +1748,135 @@ fn switch_takes_the_lab_class_branch_or_fail() {
     assert_eq!(said(10), ["FAIL"]);
     assert_eq!(said(1), ["FAIL"]);
 }
+
+#[test]
+fn story_sector_talk_runs_the_phase_talk_and_completes_the_cut_scene_storyline() {
+    // S0NT_99_CutScene: phase A has only a StorySectorTalk (the Rochester entrance soldier);
+    // the client asks for it with command "story_sector" after the arrival scene.
+    let story = el(
+        "StoryLine",
+        &[],
+        "",
+        vec![el(
+            "Phase",
+            &[("id", "A")],
+            "",
+            vec![el(
+                "StorySectorTalk",
+                &[("id", "AIDAN")],
+                "",
+                vec![el(
+                    "Do",
+                    &[],
+                    "",
+                    vec![leaf("talk", "ARRIVED"), leaf("complete_storyline", "")],
+                )],
+            )],
+        )],
+    );
+    let info = StoryLineInfo {
+        id: "CutScene".to_owned(),
+        xml_path: Some("QuestSet01".to_owned()),
+        class_restriction: 1023,
+        ..Default::default()
+    };
+    let s = scripts_with(vec![(info, Some(&story))]);
+    let p = story_policy();
+    let mut state = StoryState {
+        progress: vec![Progress {
+            story_line: "CutScene".to_owned(),
+            phase: Some("A".to_owned()),
+            status: 255,
+        }],
+        ..Default::default()
+    };
+    let facts = Fiona { level: 1 };
+    let mut pick = |_| 0;
+    let mut session = Session::default();
+    let mut outputs = Talker::new(&s, &p, &facts, &mut state, &mut pick, 0, &mut session)
+        .talk_to(None, "AIDAN", Some("CutScene"), Some("story_sector"))
+        .unwrap()
+        .outputs;
+    while session.last_server_command.is_some() {
+        let more = Talker::new(&s, &p, &facts, &mut state, &mut pick, 0, &mut session)
+            .execute_server_command()
+            .unwrap();
+        outputs.extend(more.outputs);
+    }
+    let talk: Vec<_> = outputs
+        .iter()
+        .filter_map(|o| match o {
+            Output::Talk(t) => Some(texts(t)),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    assert!(talk.contains(&t("talk", "ARRIVED", "")));
+    // complete_storyline (no reward) ends the hidden storyline: the scene does not replay.
+    assert_eq!(state.progress[0].phase, None);
+    assert!(matches!(outputs.last(), Some(Output::SyncStory(rows)) if rows[0].phase.is_none()));
+    // An NPC without a story-sector talk in the phase gets the source's message, not a refusal.
+    let mut state = StoryState {
+        progress: vec![Progress {
+            story_line: "CutScene".to_owned(),
+            phase: Some("A".to_owned()),
+            status: 255,
+        }],
+        ..Default::default()
+    };
+    let mut session = Session::default();
+    let outputs = Talker::new(&s, &p, &facts, &mut state, &mut pick, 0, &mut session)
+        .talk_to(None, "FERGHUS", Some("CutScene"), Some("story_sector"))
+        .unwrap()
+        .outputs;
+    assert!(outputs.iter().any(|o| matches!(o, Output::Talk(t)
+        if texts(t).iter().any(|e| e.1.starts_with("no talk for this NPC!!!")))));
+}
+
+#[test]
+fn story_links_keep_the_change_phase_pairs_for_the_panel_walk() {
+    let story = el(
+        "StoryLine",
+        &[],
+        "",
+        vec![el(
+            "Phase",
+            &[("id", "A")],
+            "",
+            vec![el(
+                "Talk",
+                &[("id", "AIDAN")],
+                "",
+                vec![el(
+                    "Do",
+                    &[],
+                    "",
+                    vec![
+                        el(
+                            "change_phase",
+                            &[("arg1", "S6NT_99_Dwyn_rochest"), ("arg2", "B")],
+                            "",
+                            vec![],
+                        ),
+                        leaf("change_phase", "Other,C"),
+                    ],
+                )],
+            )],
+        )],
+    );
+    let info = StoryLineInfo {
+        id: "E6M_02_dormitory".to_owned(),
+        xml_path: Some("QuestSet01".to_owned()),
+        class_restriction: 1023,
+        ..Default::default()
+    };
+    let s = scripts_with(vec![(info, Some(&story))]);
+    let line = s.story_line("E6M_02_dormitory").unwrap();
+    assert_eq!(
+        line.links.phase_changes,
+        [
+            ("S6NT_99_Dwyn_rochest".to_owned(), "B".to_owned()),
+            ("Other".to_owned(), "C".to_owned())
+        ]
+    );
+}
