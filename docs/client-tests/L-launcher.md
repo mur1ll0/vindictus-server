@@ -69,3 +69,12 @@ Pré-condição: Docker reconstruído em 07/11 (L5); launcher 0.2.0 (`tools/laun
 - [ ] **LV7 (painel):** painel → "Versões do cliente" → as versões 1–3 com tamanhos de instalação e de atualização, mínima 1 e launcher 0.2.0 → "Nova notícia" (título e duas linhas) → aparece na lista → abrir o launcher: a notícia aparece no quadro do topo → "Ocultar" no painel → reabrir o launcher: some. (Opcional, só com cópias de teste) "Versão mínima" = 3 e conferir que um cliente na versão 1 não abre Jogar até atualizar; depois voltar a 1.
 - [ ] **LV8 (autoatualização):** com um launcher mais antigo que o publicado (o operador publica um exe novo com `client-dist launcher --exe … --version 0.2.1`), abrir o launcher sem fazer login → ele se fecha e reabre sozinho na versão nova; com login aberto, a mensagem "Launcher … baixado: entra na próxima vez" e a troca na próxima abertura. Ao lado do exe não deve sobrar `.old` depois da segunda abertura.
 Relato: o que aparece na linha de mensagem e na lista do painel; para o LV8, o log de `vindictus-launcher.exe --self-update --log l5.log` no mesmo caso.
+
+### LV9 — outro computador da rede de casa (07/11/2026)
+Pré-condição: `.env` com `PUBLISH_ADDRESS=0.0.0.0` e `PUBLIC_HOST=192.168.1.13` (Docker recriado); launcher 0.3.0 publicado (`scripts/dev/package-launcher.ps1 -PublicHost 192.168.1.13`), que grava o endereço do servidor no cliente instalado; `scripts/dev/open-firewall.ps1` executado como administrador neste PC; `.cache/launcher-package/VindictusLauncher.zip` copiado para o outro PC (pendrive ou pasta compartilhada); ≈ 16 GB livres lá.
+- [ ] No outro PC, extrair o zip, abrir o `vindictus-launcher.exe` → "Servidor: online", notícias no topo, "Publicada: versão N".
+- [ ] "Escolher…" → pasta vazia → "Instalar o jogo aqui" → download pela rede (≈ 12 GB) → "Cliente na versão N". Depois, "Verificar arquivos" termina com 0 baixados (o `heroes.db3` ajustado para 192.168.1.13 não é "reparado").
+- [ ] "Criar conta" abre o painel do servidor no navegador do outro PC; criar a conta → Entrar no launcher → Jogar → Start Game → seleção → criar um personagem → cidade.
+- [ ] Loja do cash shop abre e lista os produtos; uma missão curta até o fim (relay).
+- [ ] (Com este PC também no jogo) os dois personagens se veem na cidade; party e uma missão juntos (roteiro B5 multijogador).
+Relato: passo e mensagem; se não conectar, o resultado de `Test-NetConnection 192.168.1.13 -Port 27015` (e 8090, 27090) no outro PC.

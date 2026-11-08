@@ -514,6 +514,13 @@ fn on_update(full: bool) {
                     &folder, &fetch, &key, mode, None, &cancel, &running, &report,
                 )
             })
+            .and_then(|outcome| {
+                // O cliente procura o jogo no host do servidor de atualização.
+                if let Some(url) = update::bootstrap_url(&base) {
+                    update::apply_endpoint(&folder, &url)?;
+                }
+                Ok(outcome)
+            })
             .map_err(|e| e.message());
         post(window, WM_UPDATED, result);
     });
@@ -698,13 +705,23 @@ fn on_play() {
     let server = ST
         .with(|s| s.borrow().config.server_base())
         .unwrap_or_default();
+    let bootstrap = ST
+        .with(|s| s.borrow().config.updates_base())
+        .ok()
+        .and_then(|base| update::bootstrap_url(&base));
     set_busy(true);
     message("Abrindo o jogo…", Tone::Normal);
     let window = ctl().window;
     std::thread::spawn(move || {
-        let started = api
-            .ticket(&session)
-            .map_err(|e| (e == ApiError::SessionEnded, e.message()))
+        // O endereço do servidor no cliente segue o servidor de atualização configurado agora.
+        let endpoint = bootstrap
+            .map(|url| update::apply_endpoint(&folder, &url).map_err(|e| (false, e.message())))
+            .transpose();
+        let started = endpoint
+            .and_then(|_| {
+                api.ticket(&session)
+                    .map_err(|e| (e == ApiError::SessionEnded, e.message()))
+            })
             .and_then(|ticket| {
                 game::write_messenger_ini(&folder, &server);
                 if as_admin {

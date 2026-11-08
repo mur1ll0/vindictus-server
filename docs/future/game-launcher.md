@@ -219,6 +219,17 @@ Como o cliente recebe o ticket (etapa L-A; evidência na seção 4.1):
 - API interna do `updates` só na rede do Docker e com segredo. Na publicação externa, HTTPS por proxy reverso (por exemplo Caddy com Let's Encrypt).
 - Nenhum caminho fora da pasta do jogo (recusar `..`, absolutos, links, nomes reservados do Windows); limites de tamanho por manifesto e por objeto; nunca executar arquivo baixado sem hash conferido; autoatualização assinada; nenhuma credencial em log.
 
+### 4.9 Jogar de outros computadores (rede local, 07/11/2026)
+
+Decisão do operador (07/11/2026): por enquanto só a rede de casa, com o servidor no Docker deste PC; uma máquina dedicada aberta à internet fica para depois.
+
+- **`.env`:** `PUBLISH_ADDRESS=0.0.0.0` publica as portas do jogo, do painel, do bootstrap e do `updates` em todas as interfaces (o PostgreSQL e a API operacional 8080 continuam no loopback); `PUBLIC_HOST=<IPv4>` é o endereço que os outros PCs usam (aqui 192.168.1.13, via DHCP: reservar no roteador para não mudar). Sem as duas, tudo continua só no loopback.
+- **Servidor:** `lab-frontend --advertise-host ${PUBLIC_HOST}` anuncia esse IP no lugar do loopback no endereço do canal (`ChannelServerAddress`), no relay das missões e do PvP e nas URLs do cash shop (`ingame_cashshop_shopListURL`, `ingame_cashshop_purchaseURL`); `--endpoint-output` grava no início o `EndPoint.txt` do bootstrap (lista de servidores) com esse IP. Os clientes de outros PCs chegam pelo NAT do Docker com endereço privado e são admitidos como hoje (`lab_peer`).
+- **Cliente (pedido do operador, 08/11/2026, como no pw-universal):** o `heroes.db3` guarda a URL do bootstrap (`FeatureMatrix.EndPoints`), mas a versão publicada continua genérica (127.0.0.1). O launcher 0.3.0 grava nela `http://<host do servidor de atualização>:8081/en-eu-x-gm/EndPoint.txt` depois de instalar, atualizar ou verificar e antes de cada Jogar (`update::apply_endpoint`, SQLite embutido), e registra no `estado.json` o SHA-256 do banco ajustado (`local`), que a verificação aceita no lugar do publicado; numa atualização que troca o `heroes.db3`, o delta não serve ao banco ajustado e o objeto inteiro (≈ 2,6 MB) é baixado. Mudar de servidor é só mudar o endereço no launcher. `scripts/dev/publish-client-version.ps1 -Title …` monta (hard links com a versão anterior) e publica pela imagem do Docker; é o caminho para levar ao launcher o conteúdo publicado no painel (preços, itens), até a publicação de conteúdo gerar a versão sozinha.
+- **Launcher:** `scripts/dev/package-launcher.ps1 -PublicHost <ip>` compila, publica o exe para a autoatualização (os 0.2.0 sobem para 0.3.0 sozinhos) e monta `.cache/launcher-package/VindictusLauncher.zip` (exe, `vindictus-launcher.json` com `http://<ip>:27090` e um LEIA-ME). O `updates` e o messenger vêm do mesmo host.
+- **Firewall do Windows:** `scripts/dev/open-firewall.ps1` (como administrador; `-AllProfiles` se a rede estiver marcada como pública; `-Remove` desfaz) libera as portas TCP 8081, 8090, 27003, 27005, 27015, 27080, 27090 e 47611.
+- **Limites:** o multijogador entre PCs (P2P do ProudNet além do relay TCP) ainda não foi testado (roteiro B5 multijogador); HTTP sem TLS, aceitável só na rede de casa.
+
 ## 5. Riscos e decisões do operador
 
 - Distribuir o cliente é distribuir assets proprietários: o servidor de arquivos é local ou privado, e nada disso entra no Git (`AGENTS.md`).

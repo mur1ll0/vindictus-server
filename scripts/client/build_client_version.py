@@ -24,6 +24,7 @@ import argparse
 import contextlib
 import fnmatch
 import hashlib
+import ipaddress
 import json
 import os
 import shutil
@@ -195,7 +196,7 @@ def base_costume(original: Path, keystream: bytes, work: Path):
 
 def build(version: int, out: Path, original: Path = ORIGINAL, keystream: Path = KEYSTREAM, edits: Path | None = None,
           nmcogame: Path = NMCOGAME, keep_test_items: bool = False, report: Path | None = None,
-          link_from: Path | None = None) -> dict:
+          link_from: Path | None = None, endpoint_host: str = '127.0.0.1') -> dict:
     sys.path.insert(0, str(ROOT / 'scripts/content'))
     import apply_delia_creation_movie
     import apply_lab_content_additions
@@ -204,6 +205,8 @@ def build(version: int, out: Path, original: Path = ORIGINAL, keystream: Path = 
     import prepare_lab_client
     import recover_mss32
     classes = class_layers.VERSIONS[version]
+    host = str(ipaddress.IPv4Address(endpoint_host))  # the bootstrap the client asks for its server list
+    endpoint = {**ENDPOINT, 'base_url': f'http://{host}:8081', 'game_host': host}
     out = reject_original(out)
     if out == (ROOT / '.cache/play-client').resolve() or (out.exists() and any(out.iterdir())):
         raise PreparationError(f'{out} must be a new or empty folder (never the lab copy).')
@@ -217,6 +220,7 @@ def build(version: int, out: Path, original: Path = ORIGINAL, keystream: Path = 
     out.mkdir(parents=True, exist_ok=True)
     started = time.time()
     result = {'version': version, 'classes': list(classes), 'out': str(out), 'original': str(original),
+              'endpoint_host': host,
               'git': git_state(), 'test_items_excluded': [] if keep_test_items else list(TEST_ITEMS), 'steps': {}}
 
     # 1. Copy the original minus the exclusions.
@@ -240,7 +244,7 @@ def build(version: int, out: Path, original: Path = ORIGINAL, keystream: Path = 
         result['steps']['nmcogame'] = {'source': str(nmcogame), 'sha256': sha256_file(out / 'nmcogame.dll')}
         # 4. heroes.db3: EndPoint (its EndPoint.txt goes to a throwaway web root), original values, story goals.
         result['steps']['endpoint'] = {k: v for k, v in prepare_lab_client.prepare(
-            out, work / 'web', ENDPOINT['region'], ENDPOINT['base_url'], ENDPOINT['game_host'], ENDPOINT['game_port'],
+            out, work / 'web', endpoint['region'], endpoint['base_url'], endpoint['game_host'], endpoint['game_port'],
             True).items() if k in ('previous_bootstrap_url', 'new_bootstrap_url')}
         result['steps']['original_content'] = run_script('apply_original_content.py', '--client-copy', str(out), '--apply')
         result['steps']['story_goals'] = run_script('align_story_goals.py', '--client-copy', str(out), '--apply')
@@ -325,12 +329,14 @@ def main() -> int:
     parser.add_argument('--keep-test-items', action='store_true',
                         help='keep the item editor test items (only to compare with the lab copy)')
     parser.add_argument('--report', type=Path, help='report JSON (default: <out>.report.json next to the folder)')
+    parser.add_argument('--endpoint-host', default='127.0.0.1',
+                        help='IPv4 of the server for other computers (compose PUBLIC_HOST); the client reads its server list there')
     parser.add_argument('--link-from', type=Path,
                         help='an earlier version folder (with its report): identical files become read-only hard links')
     args = parser.parse_args()
     try:
         result = build(args.version, args.out, args.original, args.keystream, args.edits, args.nmcogame,
-                       args.keep_test_items, args.report, args.link_from)
+                       args.keep_test_items, args.report, args.link_from, args.endpoint_host)
     except (PreparationError, ValueError, OSError) as error:
         print(json.dumps({'built': False, 'error': str(error)}))
         return 2

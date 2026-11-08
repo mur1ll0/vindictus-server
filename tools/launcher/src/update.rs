@@ -195,6 +195,101 @@ impl Fetch for HttpFetch {
 pub struct LocalState {
     pub version: u32,
     pub manifest_sha256: String,
+    /// Arquivos que o próprio launcher ajusta depois de instalar (o endereço do servidor no
+    /// `heroes.db3`): a verificação aceita o conteúdo ajustado no lugar do publicado.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub local: std::collections::BTreeMap<String, LocalChange>,
+}
+
+/// Um arquivo publicado (`published_sha256`) com o ajuste local do launcher (`local_sha256`).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct LocalChange {
+    pub published_sha256: String,
+    pub local_sha256: String,
+}
+
+/// O banco do cliente e a coluna da região do 1.69 EU.
+pub const DATABASE: &str = "sql/heroes.db3";
+const REGION_COLUMN: &str = "EN-EU-X-GM";
+/// Porta do bootstrap HTTP (lista de servidores `EndPoint.txt`) no compose.
+pub const BOOTSTRAP_PORT: u16 = 8081;
+
+/// URL da lista de servidores no host do servidor de atualização: o cliente procura o jogo onde o
+/// launcher encontrou as atualizações (como no pw-universal).
+pub fn bootstrap_url(updates_base: &str) -> Option<String> {
+    let rest = updates_base
+        .strip_prefix("http://")
+        .or_else(|| updates_base.strip_prefix("https://"))?;
+    let authority = rest.split('/').next()?.rsplit('@').next()?;
+    let host = match authority.strip_prefix('[') {
+        Some(v6) => format!("[{}]", v6.split(']').next()?),
+        None => authority.split(':').next()?.to_owned(),
+    };
+    if host.is_empty()
+        || host == "[]"
+        || !host
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || ".-:[]".contains(c))
+    {
+        return None;
+    }
+    Some(format!(
+        "http://{host}:{BOOTSTRAP_PORT}/en-eu-x-gm/EndPoint.txt"
+    ))
+}
+
+fn sqlite(error: rusqlite::Error) -> UpdateError {
+    UpdateError::Io(format!("heroes.db3: {error}"))
+}
+
+/// Aponta o `FeatureMatrix.EndPoints` do cliente para `url` (com o jogo fechado) e registra no estado o
+/// SHA-256 do banco ajustado. `true` quando mudou algo no banco.
+pub fn apply_endpoint(game: &Path, url: &str) -> Result<bool, UpdateError> {
+    let database = game.join(DATABASE);
+    if !database.is_file() {
+        return Ok(false);
+    }
+    let changed = {
+        let connection = rusqlite::Connection::open(&database).map_err(sqlite)?;
+        let select =
+            format!("SELECT [{REGION_COLUMN}] FROM FeatureMatrix WHERE Feature = 'EndPoints'");
+        let current: Option<String> = match connection.query_row(&select, [], |row| row.get(0)) {
+            Ok(value) => value,
+            Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(false),
+            Err(error) => return Err(sqlite(error)),
+        };
+        if current.as_deref() == Some(url) {
+            false
+        } else {
+            let update = format!(
+                "UPDATE FeatureMatrix SET [{REGION_COLUMN}] = ?1 WHERE Feature = 'EndPoints'"
+            );
+            connection.execute(&update, [url]).map_err(sqlite)?;
+            true
+        }
+    };
+    // Só uma pasta instalada pelo launcher tem estado; numa cópia antiga o ajuste vale do mesmo jeito.
+    if let (Some(mut state), Some(manifest)) = (local_state(game), applied_manifest(game))
+        && let Some(entry) = manifest.files.iter().find(|f| f.path == DATABASE)
+    {
+        let sha = sha256_file(&database, &AtomicBool::new(false), &|_| {})?;
+        let before = state.local.clone();
+        if sha == entry.sha256 {
+            state.local.remove(DATABASE);
+        } else {
+            state.local.insert(
+                DATABASE.into(),
+                LocalChange {
+                    published_sha256: entry.sha256.clone(),
+                    local_sha256: sha,
+                },
+            );
+        }
+        if state.local != before {
+            write_json(&game.join(WORK).join(STATE), &state)?;
+        }
+    }
+    Ok(changed)
 }
 
 /// O que o servidor publica agora (assinatura conferida).
@@ -637,6 +732,7 @@ fn full(
     game_running: &dyn Fn() -> bool,
 ) -> Result<(), UpdateError> {
     let keystream = keystream_of(run.fetch, manifest)?;
+    let local = local_state(run.game).map(|s| s.local).unwrap_or_default();
     // Sem estado não se sabe o que o launcher instalou: nada é removido.
     let remove = applied_manifest(run.game)
         .map(|before| removed_paths(&before, manifest))
@@ -662,8 +758,15 @@ fn full(
         }
         outcome.checked += 1;
         let advance = |n: u64| run.advance(n, &entry.path);
-        let good =
-            size == Some(entry.size) && sha256_file(&path, run.cancel, &advance)? == entry.sha256;
+        let adjusted = local
+            .get(&entry.path)
+            .filter(|c| c.published_sha256 == entry.sha256);
+        let good = if size == Some(entry.size) || (size.is_some() && adjusted.is_some()) {
+            let sha = sha256_file(&path, run.cancel, &advance)?;
+            sha == entry.sha256 || adjusted.is_some_and(|c| c.local_sha256 == sha)
+        } else {
+            false
+        };
         if !good {
             if size != Some(entry.size) {
                 run.advance(entry.size, &entry.path);
@@ -693,6 +796,7 @@ fn step(
     game_running: &dyn Fn() -> bool,
 ) -> Result<(), UpdateError> {
     let keystream = keystream_of(run.fetch, next)?;
+    let local = local_state(run.game).map(|s| s.local).unwrap_or_default();
     let old: HashMap<&str, &FileEntry> =
         before.files.iter().map(|f| (f.path.as_str(), f)).collect();
     let deltas: HashMap<&str, &vindictus_client_dist::manifest::Delta> =
@@ -708,8 +812,13 @@ fn step(
             if present.is_none() {
                 changed.push(entry);
             }
-        } else if !same || present != Some(entry.size) {
-            changed.push(entry);
+        } else {
+            let adjusted = local
+                .get(&entry.path)
+                .is_some_and(|c| c.published_sha256 == entry.sha256);
+            if !same || (present != Some(entry.size) && !(adjusted && present.is_some())) {
+                changed.push(entry);
+            }
         }
     }
     let total = changed
@@ -784,6 +893,19 @@ fn commit(
         state: LocalState {
             version: manifest.version,
             manifest_sha256: vindictus_client_dist::sha256_hex(bytes),
+            // Um ajuste local de um arquivo que não mudou continua valendo.
+            local: local_state(game)
+                .map(|s| s.local)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|(path, change)| {
+                    manifest
+                        .files
+                        .iter()
+                        .any(|f| &f.path == path && f.sha256 == change.published_sha256)
+                        && !paths.contains(path)
+                })
+                .collect(),
         },
         paths,
         remove,

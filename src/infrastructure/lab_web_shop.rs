@@ -27,7 +27,14 @@ use std::{
 /// Loopback endpoint of the web shop (published like the relay in compose.yaml).
 pub const BIND: SocketAddr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 27080));
 /// ingame_cashshop_purchaseURL with the original format specifiers.
-pub const PURCHASE_URL: &str = "http://127.0.0.1:27080/Purchase.aspx?passport=%s&ServerCode=%d&productno=%d&quantity=%d&characterid=%I64d&giftcharacterid=%d&giftmessage=%s&ruleid=%d";
+/// The purchase URL template the client fills, at the advertised host (lab_peer::advertise).
+pub fn purchase_url() -> String {
+    format!(
+        "http://{}:{}/Purchase.aspx?passport=%s&ServerCode=%d&productno=%d&quantity=%d&characterid=%I64d&giftcharacterid=%d&giftmessage=%s&ruleid=%d",
+        super::lab_peer::advertised_host(),
+        BIND.port()
+    )
+}
 /// Result codes of client.dll 0x38476b50.
 const OK: &str = "0";
 const NO_ITEM: &str = "1";

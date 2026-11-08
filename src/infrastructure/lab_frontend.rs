@@ -63,8 +63,13 @@ pub const ADMISSION_TIMEOUT: Duration = Duration::from_secs(30);
 /// screen opens (it needs the NGM_disable feature sync), so the player's typing time
 /// counts here; 30 s disconnected slow logins. The laboratory keeps a finite bound.
 pub const LOGIN_WAIT: Duration = Duration::from_secs(600);
-/// ShopList.aspx on the bootstrap HTTP of compose.yaml (127.0.0.1:8081, region folder).
-const LAB_SHOP_LIST_URL: &str = "http://127.0.0.1:8081/en-eu-x-gm/ShopList.aspx";
+/// ShopList.aspx on the bootstrap HTTP of compose.yaml (port 8081, region folder), at the advertised host.
+fn lab_shop_list_url() -> String {
+    format!(
+        "http://{}:8081/en-eu-x-gm/ShopList.aspx",
+        super::lab_peer::advertised_host()
+    )
+}
 const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 const FAILURE_DISCONNECT: Duration = Duration::from_secs(5);
 #[derive(Debug, Error)]
@@ -508,7 +513,7 @@ fn relay_ticket(
     });
     let waiting = relay.add_client_waiting(cid, nexon_sn);
     super::minimum_mission::RelayTicket {
-        address: relay.endpoint(),
+        address: super::lab_peer::advertise(relay.endpoint()),
         group,
         sn: waiting.sn,
         key: waiting.key,
@@ -5644,11 +5649,12 @@ impl Connection {
                                 selected.look.clone(),
                             )
                             .await?;
-                        let address = bind.ip().to_string();
+                        let advertised = super::lab_peer::advertise(*bind);
+                        let address = advertised.ip().to_string();
                         let message = Message::ChannelServerAddress {
                             channel_id: 1,
                             address: Some(&address),
-                            port: i32::from(bind.port()),
+                            port: i32::from(advertised.port()),
                             key,
                         };
                         let body = wire::encode(
@@ -8276,8 +8282,9 @@ pub async fn connection(
   // CharacterCreation_UI_V3 flow (scripts/client/patch_class_routing.py, CREATION_GRID).
   // The panel's event switches (laboratory extension) reach the client as overrides too.
   // The running scheduled events' keys follow (FeatureMatrix.OverrideFeature of the AdminClient).
+  let (shop_list_url,purchase_url)=(lab_shop_list_url(),super::lab_web_shop::purchase_url());
   let event_switches:Vec<(String,String)>=runtime.minimum_assets().map(|a|a.event_overrides.iter().map(|(k,on)|(k.clone(),crate::domain::content_overlay::Overlay::event_value(*on).to_owned())).chain(a.scheduled_features.iter().map(|(k,v)|(k.clone(),v.clone()))).collect()).unwrap_or_default();
-  let features=FeatureMatrix{features:Some(vec![FeatureEntry{key:"NGM_disable",value:Some("1")},FeatureEntry{key:"CashShop",value:Some("1.04.08")},FeatureEntry{key:"ingame_cashshop_shopListURL",value:Some(LAB_SHOP_LIST_URL)},FeatureEntry{key:"ingame_cashshop_purchaseURL",value:Some(super::lab_web_shop::PURCHASE_URL)},FeatureEntry{key:"S3_CharacterCreation",value:Some("3.09.00")}].into_iter().chain(event_switches.iter().map(|(k,v)|FeatureEntry{key:k.as_str(),value:Some(v.as_str())})).collect())};
+  let features=FeatureMatrix{features:Some(vec![FeatureEntry{key:"NGM_disable",value:Some("1")},FeatureEntry{key:"CashShop",value:Some("1.04.08")},FeatureEntry{key:"ingame_cashshop_shopListURL",value:Some(&shop_list_url)},FeatureEntry{key:"ingame_cashshop_purchaseURL",value:Some(&purchase_url)},FeatureEntry{key:"S3_CharacterCreation",value:Some("3.09.00")}].into_iter().chain(event_switches.iter().map(|(k,v)|FeatureEntry{key:k.as_str(),value:Some(v.as_str())})).collect())};
   let (mut sender,packets)=encode_initial_packets(salt,Some(&features),super::minimum_cash_shop::CATALOG_MAX_BODY,1024).map_err(|_|RuntimeError::Message)?;
   for bytes in packets{tokio::time::timeout(WRITE_TIMEOUT,stream.write_all(&bytes)).await.map_err(|_|RuntimeError::Timeout)??;}
   let mut receiver=LegacyReceiver::with_profile(CipherProfile::VindictusFrontend,DEFAULT_MAX_BODY);let mut buffer=Zeroizing::new([0u8;4096]);

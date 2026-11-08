@@ -365,6 +365,7 @@ fn an_interrupted_apply_is_finished() {
         state: LocalState {
             version: 3,
             manifest_sha256: "a".repeat(64),
+            local: Default::default(),
         },
         paths: vec!["bin/client.dll".into()],
         remove: vec!["old/gone.dat".into(), "never/there.dat".into()],
@@ -433,4 +434,59 @@ fn verify_removes_what_the_launcher_installed_and_the_version_dropped() {
 #[test]
 fn the_pinned_key_is_the_servers() {
     assert!(pinned_key().is_ok());
+}
+
+#[test]
+fn the_bootstrap_follows_the_update_server_host() {
+    assert_eq!(
+        bootstrap_url("http://192.168.1.13:8090").as_deref(),
+        Some("http://192.168.1.13:8081/en-eu-x-gm/EndPoint.txt")
+    );
+    assert_eq!(
+        bootstrap_url("https://jogo.example").as_deref(),
+        Some("http://jogo.example:8081/en-eu-x-gm/EndPoint.txt")
+    );
+    assert!(bootstrap_url("ftp://x").is_none());
+}
+
+fn with_database(store: &Store, url: &str) -> Vec<(&'static str, Vec<u8>)> {
+    let dir = temp("db");
+    let path = dir.join("heroes.db3");
+    let db = rusqlite::Connection::open(&path).ok();
+    if let Some(db) = db {
+        let _ = db.execute_batch(&format!(
+            "CREATE TABLE FeatureMatrix(Feature TEXT, [EN-EU-X-GM] TEXT); INSERT INTO FeatureMatrix VALUES('EndPoints', '{url}');"
+        ));
+    }
+    let _ = store;
+    let mut files = v1();
+    files.push(("sql/heroes.db3", fs::read(&path).unwrap_or_default()));
+    files
+}
+
+#[test]
+fn the_adjusted_database_is_not_repaired_back() {
+    let store = Store::new();
+    let files = with_database(&store, "http://127.0.0.1:8081/en-eu-x-gm/EndPoint.txt");
+    store.publish(1, &files, None);
+    let game = temp("endpoint");
+    assert!(run_mode(&game, &store, Mode::Full, None).is_ok());
+    let url = "http://192.168.1.13:8081/en-eu-x-gm/EndPoint.txt";
+    assert_eq!(apply_endpoint(&game, url).ok(), Some(true));
+    assert_eq!(apply_endpoint(&game, url).ok(), Some(false));
+    let read = rusqlite::Connection::open(game.join(DATABASE))
+        .ok()
+        .and_then(|db| {
+            db.query_row(
+                "SELECT [EN-EU-X-GM] FROM FeatureMatrix WHERE Feature='EndPoints'",
+                [],
+                |r| r.get::<_, String>(0),
+            )
+            .ok()
+        });
+    assert_eq!(read.as_deref(), Some(url));
+    assert!(local_state(&game).is_some_and(|s| s.local.contains_key(DATABASE)));
+    // Verifying downloads nothing: the adjusted database is the known local change.
+    let outcome = run_mode(&game, &store, Mode::Full, None).ok();
+    assert_eq!(outcome.map(|o| o.downloaded), Some(0));
 }

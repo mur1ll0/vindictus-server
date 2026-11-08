@@ -666,7 +666,7 @@ impl PvpHub {
         // JoinP2P: subscribe before registering, so Connected cannot be missed.
         let mut events = relay.subscribe();
         let waiting = relay.add_client_waiting(cid, owner.0);
-        let endpoint = relay.endpoint();
+        let endpoint = super::lab_peer::advertise(relay.endpoint());
         let request = super::minimum_mission::packet(&mwire::Message::ConnectionRequest(
             mwire::ConnectionRequest {
                 address: Some(endpoint.ip().to_string()),

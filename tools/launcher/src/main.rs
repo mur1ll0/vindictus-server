@@ -121,6 +121,7 @@ fn headless(args: &[String]) -> i32 {
         .and_then(|base| {
             let fetch = update::HttpFetch::new(&base);
             let key = update::pinned_key()?;
+            let bootstrap = update::bootstrap_url(&base);
             let last = std::cell::Cell::new((String::new(), 0u64));
             let report = |p: update::Progress| {
                 let step = (p.done * 20).checked_div(p.total).unwrap_or(0);
@@ -140,6 +141,18 @@ fn headless(args: &[String]) -> i32 {
                 &|| false,
                 &report,
             )
+            .and_then(|outcome| {
+                // O cliente procura o jogo no host do servidor de atualização.
+                if let Some(url) = bootstrap.as_deref() {
+                    let changed = update::apply_endpoint(std::path::Path::new(&folder), url)?;
+                    let _ = writeln!(
+                        &out,
+                        "endereco {url} {}",
+                        if changed { "ajustado" } else { "igual" }
+                    );
+                }
+                Ok(outcome)
+            })
         });
     match result {
         Ok(o) => {

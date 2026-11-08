@@ -7,6 +7,40 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::OnceLock;
 
 static CONTAINER_PUBLICATION: OnceLock<bool> = OnceLock::new();
+static ADVERTISED: OnceLock<Ipv4Addr> = OnceLock::new();
+
+/// Called once at startup by `lab-frontend --advertise-host`: the address other computers reach this
+/// host at (LAN or VPN), sent to the client for the channel, the mission relay and the cash shop URLs
+/// instead of the loopback (docs/future/game-launcher.md 4.9). Unset, everything stays loopback.
+pub fn set_advertised(host: Ipv4Addr) {
+    let _ = ADVERTISED.set(host);
+}
+
+/// The host advertised to clients (the loopback when none was configured).
+pub fn advertised_host() -> IpAddr {
+    ADVERTISED
+        .get()
+        .map_or(IpAddr::V4(Ipv4Addr::LOCALHOST), |h| IpAddr::V4(*h))
+}
+
+/// A configured loopback endpoint as the client must reach it.
+pub fn advertise(endpoint: SocketAddr) -> SocketAddr {
+    match ADVERTISED.get() {
+        Some(host) if endpoint.ip().is_loopback() => {
+            SocketAddr::new(IpAddr::V4(*host), endpoint.port())
+        }
+        _ => endpoint,
+    }
+}
+
+/// The bootstrap EndPoint.txt of the region (the server list the client reads at start), pointing at
+/// the advertised host (scripts/client/prepare_lab_client.py endpoint_bytes, same text).
+pub fn endpoint_text(frontend_port: u16) -> String {
+    format!(
+        "\"Address\"\n{{\n\t\"Vindictus Laboratory\"\n\t{{\n\t\tplatform_server_code \"1\"\n\t\tlocalized_name \"SERVER1\"\n\t\tIP\n\t\t{{\n\t\t\t\"{}\" \"{frontend_port}\"\n\t\t}}\n\t}}\n}}\n",
+        advertised_host()
+    )
+}
 
 /// Called once at startup by `lab-frontend --container-listen`.
 pub fn enable_container_publication() {
@@ -57,6 +91,17 @@ fn effective_peer_in(peer: IpAddr, container: bool) -> Option<IpAddr> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_endpoint_text_is_the_prepared_one() {
+        // Unset in the tests: the loopback, byte for byte the text prepare_lab_client.py writes.
+        assert_eq!(
+            endpoint_text(27015),
+            "\"Address\"\n{\n\t\"Vindictus Laboratory\"\n\t{\n\t\tplatform_server_code \"1\"\n\t\tlocalized_name \"SERVER1\"\n\t\tIP\n\t\t{\n\t\t\t\"127.0.0.1\" \"27015\"\n\t\t}\n\t}\n}\n"
+        );
+        let relay: SocketAddr = "127.0.0.1:27005".parse().unwrap();
+        assert_eq!(advertise(relay), relay);
+    }
 
     #[test]
     fn native_scope_admits_only_loopback() {

@@ -92,7 +92,9 @@ services:
     restart: unless-stopped
 
   # Game laboratory: frontend 27015, city channel 27003, mission relay 27005, web shop 27080 and
-  # admin panel 27090, published only on the host loopback. Private content and the protected runtime profile stay on the
+  # admin panel 27090, published on PUBLISH_ADDRESS (default: the host loopback; 0.0.0.0 to play from
+  # other computers, with PUBLIC_HOST = the LAN or VPN IPv4 they reach this host at, which the game
+  # advertises to clients and writes into the bootstrap EndPoint.txt; docs/future/game-launcher.md 4.9). Private content and the protected runtime profile stay on the
   # host (.cache) and are mounted read-only; nothing private enters the image. At start it writes
   # the cash shop ShopList.aspx (published prices) for the bootstrap HTTP and the published content
   # overlay for the client launcher; a scheduled maintenance exits it and the restart policy
@@ -113,6 +115,7 @@ services:
         --shop-list-output /shop-list/ShopList.aspx
         --content-edits-output /content-state/content-edits.json
         --admin-client-dist /client-dist --admin-client-dist-keys /client-dist-keys
+        --advertise-host ${PUBLIC_HOST:-127.0.0.1} --endpoint-output /shop-list/EndPoint.txt
         < /run/secrets/lab_runtime_profile
     environment:
       <<: *app-environment
@@ -137,13 +140,13 @@ services:
       migrate:
         condition: service_completed_successfully
     ports:
-      - 127.0.0.1:27015:27015
-      - 127.0.0.1:27003:27003
-      - 127.0.0.1:27005:27005
-      - 127.0.0.1:47611:47611
-      - 127.0.0.1:27080:27080
+      - ${PUBLISH_ADDRESS:-127.0.0.1}:27015:27015
+      - ${PUBLISH_ADDRESS:-127.0.0.1}:27003:27003
+      - ${PUBLISH_ADDRESS:-127.0.0.1}:27005:27005
+      - ${PUBLISH_ADDRESS:-127.0.0.1}:47611:47611
+      - ${PUBLISH_ADDRESS:-127.0.0.1}:27080:27080
       # Admin panel (B4): API and single-page app, host loopback only.
-      - 127.0.0.1:27090:27090
+      - ${PUBLISH_ADDRESS:-127.0.0.1}:27090:27090
     healthcheck:
       # Port 27015 (0x6987) in LISTEN state; connecting would open a login session.
       test: [CMD-SHELL, "grep -qi ':6987 00000000:0000 0A' /proc/net/tcp"]
@@ -166,7 +169,7 @@ services:
     volumes:
       - ${CLIENT_DIST_DIR:-./.cache/client-dist}:/client-dist:ro
     ports:
-      - 127.0.0.1:${UPDATES_HOST_PORT:-8090}:8090
+      - ${PUBLISH_ADDRESS:-127.0.0.1}:${UPDATES_HOST_PORT:-8090}:8090
     healthcheck:
       test: [CMD, curl, --fail, --silent, --show-error, -o, /dev/null, http://127.0.0.1:8090/status.json]
       interval: 10s
@@ -183,7 +186,7 @@ services:
     volumes:
       - ./.cache/client-bootstrap:/www:ro
     ports:
-      - 127.0.0.1:8081:8081
+      - ${PUBLISH_ADDRESS:-127.0.0.1}:8081:8081
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]

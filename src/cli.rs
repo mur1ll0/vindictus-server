@@ -167,6 +167,13 @@ pub enum Command {
         /// Write the cash shop ShopList.aspx (published prices included) at start.
         #[arg(long)]
         shop_list_output: Option<std::path::PathBuf>,
+        /// IPv4 other computers reach this host at (LAN or VPN, compose PUBLIC_HOST): sent to clients
+        /// for the channel, the relay and the cash shop instead of the loopback.
+        #[arg(long)]
+        advertise_host: Option<std::net::Ipv4Addr>,
+        /// Write the bootstrap EndPoint.txt (server list) with the advertised host at start.
+        #[arg(long)]
+        endpoint_output: Option<std::path::PathBuf>,
         /// Write the published content overlay (content-edits.json) at start, for the client
         /// launcher that updates the client copy.
         #[arg(long)]

@@ -333,6 +333,8 @@ async fn run(cli: Cli) -> Result<(), Error> {
         item_content_stamp,
         shop_list_output,
         content_edits_output,
+        advertise_host,
+        endpoint_output,
         ..
     } = &cli.command
     {
@@ -341,6 +343,10 @@ async fn run(cli: Cli) -> Result<(), Error> {
         };
         if *container_listen {
             lab_peer::enable_container_publication();
+        }
+        if let Some(host) = advertise_host {
+            lab_peer::set_advertised(*host);
+            tracing::info!(advertised = %host, "addresses advertised to clients");
         }
         let content = reward_policy::read_policy(std::fs::File::open(policy_file)?)?;
         let profile = LabRuntimeConfig::read(std::io::stdin().lock(), &content)?;
@@ -425,6 +431,12 @@ async fn run(cli: Cli) -> Result<(), Error> {
                 .cash_shop_list(SHOP_LIST_PER_CATEGORY)
                 .ok_or_else(|| Error::Configuration("cash shop assets not exported".into()))?;
             write_atomic(output, list.as_bytes())?;
+        }
+        if let Some(output) = endpoint_output {
+            write_atomic(
+                output,
+                lab_peer::endpoint_text(runtime.bind().port()).as_bytes(),
+            )?;
         }
         if let Some(output) = content_edits_output {
             let value = content_edits::overlay(&pool)
