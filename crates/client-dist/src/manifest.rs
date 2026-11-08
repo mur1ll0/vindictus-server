@@ -100,6 +100,116 @@ pub struct VersionPointer {
     pub minimum: u32,
     /// SHA-256 of `manifests/<current>.json`.
     pub manifest_sha256: String,
+    /// The launcher published for self-update (`client-dist launcher`), if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub launcher: Option<LauncherRef>,
+}
+
+/// The launcher executable a launcher updates itself to: an object of the store (no transform).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LauncherRef {
+    /// Its version (`1.2.3`, compared part by part).
+    pub version: String,
+    /// SHA-256 of the executable.
+    pub sha256: String,
+    /// Size of the executable.
+    pub size: u64,
+    /// Size of its object.
+    pub object_size: u64,
+}
+
+/// Largest launcher executable accepted.
+pub const MAX_LAUNCHER_SIZE: u64 = 64 << 20;
+
+/// `1.2.3` as numbers (one to four parts, each up to 9 digits).
+pub fn version_parts(text: &str) -> Option<Vec<u32>> {
+    let parts: Vec<&str> = text.split('.').collect();
+    if parts.is_empty() || parts.len() > 4 {
+        return None;
+    }
+    parts
+        .iter()
+        .map(|p| {
+            (!p.is_empty() && p.len() <= 9 && p.bytes().all(|b| b.is_ascii_digit()))
+                .then(|| p.parse().ok())
+                .flatten()
+        })
+        .collect()
+}
+
+/// True when `candidate` is a later version than `current` (missing parts count as 0).
+pub fn is_newer(candidate: &str, current: &str) -> bool {
+    match (version_parts(candidate), version_parts(current)) {
+        (Some(mut a), Some(mut b)) => {
+            let len = a.len().max(b.len());
+            a.resize(len, 0);
+            b.resize(len, 0);
+            a > b
+        }
+        _ => false,
+    }
+}
+
+/// `news.json`: the launcher's news, newest first, signed like the pointer.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NewsFeed {
+    /// [`FORMAT`].
+    pub format: u32,
+    /// At most [`MAX_NEWS`] items.
+    pub items: Vec<NewsItem>,
+}
+
+/// One news item.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NewsItem {
+    /// Id in the panel's registry.
+    pub id: i64,
+    /// Up to [`MAX_NEWS_TITLE`] characters.
+    pub title: String,
+    /// Up to [`MAX_NEWS_BODY`] characters.
+    pub body: String,
+    /// Seconds since the Unix epoch.
+    pub published_unix: u64,
+}
+
+/// News items kept in the feed.
+pub const MAX_NEWS: usize = 20;
+/// Longest title.
+pub const MAX_NEWS_TITLE: usize = 120;
+/// Longest body.
+pub const MAX_NEWS_BODY: usize = 2000;
+
+impl NewsItem {
+    /// Bounds of an item: non-empty title and body within the limits, no control character but line breaks.
+    pub fn valid(&self) -> bool {
+        let text_ok = |t: &str, max: usize, lines: bool| {
+            !t.trim().is_empty()
+                && t.chars().count() <= max
+                && t.chars()
+                    .all(|c| !c.is_control() || (lines && (c == '\n' || c == '\r')))
+        };
+        text_ok(&self.title, MAX_NEWS_TITLE, false) && text_ok(&self.body, MAX_NEWS_BODY, true)
+    }
+}
+
+impl NewsFeed {
+    /// Parses and checks the feed.
+    pub fn parse(bytes: &[u8]) -> Result<Self, DistError> {
+        let feed: Self =
+            serde_json::from_slice(bytes).map_err(|_| DistError::Format("news.json"))?;
+        if feed.format != FORMAT
+            || feed.items.len() > MAX_NEWS
+            || !feed.items.iter().all(NewsItem::valid)
+        {
+            return Err(DistError::Format("news.json"));
+        }
+        Ok(feed)
+    }
+
+    /// Canonical bytes.
+    pub fn to_bytes(&self) -> Result<Vec<u8>, DistError> {
+        serde_json::to_vec_pretty(self).map_err(|_| DistError::Format("news.json"))
+    }
 }
 
 fn is_sha(value: &str) -> bool {
@@ -177,6 +287,13 @@ impl VersionPointer {
             || pointer.minimum == 0
             || pointer.minimum > pointer.current
             || !is_sha(&pointer.manifest_sha256)
+            || pointer.launcher.as_ref().is_some_and(|l| {
+                version_parts(&l.version).is_none()
+                    || !is_sha(&l.sha256)
+                    || l.size == 0
+                    || l.size > MAX_LAUNCHER_SIZE
+                    || l.object_size == 0
+            })
         {
             return Err(DistError::Format("versao.json"));
         }
@@ -266,10 +383,73 @@ mod tests {
             current: 3,
             minimum: 1,
             manifest_sha256: "c".repeat(64),
+            launcher: None,
         };
         assert!(VersionPointer::parse(&p.to_bytes().unwrap_or_default()).is_ok());
         let p = VersionPointer { minimum: 4, ..p };
         assert!(VersionPointer::parse(&p.to_bytes().unwrap_or_default()).is_err());
+    }
+
+    #[test]
+    fn launcher_versions_compare_part_by_part() {
+        assert!(is_newer("0.2.0", "0.1.9"));
+        assert!(is_newer("1.10", "1.9.5"));
+        assert!(!is_newer("1.0", "1.0.0"));
+        assert!(!is_newer("x", "0.1.0"));
+        assert_eq!(version_parts("1.2.3.4.5"), None);
+    }
+
+    #[test]
+    fn the_pointer_carries_a_valid_launcher() {
+        let mut p = VersionPointer {
+            format: FORMAT,
+            current: 1,
+            minimum: 1,
+            manifest_sha256: "c".repeat(64),
+            launcher: Some(LauncherRef {
+                version: "0.2.0".into(),
+                sha256: "d".repeat(64),
+                size: 10,
+                object_size: 9,
+            }),
+        };
+        assert!(VersionPointer::parse(&p.to_bytes().unwrap_or_default()).is_ok());
+        p.launcher = Some(LauncherRef {
+            version: "beta".into(),
+            sha256: "d".repeat(64),
+            size: 10,
+            object_size: 9,
+        });
+        assert!(VersionPointer::parse(&p.to_bytes().unwrap_or_default()).is_err());
+    }
+
+    #[test]
+    fn news_items_are_bounded() {
+        let item = NewsItem {
+            id: 1,
+            title: "Manutenção".into(),
+            body: "Volta às 20h.\nObrigado.".into(),
+            published_unix: 0,
+        };
+        let feed = NewsFeed {
+            format: FORMAT,
+            items: vec![item.clone()],
+        };
+        assert!(NewsFeed::parse(&feed.to_bytes().unwrap_or_default()).is_ok());
+        assert!(
+            !NewsItem {
+                title: "a\tb".into(),
+                ..item.clone()
+            }
+            .valid()
+        );
+        assert!(
+            !NewsItem {
+                body: "x".repeat(MAX_NEWS_BODY + 1),
+                ..item
+            }
+            .valid()
+        );
     }
 
     #[test]

@@ -3962,3 +3962,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: roteiro LV4–LV6 (precisa do `updates` no ar).
 - Commits: (este)
 - Pendente / próxima ação: rebuild do Docker e LV1–LV6 no cliente; L5 (painel "Versões do cliente", registro no PostgreSQL, envio remoto, autoatualização, notícias); gate L6.
+
+## 2026-11-07 — Rebuild do Docker com o `updates`; launcher remove arquivos que saem de uma versão
+- Feito: `.dockerignore` passa a incluir `crates/` (o build do Docker falhava sem a biblioteca `crates/client-dist`). Rebuild do Docker (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, `up -d --wait`): `updates` saudável em 127.0.0.1:8090 (`status.json`: server e game online, versão 3), `game` e `server` recriados (D-L6 em vigor: só ticket do launcher, salvo `typed_login`). Launcher (`tools/launcher/src/update.rs`): o diário `aplicar.json` ganhou `remove`; numa atualização N−1→N saem os arquivos que a versão anterior tinha e a nova não tem; na verificação completa, só os do último manifesto que o próprio launcher aplicou (cópia `manifest.json` conferida com o `estado.json`); arquivos `preserve` e cópias sem estado nunca perdem arquivo; `Outcome.removed`. Também `update::news` (notícias assinadas, L5).
+- Verificação: `docker compose build` exit 0 (`.cache/verification/docker-l3/build.log`), `up -d --wait` exit 0; launcher `cargo test` 16 e clippy `-D warnings` (`.cache/verification/l5-launcher-*.log`; inclui `files_a_version_drops_are_removed_but_not_the_players` e `verify_removes_what_the_launcher_installed_and_the_version_dropped`).
+- Cliente: roteiro LV4–LV6 agora possível com o `updates` do Docker.
+- Commits: (este)
+- Pendente / próxima ação: L4 (conferir) e L5 (painel "Versões do cliente", notícias, autoatualização).

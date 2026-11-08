@@ -164,6 +164,7 @@ impl Store {
             current: version,
             minimum: 1,
             manifest_sha256: sha256_hex(&bytes),
+            launcher: None,
         };
         self.sign(layout::POINTER, &pointer.to_bytes().unwrap_or_default());
         manifest
@@ -357,6 +358,7 @@ fn a_running_game_keeps_the_files_staged_until_the_next_run() {
 fn an_interrupted_apply_is_finished() {
     let game = temp("journal");
     fs::create_dir_all(game.join(WORK)).ok();
+    Store::put(&game, "old/gone.dat", b"old file");
     Store::put(&game, "bin/client.dll", b"old");
     Store::put(&game, "bin/client.dll.novo", b"new");
     let journal = Journal {
@@ -365,6 +367,7 @@ fn an_interrupted_apply_is_finished() {
             manifest_sha256: "a".repeat(64),
         },
         paths: vec!["bin/client.dll".into()],
+        remove: vec!["old/gone.dat".into(), "never/there.dat".into()],
     };
     assert!(write_json(&game.join(WORK).join(JOURNAL), &journal).is_ok());
     assert_eq!(finish_interrupted(&game).ok(), Some(Some(3)));
@@ -374,6 +377,57 @@ fn an_interrupted_apply_is_finished() {
     );
     assert_eq!(local_state(&game).map(|s| s.version), Some(3));
     assert!(!game.join(WORK).join(JOURNAL).exists());
+    assert!(!game.join("old/gone.dat").exists());
+}
+
+fn v3() -> Vec<(&'static str, Vec<u8>)> {
+    // v2 without the new pack: a version that removes a file.
+    v2().into_iter()
+        .filter(|(path, _)| !path.starts_with("hfs/AAAA"))
+        .collect()
+}
+
+#[test]
+fn files_a_version_drops_are_removed_but_not_the_players() {
+    let store = Store::new();
+    let m1 = store.publish(1, &v1(), None);
+    let m2 = store.publish(2, &v2(), Some(&m1));
+    let game = temp("remove");
+    assert!(run_mode(&game, &store, Mode::Full, None).is_ok());
+    Store::put(&game, "SAVE/mine.dat", b"player data");
+    store.publish(3, &v3(), Some(&m2));
+    let outcome = run_mode(&game, &store, Mode::Changes, None).ok();
+    assert_eq!(outcome.map(|o| (o.version, o.removed)), Some((3, 1)));
+    assert!(
+        !game
+            .join("hfs/AAAA000000000000000000000000000000000000.hfs")
+            .exists()
+    );
+    assert!(game.join("SAVE/mine.dat").exists() && matches(&game, &v3()));
+}
+
+#[test]
+fn verify_removes_what_the_launcher_installed_and_the_version_dropped() {
+    let store = Store::new();
+    let m1 = store.publish(1, &v1(), None);
+    let m2 = store.publish(2, &v2(), Some(&m1));
+    let game = temp("verify-remove");
+    assert!(run_mode(&game, &store, Mode::Full, None).is_ok());
+    store.publish(3, &v3(), Some(&m2));
+    let outcome = run_mode(&game, &store, Mode::Full, None).ok();
+    assert_eq!(outcome.map(|o| o.removed), Some(1));
+    // Without a state (a copy the launcher did not install) nothing is removed.
+    let other = temp("verify-no-state");
+    for (path, data) in v2() {
+        Store::put(&other, path, &data);
+    }
+    let outcome = run_mode(&other, &store, Mode::Full, None).ok();
+    assert_eq!(outcome.map(|o| o.removed), Some(0));
+    assert!(
+        other
+            .join("hfs/AAAA000000000000000000000000000000000000.hfs")
+            .exists()
+    );
 }
 
 #[test]

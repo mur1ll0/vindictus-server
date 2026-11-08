@@ -5,6 +5,8 @@
 pub const POINTER: &str = "versao.json";
 /// Dynamic service status (not signed).
 pub const STATUS: &str = "status.json";
+/// The launcher's news (signed).
+pub const NEWS: &str = "news.json";
 /// Public key file served for pinning (hex).
 pub const PUBLIC_KEY: &str = "updates.ed25519.pub";
 /// Suffix of a signature next to its document.

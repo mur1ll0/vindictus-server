@@ -3,6 +3,8 @@
 !Cargo.lock
 !src
 !src/**
+!crates
+!crates/**
 !migrations
 !migrations/**
 !Dockerfile

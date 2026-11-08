@@ -217,6 +217,21 @@ pub fn remote(fetch: &dyn Fetch, key: &ed25519_dalek::VerifyingKey) -> Result<Re
     })
 }
 
+/// As notícias assinadas (`news.json`); sem notícias publicadas, a lista vazia.
+pub fn news(
+    fetch: &dyn Fetch,
+    key: &ed25519_dalek::VerifyingKey,
+) -> Result<Vec<vindictus_client_dist::manifest::NewsItem>, UpdateError> {
+    let bytes = match fetch.bytes(layout::NEWS) {
+        Ok(bytes) => bytes,
+        Err(UpdateError::Server(404)) => return Ok(Vec::new()),
+        Err(error) => return Err(error),
+    };
+    let signature = fetch.bytes(&layout::signature(layout::NEWS))?;
+    sign::verify(key, &bytes, &signature, "news.json")?;
+    Ok(vindictus_client_dist::manifest::NewsFeed::parse(&bytes)?.items)
+}
+
 /// Manifesto `version` assinado; com `expected`, também o SHA-256 que o `versao.json` declara.
 pub fn manifest(
     fetch: &dyn Fetch,
@@ -309,6 +324,7 @@ pub struct Outcome {
     pub deltas: usize,
     pub delta_fallbacks: usize,
     pub preserved_kept: usize,
+    pub removed: usize,
 }
 
 /// Termina uma aplicação interrompida (os `.novo` do diário) e grava o estado dela.
@@ -327,6 +343,9 @@ pub fn finish_interrupted(game: &Path) -> Result<Option<u32>, UpdateError> {
 struct Journal {
     state: LocalState,
     paths: Vec<String>,
+    /// Arquivos da versão anterior que a nova não tem (só os que o launcher instalou).
+    #[serde(default)]
+    remove: Vec<String>,
 }
 
 fn apply(game: &Path, journal: &Journal) -> Result<(), UpdateError> {
@@ -335,6 +354,15 @@ fn apply(game: &Path, journal: &Journal) -> Result<(), UpdateError> {
         let novo = staged(&final_path);
         if novo.exists() {
             fs::rename(&novo, &final_path)?;
+        }
+    }
+    for path in &journal.remove {
+        let final_path = target(game, path)?;
+        for file in [staged(&final_path), final_path] {
+            match fs::remove_file(&file) {
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
+                _ => {}
+            }
         }
     }
     write_json(&game.join(WORK).join(STATE), &journal.state)?;
@@ -514,7 +542,10 @@ fn keystream_of(
 }
 
 /// Leva a pasta do jogo à versão publicada. `game_running` é consultado antes de aplicar.
-#[expect(clippy::too_many_arguments, reason = "one entry point for the window and the headless mode")]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one entry point for the window and the headless mode"
+)]
 pub fn run(
     game: &Path,
     fetch: &dyn Fetch,
@@ -573,6 +604,31 @@ pub fn run(
 }
 
 /// Verifica todos os arquivos e baixa os que faltam ou diferem.
+/// Caminhos da versão anterior que a nova não lista (sem diferença de maiúsculas). Os do jogador
+/// (`preserve`) ficam: são dele.
+fn removed_paths(before: &Manifest, next: &Manifest) -> Vec<String> {
+    let kept: HashSet<String> = next
+        .files
+        .iter()
+        .map(|f| f.path.to_ascii_lowercase())
+        .collect();
+    before
+        .files
+        .iter()
+        .filter(|f| !f.preserve && !kept.contains(&f.path.to_ascii_lowercase()))
+        .map(|f| f.path.clone())
+        .collect()
+}
+
+/// O manifesto que o launcher aplicou por último (cópia em `.vindictus-update`), se bater com o estado.
+fn applied_manifest(game: &Path) -> Option<Manifest> {
+    let state = local_state(game)?;
+    let bytes = fs::read(game.join(WORK).join(MANIFEST_COPY)).ok()?;
+    (vindictus_client_dist::sha256_hex(&bytes) == state.manifest_sha256)
+        .then(|| Manifest::parse(&bytes).ok())
+        .flatten()
+}
+
 fn full(
     run: &Run<'_>,
     manifest: &Manifest,
@@ -581,6 +637,10 @@ fn full(
     game_running: &dyn Fn() -> bool,
 ) -> Result<(), UpdateError> {
     let keystream = keystream_of(run.fetch, manifest)?;
+    // Sem estado não se sabe o que o launcher instalou: nada é removido.
+    let remove = applied_manifest(run.game)
+        .map(|before| removed_paths(&before, manifest))
+        .unwrap_or_default();
     let mut missing = Vec::new();
     let check_total: u64 = manifest
         .files
@@ -612,11 +672,13 @@ fn full(
         }
     }
     download(run, &missing, &keystream, outcome)?;
+    outcome.removed += remove.len();
     commit(
         run.game,
         manifest,
         bytes,
         missing.iter().map(|e| e.path.clone()).collect(),
+        remove,
         game_running,
     )
 }
@@ -671,11 +733,14 @@ fn step(
         }
     }
     download(run, &whole, &keystream, outcome)?;
+    let remove = removed_paths(before, next);
+    outcome.removed += remove.len();
     commit(
         run.game,
         next,
         bytes,
         changed.iter().map(|e| e.path.clone()).collect(),
+        remove,
         game_running,
     )
 }
@@ -707,6 +772,7 @@ fn commit(
     manifest: &Manifest,
     bytes: &[u8],
     paths: Vec<String>,
+    remove: Vec<String>,
     game_running: &dyn Fn() -> bool,
 ) -> Result<(), UpdateError> {
     if game_running() {
@@ -720,6 +786,7 @@ fn commit(
             manifest_sha256: vindictus_client_dist::sha256_hex(bytes),
         },
         paths,
+        remove,
     };
     write_json(&work.join(JOURNAL), &journal)?;
     apply(game, &journal)?;
