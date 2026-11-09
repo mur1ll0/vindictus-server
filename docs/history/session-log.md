@@ -4025,3 +4025,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário (roteiro LV13 ajustado: segundo "Gerar" → rascunho vazio em ≈ 4 min).
 - Commits: (este)
 - Pendente / próxima ação: publicar o launcher 0.4.0 e o roteiro LV11–LV13; o `seed` ainda roda o banco na pasta montada (uma vez por servidor).
+
+## 2026-11-08 — Launcher 0.4.0 publicado
+- Feito: `scripts/dev/package-launcher.ps1 -PublicHost 192.168.1.13`: exe 0.4.0 no armazém (`versao.json` → launcher 0.4.0, 2.597.376 bytes) e `.cache/launcher-package/VindictusLauncher.zip`.
+- Verificação: script com saída 0 (log `.cache/verification/package-launcher.log`); `http://192.168.1.13:8090/versao.json` serve o launcher 0.4.0.
+- Cliente: LV11–LV13 pendentes no outro PC.
+- Commits: ver o commit "docs: launcher 0.4.0 published" desta data.
+- Pendente / próxima ação: roteiro LV11–LV13 no outro PC; depois, o gate L6.
