@@ -241,3 +241,22 @@ Pré-condição: Docker do `game` reconstruído em 09/11; os dois clientes abert
 2. [ ] A abre Community > Friend e clica em Add Friend com o nome do personagem de B (e B faz o mesmo com A, se o primeiro falhar).
 3. [ ] Envie o horário aproximado e os dois `nmcogame-lab.log` (pasta do jogo de cada cliente). Eu leio no `docker compose logs game`: `messenger launcher ticket frame received`, `game login passport remembered for the messenger`, `messenger ticket did not match...`, `messenger logged in by the launcher ticket` e o motivo de `messenger friend request refused`.
 Resultado esperado neste passo: só o diagnóstico; a correção vem depois de saber onde o ticket se perde.
+
+### AM2 — Amigos depois da correção do login do messenger (09/11)
+Diagnóstico do AM (09/11): o ticket chegava ao messenger, mas o login do jogo nunca guardava o passaporte (`accepted_identity()` só responde depois da aceitação das políticas, e o registro rodava antes) — nenhuma sessão do messenger autenticava. Corrigido no servidor; não exige versão nova do cliente.
+Pré-condição: Docker do `game` reconstruído em 09/11; dois clientes **pelo launcher (Jogar)**, contas diferentes, cada uma com personagem.
+1. [ ] A e B entram na cidade → Community > Friend abre sem erro (lista vazia na primeira vez).
+2. [ ] A clica em Add Friend com o nome do personagem de B → B recebe o pedido.
+3. [ ] B aceita → os dois aparecem na lista um do outro, online.
+4. [ ] B fecha o jogo → A vê B offline; B volta → online de novo.
+5. [ ] Relogar A → a amizade continua na lista.
+Se algo falhar, anote o horário e o passo; o `docker compose logs game` mostra o motivo (`messenger friend request refused: ...`).
+
+### CI — Character Info pelo menu do jogador (09/11)
+`QueryCharacterViewInfoMessage` (422) agora responde `CharacterViewInfoMessage` (595): resumo, stats finais, quick slots, equipamento com cores, moedas silver/platinum, durabilidade e vitórias/derrotas da Arena. Não exige versão nova do cliente.
+Pré-condição: Docker do `game` reconstruído em 09/11; A e B na mesma cidade (podem ser feitos na mesma sessão do AM2).
+1. [ ] A abre o menu do personagem de B (o mesmo do Add Friend) → Character Info → a janela abre com nome, classe, nível, título, guilda, stats e o equipamento de B com as cores certas.
+2. [ ] B troca uma peça de equipamento → A reabre Character Info → a peça nova aparece.
+3. [ ] Character Info com B deslogado (se o menu permitir, pela lista de amigos) → abre com os dados salvos de B.
+Relate se a janela não abrir, se abrir vazia ou se algum campo vier errado (o servidor registra `character view info sent` ou o motivo).
+Limite: a fixture do oráculo C# desta mensagem não foi gerada; o formato é composto de partes já verificadas (resumo, dicionário de stats, QuickSlotInfo, ColoredEquipment) e confirmado só no cliente.

@@ -323,6 +323,8 @@ fn model<'a>(kind: Kind, v: &'a Value) -> Option<Message<'a>> {
                     .collect()
             }),
         },
+        // No recovered-oracle fixture yet (Character Info, 09/11): covered by a round trip.
+        Kind::CharacterViewInfo => unreachable!("no character_view_info fixture"),
         Kind::UpdateStat => Message::UpdateStat {
             stat: (!v["Stat"].is_null()).then(|| {
                 v["Stat"]
@@ -627,4 +629,61 @@ fn map_partition_parser_topology_and_channel_match_framework_oracle() {
     assert_eq!(recommend_channel(0, 5, 5, &counts), 1);
     counts.insert(1, 4);
     assert_eq!(recommend_channel(6, 5, 5, &counts), 2);
+}
+
+#[test]
+fn character_view_info_writes_summary_stat_and_the_inventory_tail_in_order() {
+    use vindictus_server::protocol::inventory::{
+        ColoredEquipment, Dict, DurabilityEquipment, QuickSlots, ViewInfoTail,
+        decode_view_info_tail, encode_view_info_tail,
+    };
+    let tail = ViewInfoTail {
+        quick_slots: Some(QuickSlots {
+            classes: Dict(Some(vec![(0, Some("potion".to_owned()))])),
+        }),
+        equipment: Dict(Some(vec![(
+            3,
+            Some(ColoredEquipment {
+                item_class: Some("leather_boots".to_owned()),
+                color1: 1,
+                color2: -2,
+                color3: 3,
+            }),
+        )])),
+        silver_coin: 7,
+        platinum_coin: 9,
+        durability: Dict(Some(vec![(
+            3,
+            Some(DurabilityEquipment {
+                max_durability_bonus: 4,
+                diff_durability: 5,
+            }),
+        )])),
+    };
+    let tail_bytes = encode_view_info_tail(&tail, DEFAULT_MAX_BODY).unwrap();
+    assert!(decode_view_info_tail(&tail_bytes).unwrap() == tail);
+    let message = Message::CharacterViewInfo {
+        query_id: 0x0102_0304_0506_0708,
+        info: None,
+        stat: Some(vec![("STR", 5)]),
+        tail: &tail_bytes,
+    };
+    let body = codec::encode(Kind::CharacterViewInfo, Some(&message), DEFAULT_MAX_BODY).unwrap();
+    // Presence, QueryID (big-endian), a null Summary, then the Stat dictionary and the tail.
+    assert_eq!(&body[..10], &[1, 1, 2, 3, 4, 5, 6, 7, 8, 0]);
+    assert!(body.ends_with(&tail_bytes));
+    let Some(Message::CharacterViewInfo {
+        query_id,
+        info,
+        stat,
+        tail: decoded_tail,
+    }) = codec::decode(Kind::CharacterViewInfo, &body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("character view info expected");
+    };
+    assert_eq!(query_id, 0x0102_0304_0506_0708);
+    assert!(info.is_none());
+    assert_eq!(stat, Some(vec![("STR", 5)]));
+    assert!(decode_view_info_tail(decoded_tail).unwrap() == tail);
+    assert_eq!(Kind::CharacterViewInfo.category(), 595);
 }

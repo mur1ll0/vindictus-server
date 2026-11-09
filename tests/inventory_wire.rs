@@ -162,6 +162,7 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::LearnSkill
                 | Kind::SkillCompletion
                 | Kind::QueryCharacterCommonInfo
+                | Kind::QueryCharacterViewInfo
                 | Kind::LearnNewSkill
                 | Kind::LearnNewSkillResult
                 | Kind::QueryNpcList

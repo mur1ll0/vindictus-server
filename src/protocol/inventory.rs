@@ -30,6 +30,8 @@ pub enum Kind {
     LearnSkill,
     SkillCompletion,
     QueryCharacterCommonInfo,
+    /// QueryCharacterViewInfoMessage (a player's menu, Character Info).
+    QueryCharacterViewInfo,
     LearnNewSkill,
     LearnNewSkillResult,
     QueryNpcList,
@@ -127,6 +129,7 @@ impl Kind {
             Self::LearnSkill => 475,
             Self::SkillCompletion => 582,
             Self::QueryCharacterCommonInfo => 527,
+            Self::QueryCharacterViewInfo => 422,
             Self::LearnNewSkill => 340,
             Self::LearnNewSkillResult => 341,
             Self::QueryNpcList => 533,
@@ -224,6 +227,7 @@ impl Kind {
             Self::LearnSkill => 0x3ec00564_95e3_3507_b9dc_a5a185215b19,
             Self::SkillCompletion => 0x2b5614fc_8830_3aec_a03f_c33c270de9f1,
             Self::QueryCharacterCommonInfo => 0xc9cda3f6_8b67_3c69_ba31_ba2fe827fd7b,
+            Self::QueryCharacterViewInfo => 0x3c4bbf32_f36d_31b1_9ce8_613fbd61b313,
             Self::LearnNewSkill => 0x7fbd47e1_96a3_3472_9e71_f36d90f7294f,
             Self::LearnNewSkillResult => 0x0430910f_e20e_3736_850d_b619e836f14f,
             Self::QueryNpcList => 0x6d029dfe_89e5_32d0_aa79_27d298e3b87c,
@@ -402,6 +406,8 @@ pub enum Message {
     SkillCompletion(SkillAp),
     /// QueryCharacterCommonInfoMessage: QueryID, CID.
     QueryCharacterCommonInfo(CommonQuery),
+    /// QueryCharacterViewInfoMessage: QueryID, name.
+    QueryCharacterViewInfo(ViewQuery),
     /// LearnNewSkillMessage.SkillID.
     LearnNewSkill(Option<String>),
     /// LearnNewSkillResultMessage.result (LearnNewSkillResult as Int32).
@@ -971,6 +977,12 @@ pub struct CommonQuery {
     pub query_id: i64,
     pub cid: i64,
 }
+/// QueryCharacterViewInfoMessage in declaration order: QueryID, name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ViewQuery {
+    pub query_id: i64,
+    pub name: Option<String>,
+}
 /// BriefSkillEnhance in declaration order.
 #[derive(Clone, PartialEq, Eq)]
 pub struct SkillEnhance {
@@ -1044,6 +1056,7 @@ impl Message {
             Self::LearnSkill(_) => Kind::LearnSkill,
             Self::SkillCompletion(_) => Kind::SkillCompletion,
             Self::QueryCharacterCommonInfo(_) => Kind::QueryCharacterCommonInfo,
+            Self::QueryCharacterViewInfo(_) => Kind::QueryCharacterViewInfo,
             Self::LearnNewSkill(_) => Kind::LearnNewSkill,
             Self::LearnNewSkillResult(_) => Kind::LearnNewSkillResult,
             Self::QueryNpcList => Kind::QueryNpcList,
@@ -1699,6 +1712,7 @@ object!(TalkEntity {
     arg2
 });
 object!(CommonQuery { query_id, cid });
+object!(ViewQuery { query_id, name });
 object!(UseItem {
     item_id,
     target_item_id
@@ -1749,6 +1763,7 @@ pub fn encode(
             Message::SkillList(v) => v.write(&mut w)?,
             Message::LearnSkill(v) | Message::SkillCompletion(v) => v.write(&mut w)?,
             Message::QueryCharacterCommonInfo(v) => v.write(&mut w)?,
+            Message::QueryCharacterViewInfo(v) => v.write(&mut w)?,
             Message::LearnNewSkill(v) => v.write(&mut w)?,
             Message::LearnNewSkillResult(v) => v.write(&mut w)?,
             Message::QueryNpcList | Message::ExecuteNpcServerCommand => {}
@@ -1836,6 +1851,55 @@ pub fn encode(
         }
     }
 }
+/// DurabilityEquipment: MaxDurabilityBonus, DiffDurability.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DurabilityEquipment {
+    pub max_durability_bonus: i32,
+    pub diff_durability: i32,
+}
+object!(DurabilityEquipment {
+    max_durability_bonus,
+    diff_durability
+});
+/// CharacterViewInfoMessage after its Stat dictionary: QuickSlotInfo, Equipment
+/// (IDictionary<int, ColoredEquipment>), SilverCoin, PlatinumCoin and Durability
+/// (IDictionary<int, DurabilityEquipment>).
+#[derive(Clone, PartialEq, Eq)]
+pub struct ViewInfoTail {
+    pub quick_slots: Option<QuickSlots>,
+    pub equipment: Dict<Option<ColoredEquipment>>,
+    pub silver_coin: i32,
+    pub platinum_coin: i32,
+    pub durability: Dict<Option<DurabilityEquipment>>,
+}
+object!(ViewInfoTail {
+    quick_slots,
+    equipment,
+    silver_coin,
+    platinum_coin,
+    durability
+});
+/// The ViewInfoTail fields, which `minimum_map` appends to CharacterViewInfoMessage.
+pub fn encode_view_info_tail(
+    tail: &ViewInfoTail,
+    max_body: usize,
+) -> Result<Vec<u8>, InventoryWireError> {
+    let mut w = Writer {
+        bytes: Vec::new(),
+        limit: max_body,
+    };
+    tail.write(&mut w)?;
+    Ok(w.bytes)
+}
+/// The inverse of [`encode_view_info_tail`]; the whole input must be consumed.
+pub fn decode_view_info_tail(bytes: &[u8]) -> Result<ViewInfoTail, InventoryWireError> {
+    let mut r = Reader { remaining: bytes };
+    let tail = ViewInfoTail::read(&mut r)?;
+    if !r.remaining.is_empty() {
+        return Err(PayloadError::TrailingBytes.into());
+    }
+    Ok(tail)
+}
 /// Strict decode: the whole body must be consumed (encoder round trips and fixtures).
 pub fn decode(
     kind: Kind,
@@ -1875,6 +1939,9 @@ fn decode_body(
             Kind::SkillList => Message::SkillList(SkillList::read(&mut r)?),
             Kind::LearnSkill => Message::LearnSkill(SkillAp::read(&mut r)?),
             Kind::SkillCompletion => Message::SkillCompletion(SkillAp::read(&mut r)?),
+            Kind::QueryCharacterViewInfo => {
+                Message::QueryCharacterViewInfo(ViewQuery::read(&mut r)?)
+            }
             Kind::QueryCharacterCommonInfo => {
                 Message::QueryCharacterCommonInfo(CommonQuery::read(&mut r)?)
             }

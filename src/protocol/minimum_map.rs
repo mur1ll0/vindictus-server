@@ -30,6 +30,8 @@ pub enum Kind {
     CharacterCommonInfo,
     UpdateStat,
     LevelUp,
+    /// ServiceCore.EndPointNetwork.CharacterViewInfoMessage (the Character Info window).
+    CharacterViewInfo,
 }
 
 impl Kind {
@@ -52,6 +54,7 @@ impl Kind {
             Self::CharacterCommonInfo => 609,
             Self::UpdateStat => 619,
             Self::LevelUp => 476,
+            Self::CharacterViewInfo => 595,
         }
     }
 
@@ -74,6 +77,7 @@ impl Kind {
             Self::CharacterCommonInfo => 0x9756914f_6753_3228_b0b8_38b30dc1a612,
             Self::UpdateStat => 0xa1407a79_5353_3455_9a2c_859f8825c200,
             Self::LevelUp => 0x23314733_9565_36b4_a382_8042ea30debe,
+            Self::CharacterViewInfo => 0x9f614236_e50d_35ca_88ec_3d4151a51a31,
         })
     }
 }
@@ -171,6 +175,15 @@ pub enum Message<'a> {
         level: i32,
         stat_increased: Option<Vec<(&'a str, i32)>>,
     },
+    /// CharacterViewInfoMessage: QueryID, Summary, Stat, then the fields after it
+    /// (QuickSlotInfo, Equipment, SilverCoin, PlatinumCoin, Durability) already encoded by
+    /// `inventory::encode_view_info_tail`.
+    CharacterViewInfo {
+        query_id: i64,
+        info: Option<Summary<'a>>,
+        stat: Option<Vec<(&'a str, i32)>>,
+        tail: &'a [u8],
+    },
 }
 
 impl Message<'_> {
@@ -193,6 +206,7 @@ impl Message<'_> {
             Self::CharacterCommonInfo { .. } => Kind::CharacterCommonInfo,
             Self::UpdateStat { .. } => Kind::UpdateStat,
             Self::LevelUp { .. } => Kind::LevelUp,
+            Self::CharacterViewInfo { .. } => Kind::CharacterViewInfo,
         }
     }
 }
@@ -358,6 +372,17 @@ pub fn encode(
                 w.append(&level.to_be_bytes())?;
                 write_dictionary(&mut w, stat_increased.as_deref())?;
             }
+            Message::CharacterViewInfo {
+                query_id,
+                info,
+                stat,
+                tail,
+            } => {
+                w.append(&query_id.to_be_bytes())?;
+                write_summary(&mut w, info.as_ref())?;
+                write_dictionary(&mut w, stat.as_deref())?;
+                w.append(tail)?;
+            }
             Message::UpdateStat { stat } => match stat {
                 None => w.append(&[0])?,
                 Some(entries) => {
@@ -457,6 +482,18 @@ pub fn decode<'a>(
                 query_id: i64::from_be_bytes(r.fixed()?),
                 info: read_summary(&mut r)?,
             },
+            Kind::CharacterViewInfo => {
+                let query_id = i64::from_be_bytes(r.fixed()?);
+                let info = read_summary(&mut r)?;
+                let stat = read_dictionary(&mut r)?;
+                let tail = std::mem::take(&mut r.remaining);
+                Message::CharacterViewInfo {
+                    query_id,
+                    info,
+                    stat,
+                    tail,
+                }
+            }
             Kind::LevelUp => {
                 let level = i32::from_be_bytes(r.fixed()?);
                 let stat_increased = read_dictionary(&mut r)?;

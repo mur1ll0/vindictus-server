@@ -173,6 +173,7 @@ pub mod minimum_sort;
 pub mod minimum_status_effect;
 pub mod minimum_story;
 pub mod minimum_use;
+pub mod minimum_view_info;
 pub mod minimum_whisper;
 pub mod party_hub;
 pub mod pvp;

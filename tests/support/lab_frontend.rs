@@ -94,6 +94,13 @@ async fn minimum_flow_equipment(with_channel: bool, with_equipment: bool) {
     let (mut client, task, _stop, mut rx, mut tx) = open(r.clone(), pool.clone()).await;
     client.write_all(&login(PASSPORT, &mut tx)).await.unwrap();
     lobby(&mut client, &mut rx).await;
+    // The messenger authenticates the tunnel with the passport of an accepted game login
+    // (relato AM 09/11: it was never remembered, so no messenger session logged in).
+    assert!(
+        r.passports()
+            .account(PASSPORT, std::time::Instant::now())
+            .is_some()
+    );
     assert!(
         password(&mut client, &mut tx, &mut rx, PMessage::Set(Some("123456")))
             .await

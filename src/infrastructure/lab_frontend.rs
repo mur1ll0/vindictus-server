@@ -842,8 +842,17 @@ impl Connection {
             failure(stream, sender, reason, Some("")).await?;
             return Ok(());
         }
-        // The messenger's LoginAuth carries the passport the client logged in with.
-        if let (Some(raw), Ok(id)) = (message.passport, self.frontend.accepted_identity()) {
+        // The messenger's LoginAuth (or the launcher ticket the nmcogame.dll tunnel sends)
+        // carries the passport the client logged in with. The identity is still pending here
+        // (CheckingPolicies until the local login accepts the policies), so it is read from the
+        // admission; accepted_identity() only answers after PoliciesAccepted and never did
+        // here (relato AM 09/11: no messenger session ever logged in). The passport was already
+        // redeemed or allowed above, so it names this account.
+        let pending = self
+            .frontend
+            .pending(token, Instant::now())
+            .map(|p| &p.identity);
+        if let (Some(raw), Ok(id)) = (message.passport, pending) {
             runtime.passports.remember(
                 raw,
                 super::messenger::Account {
@@ -6140,6 +6149,7 @@ impl Connection {
                 Kind::MaxDurabilityRepairItem,
                 Kind::QueryQuestProgress,
                 Kind::QueryCharacterCommonInfo,
+                Kind::QueryCharacterViewInfo,
                 Kind::QueryRestoreItemList,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
@@ -6889,6 +6899,31 @@ impl Connection {
                             }
                             Err(_) => {
                                 tracing::warn!("minimum new skill request rejected; values omitted")
+                            }
+                        }
+                    }
+                    Message::QueryCharacterViewInfo(query) => {
+                        // InGame QueryCharacterViewInfoMessage (Character Info of a player's
+                        // menu): any living character by name, online or not.
+                        match super::minimum_view_info::query(
+                            pool,
+                            assets,
+                            query.query_id,
+                            query.name.as_deref().unwrap_or(""),
+                            runtime.minimum_header()?,
+                            runtime.stat_arithmetic(),
+                        )
+                        .await
+                        {
+                            Ok(Some(packet)) => {
+                                send(stream, sender, packet.category, &packet.body).await?;
+                                tracing::info!("character view info sent; values omitted");
+                            }
+                            Ok(None) => tracing::info!(
+                                "character view info: no character with that name; values omitted"
+                            ),
+                            Err(_) => {
+                                tracing::warn!("character view info rejected; values omitted")
                             }
                         }
                     }

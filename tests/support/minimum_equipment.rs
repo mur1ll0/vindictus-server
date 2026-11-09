@@ -1051,3 +1051,85 @@ async fn removed_item_class_is_unequipped_and_deleted_from_its_owner() {
     assert_eq!(again, minimum_equip::Purged::default());
     cleanup_game_pool(a, p, s).await;
 }
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_character_view_info_answers_a_name_with_summary_stats_and_gear() {
+    use vindictus_server::{
+        infrastructure::minimum_view_info,
+        protocol::{
+            inventory::decode_view_info_tail,
+            minimum_map::{self, Kind as MapKind, Message as MapMessage},
+        },
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = assets();
+    sqlx::query("UPDATE game_character_info SET name_utf16=$1 WHERE id=1")
+        .bind("Murael".encode_utf16().flat_map(u16::to_le_bytes).collect::<Vec<u8>>())
+        .execute(&p)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO game_pvp_result_info(cid,pvp_mode,win,lose,max_successive_win_count) VALUES(1,'p05',3,2,2)",
+    )
+    .execute(&p)
+    .await
+    .unwrap();
+    let view = |query_id: i64, name: &'static str| {
+        let (p, assets) = (p.clone(), &assets);
+        async move {
+            minimum_view_info::query(&p, assets, query_id, name, config(), Arithmetic::FrameworkX64)
+                .await
+                .unwrap()
+        }
+    };
+    // QueryCIDByName is case-insensitive; an unknown name sends nothing.
+    assert!(view(1, "nobody").await.is_none());
+    let packet = view(77, "murael").await.expect("a character with that name");
+    assert_eq!(packet.category, 595);
+    let Some(MapMessage::CharacterViewInfo {
+        query_id,
+        info,
+        stat,
+        tail,
+    }) = minimum_map::decode(MapKind::CharacterViewInfo, &packet.body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("character view info expected")
+    };
+    assert_eq!(query_id, 77);
+    let info = info.expect("summary");
+    assert_eq!(info.character_id, Some("Murael"));
+    // Arena (p05) PvpResultInfo.
+    assert_eq!(
+        (
+            info.arena_win_count,
+            info.arena_lose_count,
+            info.arena_successive_win_count
+        ),
+        (3, 2, 2)
+    );
+    assert!(stat.is_some_and(|s| s.iter().any(|(k, _)| *k == "STR")));
+    let tail = decode_view_info_tail(tail).unwrap();
+    assert_eq!(tail.equipment.0.as_ref().map(Vec::len), Some(0));
+    assert_eq!(tail.durability.0.as_ref().map(Vec::len), Some(0));
+    // One worn piece: its part, colors and durability entry.
+    equipped(&p).await;
+    let packet = view(78, "Murael").await.unwrap();
+    let Some(MapMessage::CharacterViewInfo { tail, .. }) =
+        minimum_map::decode(MapKind::CharacterViewInfo, &packet.body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("character view info expected")
+    };
+    let tail = decode_view_info_tail(tail).unwrap();
+    let worn = tail.equipment.0.unwrap();
+    assert_eq!(worn.len(), 1);
+    let (part, colored) = &worn[0];
+    let colored = colored.as_ref().unwrap();
+    assert_eq!(
+        (*part, colored.color1, colored.color2, colored.color3),
+        (1, 31, 32, 33)
+    );
+    assert_eq!(tail.durability.0.map(|d| d.len()), Some(1));
+    cleanup_game_pool(a, p, s).await;
+}

@@ -31,12 +31,16 @@ async fn plain_send(stream: &mut TcpStream, message: Message<'_>) {
         stream.write_all(chunk).await.unwrap();
     }
 }
+/// The next channel frame after the type converter (category 0), which
+/// server_ClientAccept sends first on every connection (B5 CH 08/11).
 async fn plain_read(stream: &mut TcpStream, receiver: &mut PlainReceiver) -> OwnedFrame {
     tokio::time::timeout(Duration::from_secs(8), async {
         let mut byte = [0];
         loop {
             stream.read_exact(&mut byte).await.unwrap();
-            if let Some(frame) = receiver.push(&byte).unwrap().pop() {
+            if let Some(frame) = receiver.push(&byte).unwrap().pop()
+                && frame.category_id != 0
+            {
                 return frame;
             }
         }
