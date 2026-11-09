@@ -86,6 +86,62 @@ class LinkTest(unittest.TestCase):
             os.chmod(old / 'bin/a.dll', stat.S_IWRITE | stat.S_IREAD)
 
 
+class DatabaseContentTest(unittest.TestCase):
+    """The refresh keeps the tree's heroes.db3 when the content step wrote the same content in other bytes
+    (another SQLite version, another page layout), so the client builder's draft gets no spurious file."""
+
+    def make(self, path: Path, rows, page_size=1024, churn=False, index=False):
+        import sqlite3
+        from contextlib import closing
+        with closing(sqlite3.connect(path)) as db:
+            db.execute(f'PRAGMA page_size={page_size}')
+            db.execute('CREATE TABLE ShopInfo(ShopID TEXT, Price INT, Icon BLOB)')
+            if churn:  # other pages and a freelist for the same final rows
+                db.executemany('INSERT INTO ShopInfo VALUES(?,?,?)', [('x' * 300, i, None) for i in range(200)])
+                db.execute('DELETE FROM ShopInfo')
+            db.executemany('INSERT INTO ShopInfo(rowid, ShopID, Price, Icon) VALUES(?,?,?,?)', rows)
+            if index:
+                db.execute('CREATE INDEX ShopInfo_Price ON ShopInfo(Price)')
+            db.commit()
+        return path
+
+    ROWS = [(1, 'FERGHUS_Shop', 4000, b'\x01'), (2, 'AODH_Shop', 10, 7)]
+
+    def test_the_digest_sees_rows_and_schema_but_not_the_layout(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            base = recipe.database_digest(self.make(tmp / 'a.db3', self.ROWS))
+            other = self.make(tmp / 'b.db3', self.ROWS, page_size=4096, churn=True)
+            self.assertNotEqual((tmp / 'a.db3').read_bytes(), other.read_bytes())
+            self.assertEqual(recipe.database_digest(other), base)
+            changed = {
+                'value': [(1, 'FERGHUS_Shop', 4001, b'\x01'), self.ROWS[1]],
+                'type': [self.ROWS[0], (2, 'AODH_Shop', 10, '7')],  # the untyped column keeps the text
+                'blob as text': [(1, 'FERGHUS_Shop', 4000, '\x01'), self.ROWS[1]],
+                'rowid order': [(1, *self.ROWS[1][1:]), (2, *self.ROWS[0][1:])],
+            }
+            for name, rows in changed.items():
+                with self.subTest(name):
+                    self.assertNotEqual(recipe.database_digest(self.make(tmp / f'{name}.db3', rows)), base)
+            self.assertNotEqual(recipe.database_digest(self.make(tmp / 'index.db3', self.ROWS, index=True)), base)
+
+    def test_the_tree_keeps_its_bytes_for_the_same_content(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            tree = self.make(tmp / 'tree.db3', self.ROWS)
+            published = tree.read_bytes()
+            built = self.make(tmp / 'built.db3', self.ROWS, page_size=4096, churn=True)
+            self.assertFalse(recipe.install_database(built, tree))
+            self.assertEqual(tree.read_bytes(), published)
+            changed = self.make(tmp / 'changed.db3', self.ROWS[:1])
+            self.assertTrue(recipe.install_database(changed, tree))
+            self.assertEqual(tree.read_bytes(), changed.read_bytes())
+            self.assertEqual(sorted(p.name for p in tmp.iterdir()), ['built.db3', 'changed.db3', 'tree.db3'])
+            missing = tmp / 'new.db3'
+            self.assertTrue(recipe.install_database(built, missing))
+            self.assertEqual(missing.read_bytes(), built.read_bytes())
+
+
 class CompareTest(unittest.TestCase):
     def test_only_test_item_rows_are_explained(self):
         import sqlite3

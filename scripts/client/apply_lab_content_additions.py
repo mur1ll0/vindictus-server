@@ -835,12 +835,17 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
 
 def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDITIONS, edits: dict | None = None,
           items: list[dict] | None = None, keystream: Path | None = None, collab_texts: dict | None = None,
-          classes: tuple[str, ...] | None = None, exclude_items: tuple[str, ...] = ()) -> dict:
+          classes: tuple[str, ...] | None = None, exclude_items: tuple[str, ...] = (),
+          sql_dir: Path | None = None) -> dict:
     """`classes`: the class layer of a client version (class_layers; None = every staged class, the lab copy).
     `exclude_items`: added items (item_additions.json or the panel's) left out of the copy, e.g. the item
     editor's test items in the distributed versions; their costume numbers stay taken, so an imported
-    class keeps the numbers the server gives it (class_costumes)."""
+    class keeps the numbers the server gives it (class_costumes).
+    `sql_dir`: where heroes.db3 and its backups are (default: the copy's sql/). The client builder hands a
+    local copy: SQLite's journal and syncs over a Docker Desktop bind mount took 71 of the step's 74 minutes."""
     database = reject_original(client_copy / 'sql/heroes.db3')
+    if sql_dir is not None:
+        database = reject_original(sql_dir / 'heroes.db3')
     if not database.is_file():
         raise PreparationError('The client copy must contain sql/heroes.db3.')
     rows = json.loads(additions.read_text(encoding='utf-8')).get('ShopInfo', [])

@@ -28,6 +28,7 @@ import ipaddress
 import json
 import os
 import shutil
+import sqlite3
 import stat
 import subprocess
 import sys
@@ -43,6 +44,8 @@ SCRIPTS = Path(__file__).resolve().parent
 ORIGINAL = WORKSPACE / 'Vindictus1.69EN/Vindictus EU/en-EU'
 KEYSTREAM = ROOT / '.cache/play-client/hfs-keystream.bin'   # read only; derived once (hfs.py keystream)
 STATE_NAME = 'client-build.json'   # lab-backup/<this> marks a tree built with keep_state
+# sql/ files of the content step (apply_lab_content_additions): the database before it and what it wrote.
+DATABASE_BACKUP, DATABASE_ITEMS = 'heroes.db3.pre-lab-additions', 'heroes.db3.lab-items.json'
 KEYSTREAM_SHA256 ='8af3e7e346c5a22d2c2f8584234ef16183fd6421547841fb114120ab7e23ab5b'
 NMCOGAME = ROOT / 'tools/nmcogame/target/i686-win7-windows-msvc/release/nmcogame.dll'  # tools/nmcogame/build.ps1
 HASH_CACHE = ROOT / '.cache/client-versions/original-sha256.json'
@@ -279,9 +282,10 @@ def build(version: int, out: Path, original: Path = ORIGINAL, keystream: Path = 
 
 
 def apply_content(out: Path, classes: tuple[str, ...], original: Path, keystream: Path, edits: Path,
-                  keep_test_items: bool, work: Path) -> dict:
+                  keep_test_items: bool, work: Path, sql_dir: Path | None = None) -> dict:
     """Step 6: shops, panel edits, items, collabs, classes, packs and index (idempotent: the packs and the
-    database come back from the backups the first run kept, then the edits go on top)."""
+    database come back from the backups the first run kept, then the edits go on top). `sql_dir`: a copy
+    of the tree's sql/ to work on (refresh)."""
     import apply_lab_content_additions
     import content_edits
     import hfs
@@ -289,7 +293,7 @@ def apply_content(out: Path, classes: tuple[str, ...], original: Path, keystream
     with base_costume(original, ks, work) as costume_sha:
         plan = apply_lab_content_additions.apply(
             out, True, edits=content_edits.load(edits), keystream=keystream, classes=classes,
-            exclude_items=() if keep_test_items else TEST_ITEMS)
+            exclude_items=() if keep_test_items else TEST_ITEMS, sql_dir=sql_dir)
     return {'base_costume_sha256': costume_sha, 'edits': str(edits),
             'edits_sha256': sha256_file(edits) if edits.is_file() else None, **plan}
 
@@ -313,16 +317,63 @@ def refresh(out: Path, original: Path = ORIGINAL, keystream: Path = KEYSTREAM, e
         raise PreparationError('The keystream differs from the recorded one.')
     edits = content_edits.EDITS if edits is None else edits
     started = time.time()
-    # The content step changes heroes.db3 in place, and SQLite lays the pages out by the file it starts from:
-    # starting again from the build's own backup (the database before the content step) gives the same bytes
-    # for the same edits, so an unchanged content never shows up as a changed file in the draft.
-    database, backup = out / 'sql/heroes.db3', out / 'sql/heroes.db3.pre-lab-additions'
-    if backup.is_file():
-        shutil.copyfile(backup, database)
-    with tempfile.TemporaryDirectory(prefix=f'client-refresh-v{version}-', dir=out.parent) as tmp:
-        content = apply_content(out, classes, original, keystream, edits, bool(state.get('keep_test_items')), Path(tmp))
+    database = out / 'sql/heroes.db3'
+    # The database step runs on a local copy (the system's temporary folder: the container's own tmpfs in
+    # the client builder) and starts again from the build's own backup, the database before the content
+    # step. Only a different content goes back into the tree: SQLite lays the pages out by its version (the
+    # image's 3.40 and the host's 3.50 write different bytes for the same rows), so the tree keeps the
+    # published bytes when the content did not change and the draft gets no heroes.db3.
+    with tempfile.TemporaryDirectory(prefix=f'client-refresh-v{version}-') as tmp:
+        sql = Path(tmp) / 'sql'
+        sql.mkdir()
+        for name in (DATABASE_BACKUP, DATABASE_ITEMS):
+            if (out / 'sql' / name).is_file():
+                shutil.copyfile(out / 'sql' / name, sql / name)
+        shutil.copyfile(sql / DATABASE_BACKUP if (sql / DATABASE_BACKUP).is_file() else database, sql / 'heroes.db3')
+        (Path(tmp) / 'work').mkdir()
+        content = apply_content(out, classes, original, keystream, edits, bool(state.get('keep_test_items')),
+                                Path(tmp) / 'work', sql_dir=sql)
+        content['database'] = 'written' if install_database(sql / 'heroes.db3', database) else 'same content, kept'
+        for name in (DATABASE_BACKUP, DATABASE_ITEMS):
+            if (sql / name).is_file() and not (name == DATABASE_BACKUP and (out / 'sql' / name).is_file()):
+                shutil.copyfile(sql / name, out / 'sql' / name)
     return {'version': version, 'classes': list(classes), 'out': str(out), 'git': git_state(),
             'steps': {'content': content}, 'totals': {'seconds': round(time.time() - started)}}
+
+
+def database_digest(path: Path) -> str:
+    """SHA-256 of what the client reads from a SQLite database: the schema (without root pages), the
+    user_version, application_id and encoding, and every table's rows in rowid order with their rowids and
+    value types. The page layout and the header's counters and SQLite version are left out."""
+    h = hashlib.sha256()
+    with contextlib.closing(sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True)) as db:
+        db.text_factory = lambda raw: ('text', raw)  # text and blobs apart, and text that is not UTF-8 as is
+        for pragma in ('user_version', 'application_id', 'encoding'):
+            h.update(repr((pragma, db.execute(f'PRAGMA {pragma}').fetchone())).encode())
+        for row in db.execute('SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY type, name'):
+            h.update(repr(('schema', row)).encode())
+        tables = [row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
+        for name in tables:
+            quoted = '"' + name[1].decode('utf-8', 'surrogateescape').replace('"', '""') + '"'
+            h.update(repr(('table', name)).encode())
+            try:
+                rows = db.execute(f'SELECT rowid, * FROM {quoted} ORDER BY rowid')
+            except sqlite3.OperationalError:  # WITHOUT ROWID: a scan follows the primary key
+                rows = db.execute(f'SELECT * FROM {quoted}')
+            for row in rows:
+                h.update(repr(row).encode())
+    return h.hexdigest()
+
+
+def install_database(built: Path, target: Path) -> bool:
+    """The content step's database into the tree, unless the tree's has the same content (database_digest):
+    then the tree keeps its bytes. True when written."""
+    if target.is_file() and database_digest(built) == database_digest(target):
+        return False
+    partial = target.with_name(target.name + '.partial')
+    shutil.copyfile(built, partial)
+    os.replace(partial, target)
+    return True
 
 
 def prune(out: Path) -> list[str]:

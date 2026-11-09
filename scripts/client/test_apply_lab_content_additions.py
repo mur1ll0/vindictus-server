@@ -143,6 +143,20 @@ class ApplyLabContentAdditionsTest(unittest.TestCase):
         self.assertEqual(self.count(), 1)
         self.assertTrue((self.root / 'sql/heroes.db3.pre-lab-additions').exists())
 
+    def test_a_local_sql_folder_takes_the_database_work(self):
+        # The client builder's refresh: the database and its backups in a local folder, the tree's sql/ untouched.
+        local = self.root / 'local'
+        local.mkdir()
+        local_db = local / 'heroes.db3'
+        local_db.write_bytes(self.db.read_bytes())
+        before = self.db.read_bytes()
+        apply(self.root, True, self.additions, items=[], sql_dir=local)
+        self.assertEqual(self.db.read_bytes(), before)
+        self.assertEqual(sorted(p.name for p in (self.root / 'sql').iterdir()), ['heroes.db3'])
+        self.assertTrue((local / 'heroes.db3.pre-lab-additions').exists())
+        with closing(sqlite3.connect(local_db)) as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM ShopInfo WHERE ItemClass='enhance_elixir'").fetchone()[0], 1)
+
     def test_panel_edits_change_and_remove_rows_and_undo_with_the_backup(self):
         with closing(sqlite3.connect(self.db)) as db:
             db.execute("INSERT INTO ShopInfo(ShopID,[Order],ItemClass,Count,PriceItemClass,PriceCount,CharacterBind,"
