@@ -852,6 +852,16 @@ impl Connection {
                 },
                 Instant::now(),
             );
+            // Diagnostic (friends relato 09/11): the messenger matches this passport.
+            tracing::info!(
+                launcher_ticket = ticket.is_some(),
+                "game login passport remembered for the messenger; values omitted"
+            );
+        } else {
+            tracing::info!(
+                passport = message.passport.is_some(),
+                "game login passport not remembered for the messenger; values omitted"
+            );
         }
         // NGM_disable uses remote socket address; client hardware/version/cheat identity are not authority.
         let c = LocalLoginConfig {

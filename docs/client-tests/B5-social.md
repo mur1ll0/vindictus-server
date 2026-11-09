@@ -233,3 +233,11 @@ Pré-condição: Docker reconstruído em 08/11; os dois clientes instalados/atua
 2. [ ] A escreve no chat no modo Channel (e no modo normal) → A e B veem a mensagem com o nome de A. Anote se um jogador longe (outra área da cidade) também vê: no original o chat do canal vai só a quem enxerga a área de quem fala.
 3. [ ] A abre a Comunidade → a lista de amigos carrega (sem erro); A adiciona B pelo nome do personagem → B recebe o pedido; B aceita → os dois aparecem na lista, online. Repetir com B fechando o jogo → A vê B offline.
 4. [ ] Anote se o pedido de amizade ou a lista falham e envie os dois `nmcogame-lab.log` (linha `tunnel connected` e as chamadas 0x4003/0x4001).
+
+### AM — Amigos: diagnóstico do login do messenger (09/11)
+Relato de 09/11: CH-3 falhou (Add Friend sem efeito). O messenger nunca autenticou a sessão (sem login por ticket), então pedidos e lista são recusados. O servidor agora registra cada etapa, sem valores.
+Pré-condição: Docker do `game` reconstruído em 09/11; os dois clientes abertos **pelo launcher (Jogar)**, não pelo `start-lab.bat` nem pelo `Vindictus.exe` direto; contas diferentes.
+1. [ ] A e B entram no jogo e chegam à cidade; anote o horário.
+2. [ ] A abre Community > Friend e clica em Add Friend com o nome do personagem de B (e B faz o mesmo com A, se o primeiro falhar).
+3. [ ] Envie o horário aproximado e os dois `nmcogame-lab.log` (pasta do jogo de cada cliente). Eu leio no `docker compose logs game`: `messenger launcher ticket frame received`, `game login passport remembered for the messenger`, `messenger ticket did not match...`, `messenger logged in by the launcher ticket` e o motivo de `messenger friend request refused`.
+Resultado esperado neste passo: só o diagnóstico; a correção vem depois de saber onde o ticket se perde.

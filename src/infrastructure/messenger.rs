@@ -457,7 +457,10 @@ mod service_tests {
         assert_eq!(Frame::decode(&bytes[4..]), Some(ticket));
         assert_eq!(Frame::decode(&[4]), None);
         assert_eq!(Frame::decode(b"\x04a b"), None);
-        assert_eq!(Frame::decode(&[&[4u8][..], &[b'a'; MAX_TICKET + 1]].concat()), None);
+        assert_eq!(
+            Frame::decode(&[&[4u8][..], &[b'a'; MAX_TICKET + 1]].concat()),
+            None
+        );
 
         let passports = Passports::default();
         let woken = passports.subscribe();
@@ -545,10 +548,24 @@ async fn connection(stream: tokio::net::TcpStream, service: &Service) -> std::io
                 frame = frames.recv() => {
                     let frame = frame.unwrap_or_else(|| Err(std::io::ErrorKind::UnexpectedEof.into()))?;
                     match frame {
-                        Frame::Ticket(ticket) => session.ticket = Some(zeroize::Zeroizing::new(ticket)),
+                        Frame::Ticket(ticket) => {
+                            // Diagnostic (friends relato 09/11): whether the DLL's ticket arrives.
+                            tracing::info!(
+                                already_authenticated = session.account.is_some(),
+                                "messenger launcher ticket frame received; values omitted"
+                            );
+                            session.ticket = Some(zeroize::Zeroizing::new(ticket));
+                        }
                         Frame::Call { seq, code, envelope } => {
                             let a = service.call(&mut session, &context, code, &envelope).await;
-                            tracing::info!(code, ok = a.ok, "messenger call processed; values omitted");
+                            tracing::info!(
+                                code,
+                                ok = a.ok,
+                                authenticated = session.account.is_some(),
+                                online = session.online,
+                                ticket_pending = session.ticket.is_some(),
+                                "messenger call processed; values omitted"
+                            );
                             let mut out = Frame::Reply { seq, ok: a.ok, envelope: a.envelope }.encode();
                             for (target, code, envelope) in a.events {
                                 out.extend(Frame::Event { target, code, envelope }.encode());
@@ -563,6 +580,11 @@ async fn connection(stream: tokio::net::TcpStream, service: &Service) -> std::io
                 }
                 changed = logins.changed(), if watching && session.waiting_for_ticket() => {
                     watching = changed.is_ok();
+                    // Diagnostic: a game login was accepted while this session waits; the log
+                    // right after says whether its ticket matched.
+                    if session.ticket.as_deref().is_some_and(|t| service.passports.account(t, Instant::now()).is_none()) {
+                        tracing::info!("messenger ticket did not match the accepted game login; values omitted");
+                    }
                 }
             }
             if session.launcher_login(&service.passports, Instant::now()) {
@@ -874,11 +896,28 @@ impl Service {
     ) -> Result<Answer, Error> {
         use super::messenger_friends::{self as db, Requested};
         use crate::protocol::nm::{self, objects::Request};
-        let call = Request::read(fields).map_err(|_| Error::Refused)?;
+        let call = Request::read(fields).map_err(|_| {
+            tracing::info!("messenger friend request refused: call not decoded; values omitted");
+            Error::Refused
+        })?;
         let prefix = format!("[{SERVER_NAME}]");
+        let prefixed = call.peer.starts_with(&prefix);
         let name = call.peer.strip_prefix(&prefix).unwrap_or(&call.peer);
-        let target = db::find(pool, name).await?.ok_or(Error::Refused)?;
-        match db::request(pool, me, target).await? {
+        let target = db::find(pool, name).await?.ok_or_else(|| {
+            tracing::info!(
+                prefixed,
+                name_chars = name.chars().count(),
+                "messenger friend request refused: target not found; values omitted"
+            );
+            Error::Refused
+        })?;
+        let requested = db::request(pool, me, target).await.inspect_err(|_| {
+            tracing::info!(
+                same_account = me == target,
+                "messenger friend request refused by the friendship state; values omitted"
+            );
+        })?;
+        match requested {
             Requested::Sent => {
                 let from = db::profile(pool, me).await?.ok_or(Error::Refused)?;
                 let peer = display(&from);
@@ -1382,7 +1421,11 @@ mod listener_tests {
         stream.read_exact(&mut payload).await.unwrap();
         assert!(matches!(
             Frame::decode(&payload),
-            Some(Frame::Reply { seq: 1, ok: true, .. })
+            Some(Frame::Reply {
+                seq: 1,
+                ok: true,
+                ..
+            })
         ));
         passports.remember(
             "lt0abc",

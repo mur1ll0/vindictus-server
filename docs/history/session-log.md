@@ -4039,3 +4039,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: roteiro `docs/client-tests/B5-eventos.md` EV15; sem versão nova do cliente (o heroes.db3 NA do cliente já tem caixa e título).
 - Commits: (este)
 - Pendente / próxima ação: operador repetir EV15 com a MiriLab.
+
+## 2026-11-09 — AM: diagnóstico do Add Friend (login do messenger por ticket)
+- Feito: relato de 09/11 (dois clientes, Add Friend sem amigo na Community). Logs: cada clique gera `QueryCharacterViewInfoMessage` (422, sem handler, não é a causa) e `RequestNewFriend` 0x4003 recusado; em 3 h nenhum 0x110f/0x110d, nenhum `messenger logged in by the launcher ticket`, `GetMyInfo` 0x2001 recusado e nenhum `GetFriendList`; nenhuma linha em `game_messenger_friends`. Revisão estática sem defeito encontrado: `nmcogame.dll` da versão 5 (= `F:\Games\Vindictus1.69`) contém o quadro Ticket, launcher passa `-launcher_ticket`, `typed_login` desligado (só login por ticket), formato/limites do ticket e do quadro iguais nos dois lados, messenger e frontend no mesmo processo e mesmo `Passports`. Logs de diagnóstico sem valores: quadro Ticket recebido, `authenticated/online/ticket_pending` em cada chamada, ticket que não casou com um login aceito, passaporte guardado (ou não) no login do jogo, e o motivo da recusa do `RequestNewFriend` (decodificação, alvo não encontrado, estado da amizade).
+- Verificação: `cargo test --lib -- messenger` 7 ok; imagem reconstruída, `game` e `server` healthy, 0 WARN/ERROR na subida.
+- Cliente: roteiro `docs/client-tests/B5-social.md` AM (dois clientes pelo launcher; enviar horário e os dois `nmcogame-lab.log`).
+- Commits: (este)
+- Pendente / próxima ação: operador rodar AM; com os logs, corrigir onde o ticket se perde (servidor ou DLL; DLL exige versão nova do cliente).
