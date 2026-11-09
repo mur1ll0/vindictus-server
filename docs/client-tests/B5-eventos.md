@@ -108,3 +108,10 @@ Pré-condição: `py -3.13 scripts/client/fairytail_textures.py` (grava em `.cac
 - [ ] Repetir a prévia em outra classe feminina (Delia ou Miri) → mesma textura.
 - [ ] Tingir uma peça Fairy Tail (ampola, se houver) → relatar (paletas fixas `fix_*channel`; efeito não verificado).
 Limites conhecidos: texturas próprias do laboratório (blocos de cor e padrões simples nas ilhas UV, cores tiradas dos ícones oficiais), não a arte original, que nenhum cliente tem; ícones oficiais do NA; o Natsu continua sem modelo; o reflexo das peças `_metal` foi escolhido sem referência.
+
+### EV15 — Pergaminho de título e pacote de AP (relato MiriLab, 08/11)
+Pré-condição: Docker do `game` reconstruído com a correção e `random-item.json` reexportado (`refresh_item_content.py --force` ou exportador direto); personagem com `titlescroll_420167` e `randomitem_capsule_ap5000_1t` no inventário (GiveItem pelo painel, se preciso). Não exige versão nova do cliente.
+- [ ] Usar `titlescroll_420167` → o pergaminho some (ou a pilha cai 1), o título SAO aparece como obtido na janela de títulos; usar outro igual → só consome, sem mudar o título.
+- [ ] Usar `randomitem_capsule_ap5000_1t` → o pacote some, entra um `capsule_ap5000` com a janela de recompensa; usar a cápsula → +5000 AP.
+- [ ] Relogar → título obtido, AP e inventário preservados.
+Limites conhecidos: caixas V2 que só existem no DB NA entram apenas quando são pacotes determinísticos (todas as receitas tipo 0, sem feature, sem validade e sem recursão), com Probability 1.0, ShowPopUp e a mensagem `GameUI_Heroes_RandomItem_GetItem` tirados da convenção dos pacotes do próprio servidor; caixas sorteadas (tipo 1) do NA continuam recusadas por falta das probabilidades.

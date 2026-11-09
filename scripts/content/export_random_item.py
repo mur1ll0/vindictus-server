@@ -32,7 +32,55 @@ def integer(v, low=-(2**31), high=2**31, nullable=False):
     return v
 
 
-def read_package(database, config):
+# The server's own RandomItemV2 package rows (RecipeType 0 only): 2657 of 2685 recipes roll
+# Probability 1.0, 2616 send Message GameUI_Heroes_RandomItem_GetItem and 324 of 367 boxes
+# show the pop-up. The NA client tables keep no Probability/Message/ShowPopUp columns, so an
+# imported package takes these values.
+NA_PACKAGE_PROBABILITY = 1.0
+NA_PACKAGE_MESSAGE = 'GameUI_Heroes_RandomItem_GetItem'
+
+
+def na_packages(na_path, package, boxes, v2, v2_recipes, boolean):
+    """RandomItemV2 boxes of the NA client database (RandomItemV2_Client and
+    RandomItemV2Recipe_Client) for catalog classes the server content has no box for. Only
+    deterministic packages are taken: every recipe RecipeType 0 with a catalog item, a positive
+    Count, no Feature, no ExpireByMin and no '#'/'@'/'$' class; boxes with a Feature, a
+    RandomItemID the server already uses or any other recipe are skipped."""
+    catalog = {c['item_utf16'] for c in package['classes']}
+    taken = {b['item_utf16'] for b in boxes} | {b['item_utf16'] for b in v2}
+    used_ids = {r[0] for r in v2_recipes} | {b['random_item_utf16'] for b in v2}
+    with contextlib.closing(sqlite3.connect(pathlib.Path(na_path).resolve().as_uri() + '?mode=ro', uri=True)) as na:
+        na.execute('PRAGMA query_only=ON')
+        na.row_factory = sqlite3.Row
+        recipes = {}
+        for r in na.execute('Select * From [RandomItemV2Recipe_Client]'):
+            recipes.setdefault(r['RecipeClassName'], []).append(r)
+        added_boxes, added_recipes = [], []
+        for b in na.execute('Select * From [RandomItemV2_Client]'):
+            item, rid = text(b['ItemClass']), text(b['RandomItemID'])
+            rows = recipes.get(b['RandomItemID'], [])
+            if (b['Feature'] is not None or item not in catalog or item in taken or rid in used_ids
+                    or not rows):
+                continue
+            if not all(type(r['RecipeType']) is int and r['RecipeType'] == 0 and r['Feature'] is None
+                       and r['ExpireByMin'] is None and type(r['Count']) is int and r['Count'] > 0
+                       and isinstance(r['ItemClass'], str) and not r['ItemClass'].startswith(('#', '@', '$'))
+                       and text(r['ItemClass']) in catalog for r in rows):
+                continue
+            taken.add(item)
+            used_ids.add(rid)
+            added_boxes.append(dict(item_utf16=item, key_utf16=None, random_item_utf16=rid, show_pop_up=True,
+                                    titicore=False, cool_time=None, exclusive_utf16=None, feature=None))
+            for r in rows:
+                added_recipes.append([rid, text(r['ItemClass']), integer(r['Count']), 0,
+                                      struct.pack('>d', NA_PACKAGE_PROBABILITY).hex(), None,
+                                      text(r['Cond_Character']), None, None, integer(r['Color1']),
+                                      integer(r['Color2']), integer(r['Color3']), boolean(r['CharacterBind']),
+                                      None, None, text(NA_PACKAGE_MESSAGE)])
+    return added_boxes, added_recipes
+
+
+def read_package(database, config, na=None):
     package = catalog_read(database, config)
     manifest = package['manifest']
     with contextlib.closing(content_additions.connect(database)) as db:
@@ -101,6 +149,10 @@ def read_package(database, config):
                        integer(r['Color2']), integer(r['Color3']), boolean(r['CharacterBind']),
                        integer(r['ExpireBySec'], nullable=True), text(r['Announce']), text(r['Message'])]
                       for r in db.execute('Select * From [RandomItemV2Recipe]')]
+        if na is not None:
+            added_boxes, added_recipes = na_packages(na, package, boxes, v2, v2_recipes, boolean)
+            v2 += added_boxes
+            v2_recipes += added_recipes
         values = region_features(db, config)
     featured = ([b['feature'] for b in boxes] + [r[13] for r in recipes] + [v['feature'] for v in v2]
                 + [r[8] for r in v2_recipes])
@@ -129,7 +181,9 @@ def main():
     output = pathlib.Path(args.output).resolve()
     if output.parent != (ROOT / '.cache/private-content').resolve():
         raise ValueError('Private output outside ACL cache')
-    package = read_package(base / 'heroesContents.db3', base / 'ServiceCore.dll.config')
+    na = ROOT / '.cache/na-db/heroes-plain.db3'
+    package = read_package(base / 'heroesContents.db3', base / 'ServiceCore.dll.config',
+                           na if na.is_file() else None)
     data = json.dumps(package, ensure_ascii=True, separators=(',', ':'))
     if len(data.encode()) > 48 * 1024 * 1024:
         raise ValueError('RandomItem profile bound exceeded')

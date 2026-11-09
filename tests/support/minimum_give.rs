@@ -2092,10 +2092,7 @@ async fn minimum_home_cafe_vip_adds_the_effect_stats_and_ends_at_login() {
             target_item_id: -1,
         },
         log,
-        vindictus_server::infrastructure::minimum_quest::QuestClock {
-            arithmetic: vindictus_server::domain::character_stats::Arithmetic::FrameworkX64,
-            civil_offset_seconds: 0,
-        },
+        growth(),
         &[],
         Vec::new(),
     )
@@ -2551,10 +2548,7 @@ async fn minimum_use_answers_town_and_constraint_dialogs_without_changes() {
                 target_item_id: -1,
             },
             log,
-            vindictus_server::infrastructure::minimum_quest::QuestClock {
-                arithmetic: vindictus_server::domain::character_stats::Arithmetic::FrameworkX64,
-                civil_offset_seconds: 0,
-            },
+            growth(),
             &[],
             Vec::new(),
         )
@@ -6102,10 +6096,7 @@ async fn minimum_use_opens_a_random_item_box_for_the_character() {
                 target_item_id: -1,
             },
             log,
-            vindictus_server::infrastructure::minimum_quest::QuestClock {
-                arithmetic: vindictus_server::domain::character_stats::Arithmetic::FrameworkX64,
-                civil_offset_seconds: 0,
-            },
+            growth(),
             &[],
             (1..=8).map(|i| 960_000_000_000_000_000 + i).collect(),
         )
@@ -6227,10 +6218,7 @@ async fn minimum_use_opens_a_random_item_v2_box_for_the_character() {
                 target_item_id: -1,
             },
             log,
-            vindictus_server::infrastructure::minimum_quest::QuestClock {
-                arithmetic: vindictus_server::domain::character_stats::Arithmetic::FrameworkX64,
-                civil_offset_seconds: 0,
-            },
+            growth(),
             &[],
             (1..=8).map(|i| 961_000_000_000_000_000 + i).collect(),
         )
@@ -6920,7 +6908,7 @@ async fn minimum_questscroll2_gives_its_quest_without_consuming_the_scroll() {
                 flags: minimum_item_logs::flags(&assets).unwrap(),
                 civil_offset_seconds: 0,
             },
-            quest_clock(),
+            growth(),
             &[],
             (1..=16).map(|i| 962_000_000_000_000_000 + i).collect(),
         )
@@ -7003,7 +6991,7 @@ async fn minimum_storyscroll_opens_its_storyline_and_is_consumed_once() {
                 flags: minimum_item_logs::flags(&assets).unwrap(),
                 civil_offset_seconds: 0,
             },
-            quest_clock(),
+            growth(),
             &[],
             (1..=16).map(|i| 963_000_000_000_000_000 + i).collect(),
         )
@@ -7051,6 +7039,124 @@ async fn minimum_storyscroll_opens_its_storyline_and_is_consumed_once() {
     assert_eq!(packets.len(), 1);
     assert_eq!(packets[0].category, Kind::ItemFail.category());
     assert_eq!((owned().await, items().await), (1, 1));
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_titlescroll_acquires_its_title_and_is_consumed() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_item_logs, minimum_selection, minimum_use,
+        },
+        protocol::inventory::{Kind, UseItem},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let owner = super::initial_inventory::key();
+    // titlescroll_410018 -> GiveReward(0, 0, null, {410018: true}) -> Titles.AcquireTitle.
+    let scroll = "titlescroll_410018";
+    let assets = assets_with_classes(0, 1, 0, None, scroll, 1)
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    minimum_give::lab_grant(&p, &assets, Some(1), scroll, 2, 9)
+        .await
+        .unwrap()
+        .unwrap();
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let scroll_id = || {
+        let p = p.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT id FROM game_items WHERE item_class_utf16=$1 ORDER BY id LIMIT 1",
+            )
+            .bind(utf16(scroll))
+            .fetch_one(&p)
+            .await
+            .unwrap()
+        }
+    };
+    let use_scroll = |item: i64| {
+        minimum_use::use_item(
+            &p,
+            &owner,
+            &assets,
+            1,
+            UseItem {
+                item_id: item,
+                target_item_id: -1,
+            },
+            minimum_item_logs::Context {
+                flags: minimum_item_logs::flags(&assets).unwrap(),
+                civil_offset_seconds: 0,
+            },
+            growth(),
+            &[],
+            Vec::new(),
+        )
+    };
+    let acquired = || {
+        let p = p.clone();
+        async move {
+            sqlx::query_scalar::<_, bool>(
+                "SELECT acquired FROM game_titles WHERE cid=1 AND title_id=410018",
+            )
+            .fetch_optional(&p)
+            .await
+            .unwrap()
+        }
+    };
+    let items = || {
+        let p = p.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COALESCE(sum(count),0)::BIGINT FROM game_items WHERE owner_id=1 AND item_class_utf16=$1",
+            )
+            .bind(utf16(scroll))
+            .fetch_one(&p)
+            .await
+            .unwrap()
+        }
+    };
+    assert_eq!(acquired().await, None);
+    let minimum_use::Outcome::Applied(packets) = use_scroll(scroll_id().await).await.unwrap()
+    else {
+        panic!("applied expected")
+    };
+    // UseInventoryItemOk, UpdateStat twice, UpdateTitle, CharacterCommonInfo, the inventory.
+    let kinds: Vec<i32> = packets.iter().map(|p| p.category).collect();
+    assert_eq!(kinds.len(), 6);
+    assert_eq!(kinds[0], Kind::UseInventoryItemOk.category());
+    assert_eq!(kinds[3], Kind::UpdateTitle.category());
+    assert_eq!(kinds[5], Kind::UpdateInventoryInfo.category());
+    assert_eq!((acquired().await, items().await), (Some(true), 1));
+    // Already acquired: GiveReward changes nothing, the scroll is still consumed.
+    let minimum_use::Outcome::Applied(packets) = use_scroll(scroll_id().await).await.unwrap()
+    else {
+        panic!("applied expected")
+    };
+    let kinds: Vec<i32> = packets.iter().map(|p| p.category).collect();
+    assert_eq!(
+        kinds,
+        vec![
+            Kind::UseInventoryItemOk.category(),
+            Kind::UpdateInventoryInfo.category()
+        ]
+    );
+    assert_eq!((acquired().await, items().await), (Some(true), 0));
     cleanup_game_pool(a, p, s).await;
 }
 #[tokio::test]
@@ -8292,10 +8398,7 @@ async fn minimum_dye_ample_opens_the_picker_and_colors_the_ampoule_once() {
             target_item_id: -1,
         },
         log,
-        vindictus_server::infrastructure::minimum_quest::QuestClock {
-            arithmetic: Arithmetic::FrameworkX64,
-            civil_offset_seconds: 0,
-        },
+        growth(),
         &[],
         Vec::new(),
     )

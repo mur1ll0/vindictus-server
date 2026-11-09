@@ -4032,3 +4032,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: LV11–LV13 pendentes no outro PC.
 - Commits: ver o commit "docs: launcher 0.4.0 published" desta data.
 - Pendente / próxima ação: roteiro LV11–LV13 no outro PC; depois, o gate L6.
+
+## 2026-11-08 — Relato MiriLab: pergaminho de título e pacote de AP (EV15)
+- Feito: log do `game` mostrava 5× "minimum item use rejected" para `titlescroll_420167` e `randomitem_capsule_ap5000_1t`. Ramo `titlescroll_` do UseInventoryItemProcessor portado em `minimum_use.rs` (UseUseableItem → UseInventoryItemOk → GiveReward/AcquireTitle via `minimum_growth::acquire_title` → sync do inventário; título já obtido só consome); `use_item` recebe `GrowthContext` em vez de `QuestClock` (frontend usa `growth_context(log_journal)`). `export_random_item.py` anexa do DB NA (`RandomItemV2_Client`/`RandomItemV2Recipe_Client`) as caixas V2 do catálogo sem caixa no servidor, só pacotes determinísticos (tipo 0, sem feature/validade/recursão, recompensa no catálogo), com Probability 1.0, ShowPopUp e `GameUI_Heroes_RandomItem_GetItem` (convenção medida: 2657/2685 receitas tipo 0 com 1.0, 2616 com essa mensagem, 324/367 com pop-up). `random-item.json` reexportado: V2 666 → 1040 caixas (backup em `.cache/private-content-items-backup/random-item.json.pre-na-packages`).
+- Verificação: Python `test_export_random_item` 2 OK; PostgreSQL focado 9 testes de uso de item OK (titlescroll novo, storyscroll, questscroll2, dye, home cafe, AP, random V1/V2, diálogos) — logs `.cache/verification/titlescroll-pg.log`, `use-item-pg.log`; imagem `vindictus-server:local` reconstruída, `game` e `server` healthy sem WARN/ERROR na subida.
+- Cliente: roteiro `docs/client-tests/B5-eventos.md` EV15; sem versão nova do cliente (o heroes.db3 NA do cliente já tem caixa e título).
+- Commits: (este)
+- Pendente / próxima ação: operador repetir EV15 com a MiriLab.

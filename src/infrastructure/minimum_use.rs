@@ -3,7 +3,8 @@
 //! branch (UseUseableItem + CharacterImpl.GiveAP, amount from the VALUE attribute), the
 //! RandomItemContents boxes (`minimum_random_item`), the empty dye ampoule (`minimum_dye`,
 //! DyeAmpleSession), the pet_ items (`minimum_pet`) and the storyscroll_ books
-//! (StoryImpl.GiveStory, `minimum_story::give_story`). Other usable branches (food,
+//! (StoryImpl.GiveStory, `minimum_story::give_story`), the titlescroll_ items
+//! (GiveReward → Titles.AcquireTitle, `minimum_growth::acquire_title`). Other usable branches (food,
 //! RandomItemV2 opening, ...) are rejected without changes until migrated.
 use super::{character_lobby::UserKey, minimum_assets::Assets, minimum_character::MinimumError};
 use crate::{
@@ -55,6 +56,78 @@ fn value_int(attributes: &[Option<wire::Attribute>]) -> i32 {
         .and_then(|a| a.value.as_deref())
         .and_then(|v| v.parse::<i32>().ok())
         .unwrap_or(0)
+}
+
+/// UseUseableItem's DestroyItem(Useable(item), 1).
+async fn consume_one(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    cid: i64,
+    item_id: i64,
+    count: i32,
+) -> Result<(), MinimumError> {
+    if count == 1 {
+        sqlx::query("DELETE FROM game_item_attributes WHERE item_id=$1")
+            .bind(item_id)
+            .execute(&mut **tx)
+            .await?;
+        sqlx::query("DELETE FROM game_items WHERE id=$1 AND owner_id=$2")
+            .bind(item_id)
+            .bind(cid)
+            .execute(&mut **tx)
+            .await?;
+    } else {
+        sqlx::query("UPDATE game_items SET count=count-1 WHERE id=$1 AND owner_id=$2")
+            .bind(item_id)
+            .bind(cid)
+            .execute(&mut **tx)
+            .await?;
+    }
+    Ok(())
+}
+
+/// UseInventoryItemOkMessage { UseItemClass }.
+fn use_ok(class: &str) -> Result<OutgoingPacket, MinimumError> {
+    Ok(OutgoingPacket {
+        category: Kind::UseInventoryItemOk.category(),
+        body: wire::encode(
+            Kind::UseInventoryItemOk,
+            Some(&Message::UseInventoryItemOk(Some(class.to_owned()))),
+            DEFAULT_MAX_BODY,
+        )
+        .map_err(|_| fail())?
+        .to_vec(),
+    })
+}
+
+/// The queued inventory Sync (UpdateInventoryInfo) of the used slot: deleted when the last
+/// unit was used, else the slot as saved.
+async fn inventory_sync(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    item_id: i64,
+    count_before: i32,
+) -> Result<OutgoingPacket, MinimumError> {
+    let slot = if count_before == 1 {
+        super::minimum_move::deleted_slot(item_id)
+    } else {
+        let after =
+            super::minimum_inventory::snapshot_with_equipment(tx, owner, assets, cid, None).await?;
+        after
+            .slots
+            .as_ref()
+            .and_then(|s| s.iter().flatten().find(|s| s.id == item_id))
+            .cloned()
+            .ok_or_else(fail)?
+    };
+    let update = Message::UpdateInventoryInfo(Some(vec![Some(slot)]));
+    Ok(OutgoingPacket {
+        category: Kind::UpdateInventoryInfo.category(),
+        body: wire::encode(Kind::UpdateInventoryInfo, Some(&update), DEFAULT_MAX_BODY)
+            .map_err(|_| fail())?
+            .to_vec(),
+    })
 }
 
 /// EntityCommunicator.IsConstraintSatisfied(item) with the selected character (no cafe,
@@ -178,10 +251,11 @@ pub async fn use_item(
     cid: i64,
     request: UseItem,
     log: super::minimum_item_logs::Context,
-    clock: super::minimum_quest::QuestClock,
+    growth: super::minimum_growth::GrowthContext,
     buyback: &[String],
     entity_ids: Vec<i64>,
 ) -> Result<Outcome, MinimumError> {
+    let clock = growth.clock;
     // UseInventoryItemProcessor constructor: GetJournalID (UseInventoryItem).
     let journal = super::minimum_item_logs::operation_journal(pool, log.flags).await;
     let arithmetic = clock.arithmetic;
@@ -453,6 +527,32 @@ pub async fn use_item(
                     .map_err(|_| fail())?
                     .to_vec(),
             });
+            tx.commit().await?;
+            let change = super::minimum_item_logs::NumChange {
+                item_id: item.id,
+                class_utf16: key.clone(),
+                delta: -1,
+            };
+            return Ok((Outcome::Applied(packets), Some((change, use_journal))));
+        }
+        if let Some(title) = class.strip_prefix("titlescroll_") {
+            // UseUseableItem(1), then int.TryParse(ItemClass.Substring(12)) and
+            // CharacterImpl.GiveReward(0, 0, null, {title: true}) → Titles.AcquireTitle. A failed
+            // parse only logs; an owned or unavailable title changes nothing (GiveReward still
+            // returns true), so the item stays consumed in both cases.
+            consume_one(&mut tx, cid, item.id, item.count).await?;
+            let mut packets = vec![use_ok(&class)?];
+            if let Ok(title) = title.parse::<i32>() {
+                packets.extend(
+                    super::minimum_growth::acquire_title(
+                        &mut tx, owner, assets, cid, title, growth,
+                    )
+                    .await?,
+                );
+            } else {
+                tracing::warn!("titlescroll item class has no numeric title; values omitted");
+            }
+            packets.push(inventory_sync(&mut tx, owner, assets, cid, item.id, item.count).await?);
             tx.commit().await?;
             let change = super::minimum_item_logs::NumChange {
                 item_id: item.id,

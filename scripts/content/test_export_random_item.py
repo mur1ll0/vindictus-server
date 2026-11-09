@@ -48,6 +48,39 @@ class RandomItemExportTests(unittest.TestCase):
         self.assertIn('STUDY-A', [f['key'] for f in p['features']])
         self.assertIn('enEU', [f['key'] for f in p['features']])
 
+    def test_na_packages_fill_missing_boxes(self):
+        with contextlib.closing(sqlite3.connect(self.db)) as db:
+            db.executemany('INSERT INTO ItemClassInfo VALUES (?,?,?,?,?,?,?)', [
+                ('ap_box', None, 1, 1, None, None, 1), ('capsule_ap5000', None, 1, 1, None, None, 1),
+                ('gacha_box', None, 1, 1, None, None, 1), ('featured_box', None, 1, 1, None, None, 1),
+                ('potion', None, 99, 1, None, None, 1)])
+            db.commit()
+        na = pathlib.Path(self.tmp.name) / 'na.db3'
+        with contextlib.closing(sqlite3.connect(na)) as db:
+            db.executescript(
+                'CREATE TABLE RandomItemV2_Client(ItemClass TEXT,RandomItemID TEXT,Feature TEXT);'
+                'CREATE TABLE RandomItemV2Recipe_Client(RecipeClassName TEXT,ItemClass TEXT,Count INT,RecipeType INT,'
+                'Color1 INT,Color2 INT,Color3 INT,Color4 INT,Color5 INT,Color6 INT,CharacterBind TEXT,ExpireByMin INT,'
+                'Cond_Character TEXT,Feature TEXT);')
+            db.executemany('INSERT INTO RandomItemV2_Client VALUES (?,?,?)', [
+                ('ap_box', 'ap_box', None), ('gacha_box', 'gacha_box', None), ('featured_box', 'featured_box', 'X'),
+                ('other_box', 'other_box', None), ('unknown_box', 'unknown_box', None)])
+            row = lambda rid, cls, t: (rid, cls, 1, t, -1, -1, -1, -1, -1, -1, 'False', None, None, None)
+            db.executemany('INSERT INTO RandomItemV2Recipe_Client VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [
+                row('ap_box', 'capsule_ap5000', 0), row('gacha_box', 'potion', 1),
+                row('featured_box', 'potion', 0), row('other_box', 'potion', 0), row('unknown_box', 'potion', 0)])
+            db.commit()
+        p = read_package(self.db, self.config, na)
+        h = lambda s: s.encode('utf-16-le').hex()
+        self.assertEqual([b['item_utf16'] for b in p['v2_boxes']], [h('other_box'), h('ap_box')])
+        added = p['v2_boxes'][1]
+        self.assertEqual((added['random_item_utf16'], added['show_pop_up'], added['feature']), (h('ap_box'), True, None))
+        r = p['v2_recipes'][-1]
+        self.assertEqual((r[0], r[1], r[2], r[3], r[4], r[12], r[15]),
+                         (h('ap_box'), h('capsule_ap5000'), 1, 0, struct.pack('>d', 1.0).hex(), False,
+                          h('GameUI_Heroes_RandomItem_GetItem')))
+        self.assertEqual(len(p['v2_recipes']), 2)
+
 
 if __name__ == '__main__':
     unittest.main()

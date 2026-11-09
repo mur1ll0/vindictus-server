@@ -6937,7 +6937,7 @@ impl Connection {
                             cid,
                             request,
                             runtime.item_log_context(assets)?,
-                            runtime.quest_clock(),
+                            runtime.growth_context(selected.log_journal)?,
                             &buyback,
                             ids,
                         )
